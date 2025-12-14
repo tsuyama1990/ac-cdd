@@ -6,10 +6,10 @@ description = "Template CLI Agent Project"
 [paths]
 src = "src"
 tests = "tests"
-documents_dir = "documents"
+documents_dir = "dev_documents"
 contracts_dir = "src/ac_cdd/contracts"
 sessions_dir = ".jules/sessions"
-templates = "templates"
+templates = "dev_documents/templates"
 
 [tools]
 jules_cmd = "jules"

@@ -54,8 +54,16 @@ def init():
                 "[green]✔ .env を作成しました。APIキーなどを入力してください。[/green]"
             )
         else:
-            console.print("[red]✖ .env.example が見つかりません。[/red]")
-            all_pass = False
+            # Fallback to templates
+            env_template = Path(settings.paths.templates) / ".env.example"
+            if env_template.exists():
+                shutil.copy(env_template, ".env")
+                console.print(
+                    "[green]✔ .env を作成しました(テンプレートから)。APIキーなどを入力してください。[/green]"
+                )
+            else:
+                console.print("[red]✖ .env.example が見つかりません。[/red]")
+                all_pass = False
     else:
         console.print("[green]✔ .env ファイルを確認しました。[/green]")
 
@@ -80,12 +88,12 @@ def new_cycle(name: str):
         raise typer.Exit(code=1)
 
     base_path.mkdir(parents=True)
-    templates_dir = Path(settings.paths.documents_dir) / "templates"
+    templates_dir = Path(settings.paths.templates) / "cycle"
 
     # Copy templates
-    shutil.copy(templates_dir / "SPEC_TEMPLATE.md", base_path / "SPEC.md")
-    shutil.copy(templates_dir / "UAT_TEMPLATE.md", base_path / "UAT.md")
-    shutil.copy(templates_dir / "schema_template.py", base_path / "schema.py")
+    shutil.copy(templates_dir / "SPEC.md", base_path / "SPEC.md")
+    shutil.copy(templates_dir / "UAT.md", base_path / "UAT.md")
+    shutil.copy(templates_dir / "schema.py", base_path / "schema.py")
 
     console.print(f"[green]新しいサイクルを作成しました: CYCLE{cycle_id}[/green]")
     console.print(f"[bold]{base_path}[/bold] 内のファイルを編集してください。")

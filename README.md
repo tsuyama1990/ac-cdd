@@ -32,12 +32,31 @@ uv run manage.py audit
 
 ### 3\. Cycle-Based Workflow (Contract-Driven)
 
-For formal feature development.
+This is the core workflow for AC-CDD. It enforces strict compliance with specifications and contracts.
+
+**1. Create a New Cycle:**
+This generates a template workspace in `dev_documents/CYCLE{id}`.
 
 ```bash
-# Start a new development cycle
-uv run manage.py new-cycle "user-auth-feature"
-
-# Run the implementation loop (Contract -> Test -> Code)
-uv run manage.py start-cycle "user-auth-feature"
+uv run manage.py new-cycle "01"
 ```
+
+Files created:
+- `dev_documents/CYCLE01/SPEC.md`: Define your feature specifications here.
+- `dev_documents/CYCLE01/schema.py`: Define your Pydantic contracts here (Single Source of Truth).
+- `dev_documents/CYCLE01/UAT.md`: Define User Acceptance Testing scenarios.
+
+**2. Start the Automation Loop:**
+Once you have edited the files above, trigger the orchestrator.
+
+```bash
+uv run manage.py start-cycle "01"
+```
+
+The orchestrator will:
+1.  **Align Contracts**: Update `src/ac_cdd/contracts`.
+2.  **Generate Tests**: Create property-based tests from contracts.
+3.  **Implement & Refine**: Coding loop with Jules (Coder) and Gemini (Auditor).
+4.  **Verify**: Run UAT with Playwright.
+
+See `DEV_FLOW.md` for the full architectural details.

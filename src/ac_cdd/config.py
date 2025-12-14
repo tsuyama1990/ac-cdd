@@ -7,12 +7,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class PathsConfig(BaseSettings):
     model_config = ConfigDict(extra="ignore")
-    documents_dir: str = "documents"
+    documents_dir: str = "dev_documents"
     contracts_dir: str = "src/ac_cdd/contracts"
     sessions_dir: str = ".jules/sessions"
     src: str = "src"
     tests: str = "tests"
-    templates: str = "templates"
+    templates: str = "dev_documents/templates"
 
 class ToolsConfig(BaseSettings):
     model_config = ConfigDict(extra="ignore")

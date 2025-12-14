@@ -112,7 +112,8 @@ class CycleOrchestrator:
     def align_contracts(self) -> None:
         """
         Phase 3.1: 契約の整合確認とマージ
-        documents/CYCLE{id}/schema.py を src/ac_cdd/contracts/ にマージする。
+        Phase 3.1: 契約の整合確認とマージ
+        src/ac_cdd/contracts/ に Cycleのschema.pyをマージする。
         """
         source_schema = self.cycle_dir / "schema.py"
         target_schema = self.contracts_dir / f"schema_cycle{self.cycle_id}.py"

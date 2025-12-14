@@ -15,7 +15,7 @@ format:
 	uv run ruff format src tests
 
 audit:
-	uv run python scripts/ai_orchestrator.py audit
+	uv run manage.py audit
 
 clean:
 	rm -rf .ruff_cache .pytest_cache .coverage
