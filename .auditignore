@@ -1,0 +1,22 @@
+# Sensitive files
+.env
+.env.example
+secrets.py
+
+# Bytecode
+__pycache__
+*.pyc
+
+# VCS
+.git
+.gitignore
+
+# OS
+.DS_Store
+
+# Tools
+uv.lock
+pytest_cache
+.pytest_cache
+.mypy_cache
+.ruff_cache

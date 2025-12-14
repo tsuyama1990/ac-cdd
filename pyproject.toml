@@ -53,3 +53,7 @@ packages = ["src/ac_cdd"]
 
 [tool.mypy]
 strict = true
+
+[tool.bandit]
+exclude_dirs = ["tests", ".venv"]
+targets = ["src"]

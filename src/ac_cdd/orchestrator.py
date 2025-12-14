@@ -1,8 +1,10 @@
 import json
 import os
 import shutil
+import subprocess
 import time
 from pathlib import Path
+from typing import Tuple
 
 from .config import settings
 from .gemini_api_client import GeminiApiClient
@@ -170,33 +172,57 @@ class CycleOrchestrator:
     def run_implementation_loop(self) -> None:
         """
         Phase 3.3 & 3.4: 実装・CI・監査ループ
+        Logic:
+          1. Implement
+          2. Refinement Loop (Test -> Audit -> Re-Audit)
         """
+        logger.info("Starting Implementation Phase")
+
+        # 1. Initial Implementation
+        self._trigger_implementation()
+
+        # 2. Refinement Loop
         max_retries = settings.MAX_RETRIES
         attempt = 0
 
+        logger.info("Entering Refinement Loop (Stable Audit Loop)")
+
         while attempt < max_retries:
             attempt += 1
-            logger.info(f"Implementation Loop: Attempt {attempt}/{max_retries}")
+            logger.info(f"Refinement Loop: Iteration {attempt}/{max_retries}")
 
-            # 1. Implement
-            self._trigger_implementation()
+            # 2.1 Test
+            logger.info("Running Tests...")
+            passed, logs = self._run_tests()
 
-            # 2. CI Check
-            if not self._wait_for_ci():
-                logger.warning("CI Failed. Triggering fix...")
-                self._trigger_fix("CI Check failed. Please fix the implementation based on logs.")
-                continue
+            if not passed:
+                logger.warning("Tests Failed. Triggering fix...")
+                fix_prompt = (
+                    "Test Failed.\n"
+                    "Here is the captured log (last 2000 chars):\n"
+                    "--------------------------------------------------\n"
+                    f"{logs}\n"
+                    "--------------------------------------------------\n"
+                    "Please analyze the stack trace and fix the implementation in src/."
+                )
+                self._trigger_fix(fix_prompt)
+                continue # Back to Test
 
-            # 3. Strict Audit
+            # 2.2 Audit
+            logger.info("Tests Passed. Proceeding to Strict Audit...")
             audit_result = self.run_strict_audit()
+
             if audit_result is True:
-                logger.info("Audit Passed!")
+                logger.info("Audit Passed (Clean)!")
+                # Success: Test Pass AND Audit Pass sequentially
                 return
             else:
                 logger.warning("Audit Failed. Triggering fix...")
+                # Note: Logic says "Fix -> Back to Test"
                 self._trigger_fix(f"Audit failed. See {self.audit_log_path} for details.")
+                continue # Back to Test
 
-        raise Exception("Max retries reached in Implementation Loop.")
+        raise Exception("Max retries reached in Implementation/Audit Loop.")
 
     def _trigger_implementation(self) -> None:
         spec_path = f"{settings.paths.documents_dir}/CYCLE{self.cycle_id}/SPEC.md"
@@ -217,28 +243,45 @@ class CycleOrchestrator:
             session_name=f"Cycle{self.cycle_id}_Implementation"
         )
 
-    def _wait_for_ci(self) -> bool:
-        """GitHub Actionsの完了を待つ"""
+    def _run_tests(self) -> Tuple[bool, str]:
+        """
+        Runs tests locally using uv run pytest and captures logs.
+        Returns (success: bool, logs: str)
+        """
         if self.dry_run:
-            logger.info("[DRY-RUN] Waiting for CI... (Mocking success)")
-            return True
+            logger.info("[DRY-RUN] Running tests locally... (Mocking success)")
+            return True, ""
 
-        logger.info("Watching CI status...")
+        uv_path = shutil.which("uv")
+        if not uv_path:
+            raise ToolNotFoundError("uv not found")
+
+        cmd = [uv_path, "run", "pytest"]
+        # Use simple subprocess run to capture output
         try:
-            # gh run watch
-            self.gh.run(["run", "watch", "--exit-status"])
-            return True
-        except Exception:
-            return False
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                check=False
+            ) # noqa: S603
+
+            if result.returncode == 0:
+                return True, ""
+
+            # Combine stdout and stderr
+            logs = result.stdout + "\n" + result.stderr
+            # Keep last 2000 chars
+            if len(logs) > 2000:
+                logs = "...(truncated)...\n" + logs[-2000:]
+
+            return False, logs
+
+        except Exception as e:
+            logger.error(f"Failed to run tests: {e}")
+            return False, str(e)
 
     def _trigger_fix(self, instructions: str) -> None:
-        # Construct prompt for fixing, reusing coder role context implicitly via session if we
-        # continued session? JulesApiClient methods maintain session via .jules/session_state.json
-        # But here we are sending a message to the active session.
-        # However, for clarity, we should probably re-inject context if the session was long,
-        # but usually reply just needs instructions.
-        # Let's keep it simple: just the instructions, assuming the session has context.
-
         if self.dry_run:
             logger.info(f"[DRY-RUN] Jules fixing code: {instructions}")
             return
@@ -280,10 +323,6 @@ class CycleOrchestrator:
         logger.info("Static checks passed. Proceeding to LLM Audit...")
 
         files_to_audit = self._get_filtered_files("src/")
-
-        # Read files content to pass to Gemini?
-        # The previous implementation passed file paths to the CLI which likely read them.
-        # Now we are using the API directly, so we must read the files and embed them in the prompt.
 
         files_content = ""
         for fpath in files_to_audit:
@@ -327,18 +366,54 @@ class CycleOrchestrator:
     def _get_filtered_files(self, directory: str) -> list[str]:
         """
         Recursively list files in directory, excluding sensitive/ignored ones.
+        Also reads .auditignore from project root.
         """
-        ignored_patterns = [
+        # Default ignored patterns
+        ignored_patterns = {
             "__pycache__", ".git", ".env", ".DS_Store", "*.pyc"
-        ]
+        }
+
+        # Read .auditignore if exists
+        auditignore_path = Path(".auditignore")
+        if auditignore_path.exists():
+            try:
+                lines = auditignore_path.read_text().splitlines()
+                for line in lines:
+                    line = line.strip()
+                    if line and not line.startswith("#"):
+                        ignored_patterns.add(line)
+            except Exception as e:
+                logger.warning(f"Failed to read .auditignore: {e}")
 
         files = []
         path = Path(directory)
         for p in path.rglob("*"):
             if p.is_file():
-                # Check exclusions
-                if any(ignored in str(p) for ignored in ignored_patterns):
+                # Simple check: match file name or parts of path
+                # Note: fnmatch would be better for glob patterns, but basic string check
+                # covers most simple cases. For robust support, use fnmatch.
+                # However, original code used 'in'. Let's upgrade to fnmatch if possible,
+                # or stick to 'in' if patterns are simple substrings.
+                # The .auditignore I created has "*.pyc". 'in' checks substring.
+                # "*.pyc" in "foo.pyc" is False.
+                # So we should use fnmatch.
+                import fnmatch
+
+                # Check if any pattern matches
+                # We check both name and full relative path
+                is_ignored = False
+                for pattern in ignored_patterns:
+                    if fnmatch.fnmatch(p.name, pattern) or fnmatch.fnmatch(str(p), pattern):
+                        is_ignored = True
+                        break
+                    # Also check if it contains substring for strict patterns like '.git'
+                    if pattern in str(p):
+                        is_ignored = True
+                        break
+
+                if is_ignored:
                     continue
+
                 files.append(str(p))
         return files
 
