@@ -3,15 +3,25 @@ name = "template_cli_agent"
 version = "0.1.0"
 description = "Template CLI Agent Project"
 
-[ac_cdd]
-# Default AI CLI tool. Can be changed to "gh" or strict openai call etc.
-ai_tool_command = ["jules", "remote", "new"]
-
 [paths]
 src = "src"
 tests = "tests"
-docs = "documents"
+documents_dir = "documents"
+contracts_dir = "src/ac_cdd/contracts"
+sessions_dir = ".jules/sessions"
 templates = "templates"
+
+[tools]
+jules_cmd = "jules"
+gh_cmd = "gh"
+audit_cmd = "bandit"
+uv_cmd = "uv"
+mypy_cmd = "mypy"
+gemini_cmd = "gemini"
+
+[prompts]
+auditor_system = "あなたは世界一厳格なコード監査人です。Pydantic契約違反、セキュリティ、設計原則の観点からコードをレビューしてください。合格なら `{\"approved\": true}`、不合格なら `{\"approved\": false, \"comments\": [...]}` をJSONで返してください。"
+property_test_template = "実装は見ず、このPydanticスキーマ (contracts/) の制約が正しく機能するかを検証するHypothesisテストを作成せよ。出力先は tests/property/test_cycle{cycle_id}.py"
 
 [cycles]
 phases = ["1. Spec", "2. Contract", "3. Implementation", "4. QA", "5. Refactor"]

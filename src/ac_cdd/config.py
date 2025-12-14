@@ -1,23 +1,63 @@
-from pydantic_settings import BaseSettings
+from typing import Dict, Any
+from pathlib import Path
+from pydantic_settings import BaseSettings, SettingsConfigDict
+import tomllib
+
+class PathsConfig(BaseSettings):
+    documents_dir: str = "documents"
+    contracts_dir: str = "src/ac_cdd/contracts"
+    sessions_dir: str = ".jules/sessions"
+
+class ToolsConfig(BaseSettings):
+    jules_cmd: str = "jules"
+    gh_cmd: str = "gh"
+    audit_cmd: str = "bandit"
+    uv_cmd: str = "uv"
+    mypy_cmd: str = "mypy"
+    gemini_cmd: str = "gemini"
+
+class PromptsConfig(BaseSettings):
+    auditor_system: str
+    property_test_template: str
 
 class Settings(BaseSettings):
     MAX_RETRIES: int = 10
 
-    # Audit Prompts
-    AUDITOR_PROMPT: str = (
-        "あなたは世界一厳格なコード監査人です。"
-        "Pydantic契約違反、セキュリティ、設計原則の観点からコードをレビューしてください。"
-        "合格なら `{\"approved\": true}`、"
-        "不合格なら `{\"approved\": false, \"comments\": [...]}` をJSONで返してください。"
+    paths: PathsConfig = PathsConfig()
+    tools: ToolsConfig = ToolsConfig()
+    prompts: PromptsConfig = PromptsConfig(
+        auditor_system="DEFAULT_AUDITOR_PROMPT",
+        property_test_template="DEFAULT_TEST_PROMPT"
     )
 
-    PROPERTY_TEST_PROMPT_TEMPLATE: str = (
-        "実装は見ず、このPydanticスキーマ (contracts/) の制約が正しく機能するかを検証する "
-        "Hypothesisテストを作成せよ。出力先は tests/property/test_cycle{cycle_id}.py"
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore"
     )
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
+    @classmethod
+    def load_from_toml(cls, toml_path: str = "ac_cdd.toml") -> "Settings":
+        # Load from toml manually since pydantic-settings generic support
+        # is often via extra dependencies or specific source classes.
+        # Here we mix environment variables (default behavior) with TOML values.
 
-settings = Settings()
+        # Initialize with defaults/env vars
+        settings = cls()
+
+        path = Path(toml_path)
+        if path.exists():
+            with open(path, "rb") as f:
+                data = tomllib.load(f)
+
+            # Update nested models if keys exist in TOML
+            if "paths" in data:
+                settings.paths = PathsConfig(**data["paths"])
+            if "tools" in data:
+                settings.tools = ToolsConfig(**data["tools"])
+            if "prompts" in data:
+                settings.prompts = PromptsConfig(**data["prompts"])
+
+        return settings
+
+settings = Settings.load_from_toml()
