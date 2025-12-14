@@ -1,29 +1,37 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
-name = "autonomous-dev-template"
+name = "autonomous-dev-env"
 version = "0.1.0"
-description = "A template for AI-native development with Jules and uv"
+description = "AI-Native Cycle-Based Contract-Driven Development Environment"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi",
-    "httpx>=0.28.1",
-    "pydantic",
+    "uvicorn",
+    "pydantic>=2.0",
     "python-dotenv",
 ]
 
 [dependency-groups]
 dev = [
-    "hypothesis",
+    "typer",
+    "rich",
+    "shellingham",
     "pytest",
     "pytest-cov",
-    "ruff",
+    "hypothesis",
+    "playwright",
     "vcrpy",
-    "typer",
-    "shellingham",
+    "ruff",
+    "google-genai",
 ]
 
 [tool.ruff]
 line-length = 100
+fix = true
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]
@@ -32,3 +40,6 @@ ignore = []
 [tool.pytest.ini_options]
 addopts = "--cov=src --cov-report=term-missing"
 testpaths = ["tests"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/contracts", "src/core", "scripts"]

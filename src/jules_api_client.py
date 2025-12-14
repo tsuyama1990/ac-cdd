@@ -1,10 +1,11 @@
-import httpx
-import os
 import json
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Any, Optional
+
+import httpx
 
 from src.agent_interface import AgentInterface
+
 
 class JulesApiClient(AgentInterface):
     """
