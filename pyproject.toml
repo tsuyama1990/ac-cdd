@@ -13,6 +13,7 @@ dependencies = [
     "uvicorn",
     "pydantic>=2.0",
     "python-dotenv",
+    "pydantic-settings",
 ]
 
 [dependency-groups]
@@ -27,6 +28,9 @@ dev = [
     "vcrpy",
     "ruff",
     "google-genai",
+    "mypy",
+    "bandit",
+    "types-PyYAML",
 ]
 
 [tool.ruff]
@@ -42,4 +46,7 @@ addopts = "--cov=src --cov-report=term-missing"
 testpaths = ["tests"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/contracts", "src/core", "scripts"]
+packages = ["src/ac_cdd"]
+
+[tool.mypy]
+strict = true

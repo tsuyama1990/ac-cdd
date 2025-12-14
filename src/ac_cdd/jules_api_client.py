@@ -4,7 +4,7 @@ from typing import Any, Optional
 
 import httpx
 
-from src.agent_interface import AgentInterface
+from ac_cdd.agent_interface import AgentInterface
 
 
 class JulesApiClient(AgentInterface):

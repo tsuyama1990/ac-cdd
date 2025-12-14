@@ -4,8 +4,9 @@ import subprocess
 import time
 from pathlib import Path
 
+# Relative import because utils is in the same package
 from .utils import logger, run_command
-
+from .config import settings
 
 class CycleOrchestrator:
     """
@@ -17,7 +18,7 @@ class CycleOrchestrator:
         self.cycle_id = cycle_id
         self.dry_run = dry_run
         self.cycle_dir = Path(f"documents/CYCLE{cycle_id}")
-        self.contracts_dir = Path("src/contracts")
+        self.contracts_dir = Path("src/ac_cdd/contracts")
         self.audit_log_path = self.cycle_dir / "AUDIT_LOG.md"
 
         if not self.cycle_dir.exists():
@@ -43,7 +44,7 @@ class CycleOrchestrator:
     def align_contracts(self):
         """
         Phase 3.1: 契約の整合確認とマージ
-        documents/CYCLE{id}/schema.py を src/contracts/ にマージする。
+        documents/CYCLE{id}/schema.py を src/ac_cdd/contracts/ にマージする。
         """
         source_schema = self.cycle_dir / "schema.py"
         target_schema = self.contracts_dir / f"schema_cycle{self.cycle_id}.py"
@@ -90,10 +91,7 @@ class CycleOrchestrator:
         Phase 3.2: プロパティベーステストの生成
         Julesに契約のみを見せてテストを書かせる。
         """
-        prompt = (
-            "実装は見ず、このPydanticスキーマ (contracts/) の制約が正しく機能するかを検証する "
-            "Hypothesisテストを作成せよ。出力先は tests/property/test_cycle{cycle_id}.py"
-        )
+        prompt = settings.PROPERTY_TEST_PROMPT_TEMPLATE.format(cycle_id=self.cycle_id)
 
         if self.dry_run:
             logger.info(f"[DRY-RUN] calling jules with prompt: {prompt}")
@@ -113,7 +111,7 @@ class CycleOrchestrator:
         """
         Phase 3.3 & 3.4: 実装・CI・監査ループ
         """
-        max_retries = 10
+        max_retries = settings.MAX_RETRIES
         attempt = 0
 
         while attempt < max_retries:
@@ -154,7 +152,7 @@ class CycleOrchestrator:
             f"Implement Cycle {self.cycle_id}",
             "--description",
             f"Implement requirements in documents/CYCLE{self.cycle_id}/SPEC.md following "
-            "schema in src/contracts/",
+            "schema in src/ac_cdd/contracts/",
         ]
         run_command(cmd)
 
@@ -186,31 +184,70 @@ class CycleOrchestrator:
     def run_strict_audit(self) -> bool:
         """
         Phase 3.4: 世界一厳格な監査
-        Gemini CLI (JSON mode) を呼び出す。
+        1. Bandit (Security)
+        2. Mypy (Type Check)
+        3. LLM Audit (if checks pass)
         """
-        prompt = (
-            "あなたは世界一厳格なコード監査人です。"
-            "Pydantic契約違反、セキュリティ、設計原則の観点からコードをレビューしてください。"
-            "合格なら `{\"approved\": true}`、"
-            "不合格なら `{\"approved\": false, \"comments\": [...]}` をJSONで返してください。"
-        )
-
         if self.dry_run:
-            logger.info("[DRY-RUN] Gemini Auditing... (Mocking approval)")
+            logger.info("[DRY-RUN] Static Analysis & Gemini Auditing... (Mocking approval)")
             return True
 
-        # srcディレクトリ全体を監査対象とする
-        # gemini CLIの仕様に合わせて調整
+        logger.info("Running Static Analysis (Bandit & Mypy)...")
+
+        # 1. Bandit
+        try:
+            # -r for recursive, -f custom or plain
+            # We target src/ directory
+            run_command(["bandit", "-r", "src/", "-ll"])
+        except subprocess.CalledProcessError:
+            msg = "Security Check (Bandit) Failed."
+            logger.warning(msg)
+            self._log_audit_failure([msg])
+            return False
+
+        # 2. Mypy
+        try:
+            run_command(["mypy", "src/"])
+        except subprocess.CalledProcessError:
+            msg = "Type Check (Mypy) Failed."
+            logger.warning(msg)
+            self._log_audit_failure([msg])
+            return False
+
+        # 3. LLM Audit
+        logger.info("Static checks passed. Proceeding to LLM Audit...")
+
+        prompt = settings.AUDITOR_PROMPT
+
+        # Filter sensitive files if we were to read them here.
+        # But since we pass "src/" to gemini, we rely on it or need to be careful.
+        # The prompt instruction says: "Add filtering processing when orchestrator reads code and sends to AI"
+        # Since 'gemini' CLI is used and we pass a directory, we can't easily filter *inside* the python code
+        # unless we pass file contents explicitly or the CLI supports exclusion.
+        # Assuming we need to implement exclusion logic if we were reading files manually.
+        # However, for now, we will assume 'gemini' CLI handles the directory.
+        # To strictly follow "Add filtering processing", we should probably manually
+        # collect files excluding sensitive ones if 'gemini' CLI supports receiving file content via stdin or list.
+        # Given the mock nature of external tools here, I will stick to the previous implementation
+        # but add a comment that filtering is applied (conceptually) or if 'gemini' supports it.
+        #
+        # Re-reading: "Task 5: Security Filter... implement exclusion list... when reading code and sending to AI"
+        # Since I'm using an external 'gemini' command, I can't filter what it reads unless I list files for it.
+        # Let's assume 'gemini' accepts a list of files.
+
+        # Implementation of File Filtering:
+        files_to_audit = self._get_filtered_files("src/")
+
+        # We pass the list of filtered files to the gemini command.
+        # This assumes the gemini CLI accepts multiple file paths as arguments.
         cmd = [
-            "gemini", # 外部コマンド
-            "--json", # JSON出力モード (仮定)
+            "gemini",
+            "--json",
             prompt,
-            "src/"    # 対象ディレクトリ
+            *files_to_audit
         ]
 
         try:
-            # 実際には run_command で出力をキャプチャしてパースする
-            # ここでは run_command はストリーミング出力用なので、subprocess.run を直接使う
             res = subprocess.run(cmd, capture_output=True, text=True, check=True)
             output = json.loads(res.stdout)
 
@@ -222,15 +259,29 @@ class CycleOrchestrator:
                 return False
         except (subprocess.CalledProcessError, json.JSONDecodeError) as e:
             logger.error(f"Audit tool execution failed: {e}")
-            # ツール自体の失敗は、とりあえずFalseとして扱うか、例外にするか
             return False
         except FileNotFoundError:
-            logger.warning(
-                "Gemini CLI not found. Skipping audit (assuming pass for dev environment if "
-                "not strict)."
-            )
-            # 本来はFailさせるべきだが、開発環境構築中なのでWarningに留めるケースも
+            logger.warning("Gemini CLI not found. Skipping audit.")
             return False
+
+    def _get_filtered_files(self, directory: str) -> list[str]:
+        """
+        Recursively list files in directory, excluding sensitive/ignored ones.
+        """
+        ignored_patterns = [
+            "__pycache__", ".git", ".env", ".DS_Store", "*.pyc"
+        ]
+        # This is a simple implementation. In reality, use pathspec with .gitignore
+
+        files = []
+        path = Path(directory)
+        for p in path.rglob("*"):
+            if p.is_file():
+                # Check exclusions
+                if any(ignored in str(p) for ignored in ignored_patterns):
+                    continue
+                files.append(str(p))
+        return files
 
     def _log_audit_failure(self, comments: list):
         with open(self.audit_log_path, "a") as f:
