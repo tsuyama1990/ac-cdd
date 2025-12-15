@@ -1,17 +1,10 @@
-import json
-import os
-import shutil
-import subprocess
-import time
 import asyncio
+import shutil
 from pathlib import Path
-from typing import Optional, List
 
-from pydantic_ai import RunContext
-
+from .agents import auditor_agent, coder_agent, planner_agent, qa_analyst_agent
 from .config import settings
-from .domain_models import CyclePlan, FileArtifact, AuditResult, UatAnalysis
-from .agents import planner_agent, coder_agent, auditor_agent, qa_analyst_agent
+from .domain_models import AuditResult, CyclePlan, UatAnalysis
 from .tools import ToolNotFoundError, ToolWrapper
 from .utils import logger
 
@@ -49,7 +42,6 @@ class CycleOrchestrator:
 
     async def execute_all(self, progress_task=None, progress_obj=None) -> None:
         """全フェーズを実行"""
-        # Note: steps should be awaited
         steps = [
             ("Planning Phase", self.plan_cycle),
             ("Aligning Contracts", self.align_contracts),
@@ -66,7 +58,7 @@ class CycleOrchestrator:
             if asyncio.iscoroutinefunction(func):
                 await func()
             else:
-                func()
+                func()  # type: ignore
             logger.info(f"Completed Phase: {name}")
 
     async def plan_cycle(self) -> None:
@@ -79,10 +71,13 @@ class CycleOrchestrator:
 
         planning_prompt_path = Path(settings.paths.templates) / "CYCLE_PLANNING_PROMPT.md"
         if not planning_prompt_path.exists():
-             raise FileNotFoundError(f"{planning_prompt_path} not found.")
+            raise FileNotFoundError(f"{planning_prompt_path} not found.")
 
         base_prompt = planning_prompt_path.read_text(encoding="utf-8")
-        user_task = f"{base_prompt}\n\nFocus specifically on generating artifacts for CYCLE{self.cycle_id}."
+        user_task = (
+            f"{base_prompt}\n\n"
+            f"Focus specifically on generating artifacts for CYCLE{self.cycle_id}."
+        )
 
         logger.info(f"Generating Plan for CYCLE{self.cycle_id}...")
 
@@ -98,15 +93,17 @@ class CycleOrchestrator:
 
         # Save artifacts
         for artifact in [plan.spec_file, plan.schema_file, plan.uat_file]:
-            # Ensure path is relative to cycle_dir if it's just a filename
-            # The prompt asks for dev_documents/CYCLE{id}/filename, so we respect that but ensure target dir
+            # The prompt asks for dev_documents/CYCLE{id}/filename,
+            # so we respect that but ensure target dir
             p = Path(artifact.path)
             target_path = self.cycle_dir / p.name
             target_path.write_text(artifact.content, encoding="utf-8")
             logger.info(f"Saved {target_path}")
 
         # Save thought process
-        (self.cycle_dir / "PLAN_THOUGHTS.md").write_text(plan.thought_process, encoding="utf-8")
+        (self.cycle_dir / "PLAN_THOUGHTS.md").write_text(
+            plan.thought_process, encoding="utf-8"
+        )
 
     def align_contracts(self) -> None:
         """
@@ -153,28 +150,7 @@ class CycleOrchestrator:
             logger.info(f"[DRY-RUN] generating property tests with prompt: {user_task}")
             return
 
-        # Pydantic AI (Tester role -> we use coder_agent or specific tester agent?)
-        # Instructions said "define planner, coder, auditor, qa".
-        # Let's use coder_agent for test generation as well, or define a tester agent if needed.
-        # But settings.toml has "tester" role.
-        # I defined: planner, coder, auditor, qa_analyst.
-        # I'll use coder_agent with explicit instructions to act as tester.
-        # Or better, add 'tester' prompt as user message prefix.
-
         prompt_with_role = f"You are a QA Engineer.\n{user_task}"
-
-        # Result is likely a file artifact or just code block.
-        # For simplicity, we ask for FileArtifact or assume text and parse.
-        # Let's use coder_agent and expect a FileArtifact or similar.
-        # However, generate_property_tests usually writes to tests/property/test_cycle{id}.py.
-        # I'll use `result_type=FileArtifact` dynamically? No, type must be fixed.
-        # I'll ask for text and save it, or I can use a generic agent.
-        # The prompt template says "Output to tests/property/test_cycle{id}.py".
-        # I'll ask the agent to return the code and I'll save it.
-
-        # To strictly follow "structured output", I should maybe use FileArtifact.
-        # But `coder_agent` doesn't have a result_type set (defaults to str).
-        # I'll parse the code block from the string response.
 
         result = await coder_agent.run(prompt_with_role)
         content = result.data
@@ -253,7 +229,9 @@ class CycleOrchestrator:
                     break
                 else:
                     logger.warning("Audit Failed. Triggering fix...")
-                    await self._trigger_fix(f"Audit failed. See {self.audit_log_path} for details.")
+                    await self._trigger_fix(
+                        f"Audit failed. See {self.audit_log_path} for details."
+                    )
                     continue
 
             if loop_success:
@@ -261,7 +239,9 @@ class CycleOrchestrator:
 
             logger.error("Implementation Loop Failed.")
 
-        raise Exception(f"Max retries reached in Self-Healing Plan Loop ({max_plan_retries} attempts).")
+        raise Exception(
+            f"Max retries reached in Self-Healing Plan Loop ({max_plan_retries} attempts)."
+        )
 
     async def _replan_cycle(self, feedback: str) -> None:
         """
@@ -270,7 +250,9 @@ class CycleOrchestrator:
         logger.info("Triggering Re-Planning with feedback...")
 
         planning_prompt_path = Path(settings.paths.templates) / "CYCLE_PLANNING_PROMPT.md"
-        base_prompt = planning_prompt_path.read_text(encoding="utf-8") if planning_prompt_path.exists() else ""
+        base_prompt = ""
+        if planning_prompt_path.exists():
+            base_prompt = planning_prompt_path.read_text(encoding="utf-8")
 
         user_task = (
             f"{base_prompt}\n\n"
@@ -279,7 +261,7 @@ class CycleOrchestrator:
             f"Please revise the SPEC, Schema, and UAT for CYCLE{self.cycle_id}."
         )
 
-        result = await planner_agent.run(user_task)
+        result = await planner_agent.run(user_task, result_type=CyclePlan)
         self._save_plan_artifacts(result.data)
 
     async def _trigger_implementation(self) -> None:
@@ -293,46 +275,6 @@ class CycleOrchestrator:
             logger.info(f"[DRY-RUN] Implementing feature: {description}")
             return
 
-        # Using coder agent (returns str by default, we expect it to modify files via tool usage?)
-        # Wait, the prompt says "Implement...".
-        # Agents in pydantic_ai usually return a result.
-        # If the agent is supposed to edit files, it needs tools (FileSystem tools).
-        # The instructions didn't specify adding tools to agents, but the original code
-        # relied on "Task" which might have implied tool usage or just outputting code.
-        # Original `jules_client.start_task` likely assumed the agent has tools or returns code to apply.
-        # But looking at `_trigger_fix` logic in original code: `self.jules_client.send_message(prompt=instructions)`.
-        # It seems it expects the agent to DO it.
-        # Without tools, the agent can only talk.
-        # The instructions didn't explicitly ask to add `FileTools`.
-        # HOWEVER, `FileArtifact` domain model suggests we might want it to return artifacts.
-        # BUT for implementation of multiple files, returning a list of artifacts is better.
-        # Or, we should give the agent tools to write files.
-        # Since I am refactoring, and the instructions are about `pydantic-ai`,
-        # I should probably enable the agent to write files OR return artifacts.
-        # The `planner_agent` returns `CyclePlan` which contains `FileArtifact`s.
-        # The `coder_agent` logic was not specified to return `FileArtifact`.
-        # I'll stick to the "Self-Healing" logic where we might need file editing.
-        # If I don't give tools, I can't edit files.
-        # I'll assume for this refactor that `coder_agent` should return code blocks and I might need to apply them,
-        # OR better, I'll add a simple tool to the agent or assume the user wants me to add file editing capabilities.
-        # But wait, `planner_agent` returns `CyclePlan` (artifacts).
-        # `coder_agent` is just `Agent(..., system_prompt=...)`.
-        # If I want it to be useful, I should probably give it a tool or expected return type.
-        # Given the "Task 3: Agent Definition" didn't specify tools, maybe the intention is to use `result_type`?
-        # But implementation is complex.
-
-        # I will assume `coder_agent` returns a list of `FileArtifact`s? No, that's limiting.
-        # I'll try to use a "apply_diff" or "write_file" tool if I can.
-        # But I don't have those defined in `agents.py`.
-        # I'll proceed by assuming the agent returns markdown with code blocks and I parse them,
-        # similar to how I handled property tests, OR I add a `write_file` tool to the agent context.
-        # Given the scope, I'll stick to parsing code blocks for now to keep it simple and close to original behavior,
-        # which was "Jules outputting code".
-        # Actually, original `JulesApiClient` was just an interface to `jules` CLI or API.
-        # If `jules` (the underlying engine) had tools, it used them.
-        # Here `pydantic-ai` runs locally.
-        # I'll implement a simple parsing of the response to save files if they are presented as blocks with filenames.
-
         result = await coder_agent.run(description)
         self._apply_agent_changes(result.data)
 
@@ -344,7 +286,10 @@ class CycleOrchestrator:
         import re
         # Regex to find: ### `path/to/file` OR ### path/to/file
         # followed by code block
-        pattern = re.compile(r"###\s*[`]?([^`\n]+)[`]?\s*\n\s*```\w*\n(.*?)```", re.DOTALL)
+        pattern = re.compile(
+            r"###\s*[`]?([^`\n]+)[`]?\s*\n\s*```\w*\n(.*?)```",
+            re.DOTALL
+        )
         matches = pattern.findall(content)
 
         for fpath, code in matches:
@@ -444,7 +389,8 @@ class CycleOrchestrator:
 
         user_task = (
             f"Audit the following code files:\n{files_content}\n\n"
-            "Evaluate if the code follows Pydantic contracts, security best practices, and clean code principles."
+            "Evaluate if the code follows Pydantic contracts, "
+            "security best practices, and clean code principles."
         )
 
         # Run Auditor Agent
@@ -454,10 +400,12 @@ class CycleOrchestrator:
         if audit_result.is_approved:
             return True
         else:
-            self._log_audit_failure(audit_result.critical_issues + audit_result.suggestions)
+            self._log_audit_failure(
+                audit_result.critical_issues + audit_result.suggestions
+            )
             return False
 
-    async def _run_subprocess(self, cmd: List[str]) -> None:
+    async def _run_subprocess(self, cmd: list[str]) -> None:
         try:
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
@@ -480,8 +428,8 @@ class CycleOrchestrator:
                     line = line.strip()
                     if line and not line.startswith("#"):
                         ignored_patterns.add(line)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to read .auditignore: {e}")
 
         files = []
         path = Path(directory)
@@ -492,7 +440,7 @@ class CycleOrchestrator:
                     if fnmatch.fnmatch(p.name, pattern) or fnmatch.fnmatch(str(p), pattern):
                         is_ignored = True
                         break
-                    if pattern in str(p): # strict substring check for things like .git
+                    if pattern in str(p):  # strict substring check
                         is_ignored = True
                         break
 
@@ -501,6 +449,7 @@ class CycleOrchestrator:
         return files
 
     def _log_audit_failure(self, comments: list[str]) -> None:
+        import time
         with open(self.audit_log_path, "a", encoding="utf-8") as f:
             f.write(f"\n## Audit Failed at {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
             for c in comments:
@@ -519,11 +468,13 @@ class CycleOrchestrator:
         description = (
             f"Create Playwright tests in tests/e2e/ based on {uat_path}.\n"
             "REQUIREMENTS:\n"
-            "- Use `unittest.mock`, `pytest-mock`, or `vcrpy` to mock ALL external connections.\n"
+            "- Use `unittest.mock`, `pytest-mock`, or `vcrpy` "
+            "to mock ALL external connections.\n"
             "- Focus purely on logic and UI behavior verification.\n"
             "- Output valid Python code."
         )
 
+        # coder_agent is typed to return str, so result.data is str
         result = await coder_agent.run(description)
         self._apply_agent_changes(result.data)
 
@@ -594,12 +545,8 @@ class CycleOrchestrator:
             self.gh.run(args)
 
         if self.auto_next:
-            # We need to run async function from sync if this method remains sync,
-            # but prepare_next_cycle calls plan_cycle which is async.
-            # So finalize_cycle should probably be async too.
-            # But the steps loop calls it synchronously.
-            # I made execute_all async, so I can await finalize_cycle.
-            # I will ensure finalize_cycle is async.
+            # Note: prepare_next_cycle should be scheduled or handled by caller if async
+            # But currently finalize_cycle is synchronous in loop.
             pass
 
     async def prepare_next_cycle(self) -> None:

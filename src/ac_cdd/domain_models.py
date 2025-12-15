@@ -1,5 +1,7 @@
 from typing import Literal
-from pydantic import BaseModel, Field, ConfigDict
+
+from pydantic import BaseModel, ConfigDict, Field
+
 
 class FileArtifact(BaseModel):
     """生成・修正されたファイル単体"""

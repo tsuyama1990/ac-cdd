@@ -1,26 +1,23 @@
-import shutil
-import subprocess
 import asyncio
+import os
+import shutil
 from pathlib import Path
 
-import typer
 import logfire
+import typer
 from dotenv import load_dotenv
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
+from ac_cdd.agents import auditor_agent, coder_agent
 from ac_cdd.config import settings
 from ac_cdd.orchestrator import CycleOrchestrator
-from ac_cdd.agents import auditor_agent, coder_agent
-
-from .tools import ToolWrapper, ToolNotFoundError
 
 load_dotenv()
 
 # Initialize Logfire
 # Only configure if LOGFIRE_TOKEN is set to avoid error during local testing without auth
-import os
 if os.getenv("LOGFIRE_TOKEN"):
     logfire.configure()
 
@@ -28,7 +25,7 @@ app = typer.Typer(help="AC-CDD: AI-Native Cycle-Based Development Orchestrator")
 console = Console()
 
 @app.command()
-def init():
+def init() -> None:
     """プロジェクトの初期化と依存関係チェック"""
     console.print(Panel("AC-CDD環境の初期化中...", style="bold blue"))
 
@@ -82,7 +79,7 @@ def init():
 # --- Cycle Workflow ---
 
 @app.command(name="new-cycle")
-def new_cycle(name: str):
+def new_cycle(name: str) -> None:
     """新しい開発サイクルを作成します (例: 01, 02)"""
     # Assuming 'name' corresponds to cycle_id like '01'
     cycle_id = name
@@ -106,11 +103,11 @@ def new_cycle(name: str):
     console.print(f"[bold]{base_path}[/bold] 内のファイルを編集してください。")
 
 @app.command(name="start-cycle")
-def start_cycle(names: list[str], dry_run: bool = False, auto_next: bool = False):
+def start_cycle(names: list[str], dry_run: bool = False, auto_next: bool = False) -> None:
     """サイクルの自動実装・監査ループを開始します (複数ID指定可)"""
     asyncio.run(_start_cycle_async(names, dry_run, auto_next))
 
-async def _start_cycle_async(names: list[str], dry_run: bool, auto_next: bool):
+async def _start_cycle_async(names: list[str], dry_run: bool, auto_next: bool) -> None:
     if not names:
         console.print("[red]少なくとも1つのサイクルIDを指定してください (例: 01)[/red]")
         raise typer.Exit(code=1)
@@ -143,17 +140,14 @@ async def _start_cycle_async(names: list[str], dry_run: bool, auto_next: bool):
 # --- Ad-hoc Workflow ---
 
 @app.command()
-def audit(repo: str = typer.Option(None, help="Target repository")):
+def audit(repo: str = typer.Option(None, help="Target repository")) -> None:
     """
     [Strict Review] Gitの差分をAuditorに激辛レビューさせ、Coderに修正指示を出します。
     """
     asyncio.run(_audit_async(repo))
 
-async def _audit_async(repo: str):
+async def _audit_async(repo: str) -> None:
     typer.echo("🔍 Fetching git diff...")
-    # Using explicit ToolWrapper for git if needed or just subprocess
-    # In legacy cli.py, GitClient was used. We can use ToolWrapper or direct call.
-    # Assuming `git` command exists.
     try:
         proc = await asyncio.create_subprocess_exec(
             "git", "diff", "HEAD",
@@ -169,22 +163,24 @@ async def _audit_async(repo: str):
 
         typer.echo("🧠 Auditor is thinking (Strict Review Mode)...")
         prompt = (
-            "Review the following git diff focusing on Security, Performance, and Readability.\n"
-            "Output ONLY specific, actionable instructions for an AI coder as a bulleted list.\n\n"
+            "Review the following git diff focusing on Security, "
+            "Performance, and Readability.\n"
+            "Output ONLY specific, actionable instructions for an AI coder "
+            "as a bulleted list.\n\n"
             f"Git Diff:\n{diff_output}"
         )
 
-        result = await auditor_agent.run(prompt)
-        review_instruction = result.data.critical_issues + result.data.suggestions
+        # Import AuditResult here
+        from ac_cdd.domain_models import AuditResult
+        # We enforce structured output even for ad-hoc audit
+        result_typed = await auditor_agent.run(prompt, result_type=AuditResult)
 
-        # Convert list to string for display/next step
-        review_text = "\n".join(review_instruction) if isinstance(review_instruction, list) else str(review_instruction)
+        data: AuditResult = result_typed.data
+        review_instruction = data.critical_issues + data.suggestions
+
+        review_text = "\n".join(review_instruction)
 
         typer.echo("🤖 Coder is taking over...")
-        # Note: In original code, it called jules.create_session(review_instruction).
-        # We need to decide what to do here. Fix it? Or just display?
-        # The prompt says "Fix task assigned to Jules".
-        # So we should call coder_agent.
 
         coder_prompt = f"Here are the audit findings. Please fix the code.\n\n{review_text}"
         coder_result = await coder_agent.run(coder_prompt)
@@ -198,13 +194,13 @@ async def _audit_async(repo: str):
 
 
 @app.command()
-def fix():
+def fix() -> None:
     """
     [Auto Fix] テストを実行し、失敗した場合にCoderに修正させます。
     """
     asyncio.run(_fix_async())
 
-async def _fix_async():
+async def _fix_async() -> None:
     typer.echo("🧪 Running tests with pytest...")
 
     uv_path = shutil.which("uv")
@@ -235,23 +231,12 @@ async def _fix_async():
         typer.secho("✅ Fix task assigned to Coder.", fg=typer.colors.GREEN)
         typer.echo(result.data)
 
-        # Apply changes logic is duplicated here from Orchestrator.
-        # Ideally Orchestrator handles this, or we expose a helper.
-        # For now, we just output the result.
-        # If we want to actually apply, we need to replicate _apply_agent_changes logic
-        # or refactor it into a shared util.
-        # I'll leave it as output for now as per "task assigned".
-        # But wait, original code was `jules.create_session` which implied action.
-        # I'll import `CycleOrchestrator` to reuse logic if I made it static, but it's instance method.
-        # I'll add a simple util in `utils.py` or just do it here for completeness if required.
-        # Given "Task 5: ... use new agents ...", simply running the agent is the core requirement.
-
     except Exception as e:
         typer.secho(str(e), fg=typer.colors.RED)
         raise typer.Exit(1) from e
 
 @app.command()
-def doctor():
+def doctor() -> None:
     """環境チェック"""
 
     # ツールとインストールガイドの辞書
