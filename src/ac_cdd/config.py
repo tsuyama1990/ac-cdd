@@ -30,6 +30,7 @@ class AgentsConfig(BaseSettings):
     coder: str = "DEFAULT_CODER_PROMPT"
     tester: str = "DEFAULT_TESTER_PROMPT"
     auditor: str = "DEFAULT_AUDITOR_PROMPT"
+    qa_analyst: str = "DEFAULT_QA_ANALYST_PROMPT"
 
 class PromptsConfig(BaseSettings):
     model_config = ConfigDict(extra="ignore")

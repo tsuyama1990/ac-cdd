@@ -59,7 +59,8 @@ def init():
             if env_template.exists():
                 shutil.copy(env_template, ".env")
                 console.print(
-                    "[green]✔ .env を作成しました(テンプレートから)。APIキーなどを入力してください。[/green]"
+                    "[green]✔ .env を作成しました(テンプレートから)。"
+                    "APIキーなどを入力してください。[/green]"
                 )
             else:
                 console.print("[red]✖ .env.example が見つかりません。[/red]")
@@ -99,30 +100,41 @@ def new_cycle(name: str):
     console.print(f"[bold]{base_path}[/bold] 内のファイルを編集してください。")
 
 @app.command(name="start-cycle")
-def start_cycle(name: str, dry_run: bool = False):
-    """サイクルの自動実装・監査ループを開始します"""
-    cycle_id = name
-    console.print(Panel(f"サイクル {cycle_id} の自動化を開始します", style="bold magenta"))
-    if dry_run:
-        console.print(
-            "[yellow][DRY-RUN MODE] 実際のAPI呼び出しやコミットは行われません。[/yellow]"
-        )
+def start_cycle(names: list[str], dry_run: bool = False, auto_next: bool = False):
+    """サイクルの自動実装・監査ループを開始します (複数ID指定可)"""
+    # For concurrent execution in future (as per Task 5 requirement to accept multiple IDs)
+    # currently running sequentially.
 
-    orchestrator = CycleOrchestrator(cycle_id, dry_run=dry_run)
+    if not names:
+        console.print("[red]少なくとも1つのサイクルIDを指定してください (例: 01)[/red]")
+        raise typer.Exit(code=1)
 
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        console=console
-    ) as progress:
-        task = progress.add_task("[cyan]実行中...", total=None)
+    for cycle_id in names:
+        console.print(Panel(f"サイクル {cycle_id} の自動化を開始します", style="bold magenta"))
+        if dry_run:
+            console.print(
+                "[yellow][DRY-RUN MODE] 実際のAPI呼び出しやコミットは行われません。[/yellow]"
+            )
 
-        try:
-            orchestrator.execute_all(progress_task=task, progress_obj=progress)
-            console.print(Panel(f"サイクル {cycle_id} が正常に完了しました！", style="bold green"))
-        except Exception as e:
-            console.print(Panel(f"サイクル失敗: {str(e)}", style="bold red"))
-            raise typer.Exit(code=1) from e
+        orchestrator = CycleOrchestrator(cycle_id, dry_run=dry_run, auto_next=auto_next)
+
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console
+        ) as progress:
+            task = progress.add_task(f"[cyan]Cycle {cycle_id} 実行中...", total=None)
+
+            try:
+                orchestrator.execute_all(progress_task=task, progress_obj=progress)
+                console.print(
+                    Panel(f"サイクル {cycle_id} が正常に完了しました！", style="bold green")
+                )
+            except Exception as e:
+                console.print(Panel(f"サイクル {cycle_id} 失敗: {str(e)}", style="bold red"))
+                # If one cycle fails, should we stop or continue?
+                # Usually we might want to stop to investigate.
+                raise typer.Exit(code=1) from e
 
 # --- Ad-hoc Workflow ---
 

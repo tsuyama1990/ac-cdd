@@ -38,8 +38,10 @@ line-length = 100
 fix = true
 
 [tool.ruff.lint]
+# E/F/I: Basic, B: Bugbear, S: Bandit, UP: pyupgrade
 select = ["E", "F", "I", "B", "S", "UP"]
-ignore = []
+# S101: Allow use of assert (for tests)
+ignore = ["S101"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["S101"]

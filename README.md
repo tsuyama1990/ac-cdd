@@ -54,9 +54,11 @@ uv run manage.py start-cycle "01"
 ```
 
 The orchestrator will:
-1.  **Align Contracts**: Update `src/ac_cdd/contracts`.
-2.  **Generate Tests**: Create property-based tests from contracts.
-3.  **Implement & Refine**: Coding loop with Jules (Coder) and Gemini (Auditor).
-4.  **Verify**: Run UAT with Playwright.
+1.  **Plan**: Jules analyzes `ALL_SPEC.md` and formulates a detailed implementation plan (Planning Phase).
+2.  **Align Contracts**: Update `src/ac_cdd/contracts`.
+3.  **Generate Tests**: Create property-based tests from contracts.
+4.  **Implement & Refine**: Coding loop with Jules (Coder) and Gemini (Auditor).
+    - **Self-Healing**: If implementation fails repeatedly, the plan is automatically revised and re-executed.
+5.  **Verify**: Run UAT with Playwright.
 
 See `DEV_FLOW.md` for the full architectural details.
