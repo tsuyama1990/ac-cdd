@@ -12,6 +12,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from ac_cdd.agents import auditor_agent, coder_agent
 from ac_cdd.config import settings
+from ac_cdd.domain_models import AuditResult, FileChange
 from ac_cdd.orchestrator import CycleOrchestrator
 
 load_dotenv()
@@ -170,12 +171,10 @@ async def _audit_async(repo: str) -> None:
             f"Git Diff:\n{diff_output}"
         )
 
-        # Import AuditResult here
-        from ac_cdd.domain_models import AuditResult
         # We enforce structured output even for ad-hoc audit
         result_typed = await auditor_agent.run(prompt, result_type=AuditResult)
 
-        data: AuditResult = result_typed.data
+        data: AuditResult = result_typed.output
         review_instruction = data.critical_issues + data.suggestions
 
         review_text = "\n".join(review_instruction)
@@ -186,7 +185,23 @@ async def _audit_async(repo: str) -> None:
         coder_result = await coder_agent.run(coder_prompt)
 
         typer.secho("✅ Audit complete. Fix task assigned to Coder!", fg=typer.colors.GREEN)
-        typer.echo(coder_result.data)
+
+        # Display the proposed changes
+        changes: list[FileChange] = coder_result.output
+        for change in changes:
+            typer.echo(f"Proposed change for: {change.path}")
+            # Optionally print content or a snippet
+            typer.echo("---")
+
+        # In ad-hoc mode, we might want to apply them too?
+        # For now, let's apply them as the command implies action.
+        typer.secho("Applying changes...", fg=typer.colors.CYAN)
+        for change in changes:
+             p = Path(change.path)
+             p.parent.mkdir(parents=True, exist_ok=True)
+             p.write_text(change.content, encoding="utf-8")
+             typer.echo(f"Applied to {p}")
+
 
     except Exception as e:
         typer.secho(str(e), fg=typer.colors.RED)
@@ -229,7 +244,13 @@ async def _fix_async() -> None:
         )
         result = await coder_agent.run(prompt)
         typer.secho("✅ Fix task assigned to Coder.", fg=typer.colors.GREEN)
-        typer.echo(result.data)
+
+        changes: list[FileChange] = result.output
+        for change in changes:
+             p = Path(change.path)
+             p.parent.mkdir(parents=True, exist_ok=True)
+             p.write_text(change.content, encoding="utf-8")
+             typer.echo(f"Applied fix to {p}")
 
     except Exception as e:
         typer.secho(str(e), fg=typer.colors.RED)

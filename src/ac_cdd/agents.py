@@ -4,7 +4,7 @@ from typing import Any
 from pydantic_ai import Agent, RunContext
 
 from src.ac_cdd.config import settings
-from src.ac_cdd.domain_models import AuditResult, CyclePlan, UatAnalysis
+from src.ac_cdd.domain_models import AuditResult, CyclePlan, UatAnalysis, FileChange
 
 # Model Definition
 MODEL_NAME = 'google-gla:gemini-2.0-flash'
@@ -50,11 +50,12 @@ def planner_system_prompt(ctx: RunContext[Any]) -> str:
 
 
 # Coder Agent
-coder_agent: Agent[Any, str] = Agent(
+coder_agent: Agent[Any, list[FileChange]] = Agent(
     MODEL_NAME,
     system_prompt=(
         "You are Jules, a skilled Python Engineer. "
         "Implement high-quality code based on specifications and contracts. "
+        "Return a list of file changes."
         "Always explain your thought process."
     )
 )

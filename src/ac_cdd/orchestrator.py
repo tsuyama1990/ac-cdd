@@ -4,7 +4,7 @@ from pathlib import Path
 
 from .agents import auditor_agent, coder_agent, planner_agent, qa_analyst_agent
 from .config import settings
-from .domain_models import AuditResult, CyclePlan, UatAnalysis
+from .domain_models import AuditResult, CyclePlan, FileChange, UatAnalysis
 from .tools import ToolNotFoundError, ToolWrapper
 from .utils import logger
 
@@ -40,7 +40,9 @@ class CycleOrchestrator:
                 raise
             logger.warning(f"[DRY-RUN] Tool missing: {e}. Proceeding anyway.")
 
-    async def execute_all(self, progress_task=None, progress_obj=None) -> None:
+    async def execute_all(
+        self, progress_task: object | None = None, progress_obj: object | None = None
+    ) -> None:
         """全フェーズを実行"""
         steps = [
             ("Planning Phase", self.plan_cycle),
@@ -53,12 +55,12 @@ class CycleOrchestrator:
 
         for name, func in steps:
             if progress_obj:
-                progress_obj.update(progress_task, description=f"[cyan]{name}...")
+                progress_obj.update(progress_task, description=f"[cyan]{name}...")  # type: ignore
             logger.info(f"Starting Phase: {name}")
             if asyncio.iscoroutinefunction(func):
                 await func()
             else:
-                func()  # type: ignore
+                func()
             logger.info(f"Completed Phase: {name}")
 
     async def plan_cycle(self) -> None:
@@ -82,8 +84,8 @@ class CycleOrchestrator:
         logger.info(f"Generating Plan for CYCLE{self.cycle_id}...")
 
         # Run Pydantic AI Agent
-        result = await planner_agent.run(user_task, result_type=CyclePlan)
-        plan: CyclePlan = result.data
+        result = await planner_agent.run(user_task, result_type=CyclePlan)  # type: ignore
+        plan: CyclePlan = result.output
 
         self._save_plan_artifacts(plan)
 
@@ -146,6 +148,10 @@ class CycleOrchestrator:
         """
         user_task = settings.prompts.property_test_template.format(cycle_id=self.cycle_id)
 
+        # Add instruction to return correct path
+        target_path_str = f"tests/property/test_cycle{self.cycle_id}.py"
+        user_task += f"\n\nReturn the code in a file named '{target_path_str}'."
+
         if self.dry_run:
             logger.info(f"[DRY-RUN] generating property tests with prompt: {user_task}")
             return
@@ -153,19 +159,9 @@ class CycleOrchestrator:
         prompt_with_role = f"You are a QA Engineer.\n{user_task}"
 
         result = await coder_agent.run(prompt_with_role)
-        content = result.data
+        # Handle structured output
+        self._apply_agent_changes(result.output)
 
-        # Simple extraction of python code block
-        import re
-        match = re.search(r"```python\n(.*?)```", content, re.DOTALL)
-        if match:
-            code = match.group(1)
-            target_path = Path(f"tests/property/test_cycle{self.cycle_id}.py")
-            target_path.parent.mkdir(parents=True, exist_ok=True)
-            target_path.write_text(code, encoding="utf-8")
-            logger.info(f"Saved {target_path}")
-        else:
-            logger.warning("No code block found in property test generation response.")
 
     async def run_implementation_loop(self) -> None:
         """
@@ -261,8 +257,8 @@ class CycleOrchestrator:
             f"Please revise the SPEC, Schema, and UAT for CYCLE{self.cycle_id}."
         )
 
-        result = await planner_agent.run(user_task, result_type=CyclePlan)
-        self._save_plan_artifacts(result.data)
+        result = await planner_agent.run(user_task, result_type=CyclePlan)  # type: ignore
+        self._save_plan_artifacts(result.output)
 
     async def _trigger_implementation(self) -> None:
         spec_path = f"{settings.paths.documents_dir}/CYCLE{self.cycle_id}/SPEC.md"
@@ -276,27 +272,17 @@ class CycleOrchestrator:
             return
 
         result = await coder_agent.run(description)
-        self._apply_agent_changes(result.data)
+        self._apply_agent_changes(result.output)
 
-    def _apply_agent_changes(self, content: str) -> None:
+    def _apply_agent_changes(self, changes: list[FileChange]) -> None:
         """
-        Parses content for code blocks with filenames and saves them.
-        Format: ### `filename` \n ```lang ... ```
+        Applies a list of FileChange objects to the file system.
         """
-        import re
-        # Regex to find: ### `path/to/file` OR ### path/to/file
-        # followed by code block
-        pattern = re.compile(
-            r"###\s*[`]?([^`\n]+)[`]?\s*\n\s*```\w*\n(.*?)```",
-            re.DOTALL
-        )
-        matches = pattern.findall(content)
-
-        for fpath, code in matches:
-            path = Path(fpath.strip())
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(code, encoding="utf-8")
-            logger.info(f"Applied changes to {path}")
+        for change in changes:
+            p = Path(change.path)
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(change.content, encoding="utf-8")
+            logger.info(f"Applied changes to {p}")
 
     async def _trigger_fix(self, instructions: str) -> None:
         if self.dry_run:
@@ -304,7 +290,7 @@ class CycleOrchestrator:
             return
 
         result = await coder_agent.run(instructions)
-        self._apply_agent_changes(result.data)
+        self._apply_agent_changes(result.output)
 
     async def _run_tests(self) -> tuple[bool, str]:
         """
@@ -394,8 +380,8 @@ class CycleOrchestrator:
         )
 
         # Run Auditor Agent
-        result = await auditor_agent.run(user_task, result_type=AuditResult)
-        audit_result: AuditResult = result.data
+        result = await auditor_agent.run(user_task, result_type=AuditResult)  # type: ignore
+        audit_result: AuditResult = result.output
 
         if audit_result.is_approved:
             return True
@@ -474,9 +460,9 @@ class CycleOrchestrator:
             "- Output valid Python code."
         )
 
-        # coder_agent is typed to return str, so result.data is str
+        # coder_agent is typed to return list[FileChange]
         result = await coder_agent.run(description)
-        self._apply_agent_changes(result.data)
+        self._apply_agent_changes(result.output)
 
         # 2. Run Tests
         uv_path = shutil.which("uv")
@@ -523,8 +509,8 @@ class CycleOrchestrator:
             f"Logs:\n{logs[-10000:]}\n\n"
         )
 
-        result = await qa_analyst_agent.run(user_task, result_type=UatAnalysis)
-        analysis: UatAnalysis = result.data
+        result = await qa_analyst_agent.run(user_task, result_type=UatAnalysis)  # type: ignore
+        analysis: UatAnalysis = result.output
 
         report_path = self.cycle_dir / "UAT_RESULT.md"
         with open(report_path, "w", encoding="utf-8") as f:

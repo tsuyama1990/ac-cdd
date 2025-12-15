@@ -31,3 +31,8 @@ class UatAnalysis(BaseModel):
     verdict: Literal["PASS", "FAIL"]
     summary: str
     behavior_analysis: str
+
+class FileChange(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    path: str = Field(..., description="Path to the file to create or modify")
+    content: str = Field(..., description="Full content of the file")
