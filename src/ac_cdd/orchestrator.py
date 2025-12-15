@@ -12,6 +12,7 @@ from rich.syntax import Syntax
 from .agents import auditor_agent, coder_agent, planner_agent, qa_analyst_agent
 from .config import settings
 from .domain_models import AuditResult, CyclePlan, FileCreate, FileOperation, FilePatch, UatAnalysis
+from .process_runner import ProcessRunner
 from .tools import ToolNotFoundError, ToolWrapper
 from .utils import logger
 
@@ -44,6 +45,8 @@ class CycleOrchestrator:
 
         if not self.cycle_dir.exists():
             raise ValueError(f"Cycle directory {self.cycle_dir} does not exist.")
+
+        self.process_runner = ProcessRunner()
 
         # Initialize tools
         try:
@@ -488,14 +491,11 @@ class CycleOrchestrator:
 
         cmd = [uv_path, "run", "pytest"]
         try:
-            # Run in thread/subprocess async
-            proc = await asyncio.create_subprocess_exec(
-                *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-            )
-            stdout, stderr = await proc.communicate()
+            # Use ProcessRunner to run tests
+            stdout, stderr, returncode = await self.process_runner.run_command(cmd, check=False)
+            logs = stdout + "\n" + stderr
 
-            logs = stdout.decode() + "\n" + stderr.decode()
-            if proc.returncode == 0:
+            if returncode == 0:
                 return True, ""
 
             if len(logs) > 2000:
@@ -516,13 +516,17 @@ class CycleOrchestrator:
 
         logger.info("Running Static Analysis (Ruff, Mypy, Bandit)...")
 
-        # 1. Ruff (using subprocess directly for simplicity)
+        # 1. Ruff
         ruff_path = shutil.which("ruff")
         if ruff_path:
             # check --fix
-            await self._run_subprocess([ruff_path, "check", "--fix", "src/", "tests/"])
+            await self.process_runner.run_command(
+                [ruff_path, "check", "--fix", "src/", "tests/"], check=False
+            )
             # format
-            await self._run_subprocess([ruff_path, "format", "src/", "tests/"])
+            await self.process_runner.run_command(
+                [ruff_path, "format", "src/", "tests/"], check=False
+            )
 
         # 2. Mypy
         try:
@@ -571,15 +575,6 @@ class CycleOrchestrator:
         else:
             self._log_audit_failure(audit_result.critical_issues + audit_result.suggestions)
             return False
-
-    async def _run_subprocess(self, cmd: list[str]) -> None:
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-            )
-            await proc.communicate()
-        except Exception as e:
-            logger.warning(f"Subprocess failed {cmd}: {e}")
 
     def _get_filtered_files(self, directory: str) -> list[str]:
         import fnmatch
@@ -658,13 +653,11 @@ class CycleOrchestrator:
         logs = ""
 
         try:
-            proc = await asyncio.create_subprocess_exec(
-                *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-            )
-            stdout, stderr = await proc.communicate()
-            logs = stdout.decode() + "\n" + stderr.decode()
+            # Use ProcessRunner to run UAT tests
+            stdout, stderr, returncode = await self.process_runner.run_command(cmd, check=False)
+            logs = stdout + "\n" + stderr
 
-            if proc.returncode == 0:
+            if returncode == 0:
                 success = True
                 logger.info("UAT Tests Passed.")
             else:

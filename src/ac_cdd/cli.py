@@ -14,6 +14,7 @@ from ac_cdd.agents import auditor_agent, coder_agent
 from ac_cdd.config import settings
 from ac_cdd.domain_models import AuditResult, FileOperation
 from ac_cdd.orchestrator import CycleOrchestrator
+from ac_cdd.process_runner import ProcessRunner
 
 load_dotenv()
 
@@ -171,12 +172,18 @@ def audit(repo: str = typer.Option(None, help="Target repository")) -> None:
 
 async def _audit_async(repo: str) -> None:
     typer.echo("🔍 Fetching git diff...")
+    runner = ProcessRunner()
+
     try:
-        proc = await asyncio.create_subprocess_exec(
-            "git", "diff", "HEAD", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-        )
-        stdout, stderr = await proc.communicate()
-        diff_output = stdout.decode()
+        stdout, stderr, returncode = await runner.run_command(["git", "diff", "HEAD"], check=False)
+
+        if returncode != 0:
+            # If stderr is present, it might be an error.
+            if stderr:
+                typer.secho(f"Git Error: {stderr}", fg=typer.colors.RED)
+                raise typer.Exit(1)
+
+        diff_output = stdout
 
         if not diff_output:
             typer.secho("No changes detected to audit.", fg=typer.colors.YELLOW)
@@ -210,12 +217,6 @@ async def _audit_async(repo: str) -> None:
         changes: list[FileOperation] = coder_result.output
 
         # Instantiate orchestrator for file application logic (reuse reuse!)
-        # Or just manually apply since we are in ad-hoc mode.
-        # But we need the patch logic.
-        # It's better to reuse CycleOrchestrator._apply_agent_changes,
-        # but that method is instance based.
-        # Let's create a dummy orchestrator for reuse.
-
         orchestrator = CycleOrchestrator("00", dry_run=False)  # Dummy cycle ID
         orchestrator._apply_agent_changes(changes)
 
@@ -239,29 +240,25 @@ async def _fix_async() -> None:
         typer.secho("Error: 'uv' not found.", fg=typer.colors.RED)
         raise typer.Exit(1)
 
+    runner = ProcessRunner()
+
     # 1. Try running only failed tests first
     typer.echo("🧪 Running failed tests (pytest --last-failed)...")
-    proc = await asyncio.create_subprocess_exec(
-        uv_path,
-        "run",
-        "pytest",
-        "--last-failed",
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
-    stdout, stderr = await proc.communicate()
-    logs = stdout.decode() + "\n" + stderr.decode()
 
-    if proc.returncode == 0:
+    stdout, stderr, returncode = await runner.run_command(
+        [uv_path, "run", "pytest", "--last-failed"], check=False
+    )
+    logs = stdout + "\n" + stderr
+
+    if returncode == 0:
         # 2. If no failures (or no history), run full suite
         typer.echo("✨ Last failed tests passed (or none). Running full suite...")
-        proc_full = await asyncio.create_subprocess_exec(
-            uv_path, "run", "pytest", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+        stdout_full, stderr_full, returncode_full = await runner.run_command(
+            [uv_path, "run", "pytest"], check=False
         )
-        stdout_full, stderr_full = await proc_full.communicate()
-        logs_full = stdout_full.decode() + "\n" + stderr_full.decode()
+        logs_full = stdout_full + "\n" + stderr_full
 
-        if proc_full.returncode == 0:
+        if returncode_full == 0:
             typer.secho("✨ All tests passed! Nothing to fix.", fg=typer.colors.GREEN)
             return
 
