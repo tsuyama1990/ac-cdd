@@ -1,10 +1,17 @@
 import asyncio
+import difflib
 import shutil
+import sys
 from pathlib import Path
+
+import typer
+from rich.console import Console
+from rich.panel import Panel
+from rich.syntax import Syntax
 
 from .agents import auditor_agent, coder_agent, planner_agent, qa_analyst_agent
 from .config import settings
-from .domain_models import AuditResult, CyclePlan, FileChange, UatAnalysis
+from .domain_models import AuditResult, CyclePlan, FileCreate, FileOperation, FilePatch, UatAnalysis
 from .tools import ToolNotFoundError, ToolWrapper
 from .utils import logger
 
@@ -20,11 +27,13 @@ class CycleOrchestrator:
         dry_run: bool = False,
         auto_next: bool = False,
         auto_approve: bool = False,
+        interactive: bool = True,
     ) -> None:
         self.cycle_id = cycle_id
         self.dry_run = dry_run
         self.auto_next = auto_next
         self.auto_approve = auto_approve
+        self.interactive = interactive
 
         # Use paths from config
         self.documents_dir = Path(settings.paths.documents_dir)
@@ -81,25 +90,6 @@ class CycleOrchestrator:
         Runs an agent with rich UI streaming.
         Adapts between simple run and stream depending on capability.
         """
-        # For structured output, streaming is tricky with validation.
-        # We will simulate streaming or just show a spinner if result_type is a Model.
-        # But wait, pydantic-ai 0.0.18+ supports run_stream for models too?
-        # Let's assume we fallback to non-streaming for Models to be safe for now,
-        # OR implementation of simple streaming of text.
-
-        # NOTE: For this iteration, we will implement a basic spinner + log
-        # because properly streaming structured JSON into a Pydantic model
-        # while validating is complex.
-        # However, the task explicitly asks for "Streaming".
-        # Let's try to stream text if result_type is str.
-
-        # from rich.console import Console
-        # console = Console()
-
-        # If we are in a progress bar context, we might interfere.
-        # Ideally we pause the main progress or use a separate area.
-        # Since we have "dashboard UI" requirement, let's just log "Thinking..."
-
         model_name = getattr(agent, "model", "Unknown Model")
         logger.info(f"Agent {model_name} thinking about {task_name}...")
 
@@ -215,7 +205,7 @@ class CycleOrchestrator:
              coder_agent,
              prompt_with_role,
              "Generating Property Tests",
-             result_type=list[FileChange],
+             result_type=list[FileOperation],
         )
         # Handle structured output
         self._apply_agent_changes(result.output)  # type: ignore
@@ -332,60 +322,99 @@ class CycleOrchestrator:
             return
 
         result = await self._run_agent_with_ui(
-             coder_agent, description, "Implementing Features", result_type=list[FileChange]
+             coder_agent, description, "Implementing Features", result_type=list[FileOperation]
         )
         self._apply_agent_changes(result.output)  # type: ignore
 
-    def _apply_agent_changes(self, changes: list[FileChange]) -> None:
+    def _apply_agent_changes(self, changes: list[FileOperation]) -> None:
         """
-        Applies a list of FileChange objects to the file system with interactive review.
+        Applies a list of FileOperation objects to the file system with interactive review.
         """
-        import difflib
-        import sys
-
-        import typer
-        from rich.console import Console
-        from rich.panel import Panel
-        from rich.syntax import Syntax
-
         console = Console()
-        is_interactive = sys.stdout.isatty()
+        is_tty = sys.stdout.isatty()
 
-        for change in changes:
-            p = Path(change.path)
+        for op in changes:
+            p = Path(op.path)
+            new_content = ""
+            diff_text = ""
 
-            # 1. Calculate Diff
-            if p.exists():
-                old_content = p.read_text(encoding="utf-8").splitlines(keepends=True)
-                new_content = change.content.splitlines(keepends=True)
+            # Prepare content based on operation type
+            if isinstance(op, FileCreate):
+                if p.exists():
+                    # Although 'create', if it exists we might be overwriting or it's a mistake.
+                    # Let's treat it as overwrite for 'FileCreate'.
+                    # But usually agents should use Patch.
+                    # But if the file is truly new, p.read_text fails.
+                    old_content_lines = p.read_text(encoding="utf-8").splitlines(keepends=True)
+                else:
+                     old_content_lines = []
+
+                new_content = op.content
+                new_content_lines = new_content.splitlines(keepends=True)
+
                 diff = list(difflib.unified_diff(
-                    old_content, new_content,
+                    old_content_lines, new_content_lines,
                     fromfile=str(p), tofile=str(p),
                     lineterm=""
                 ))
                 diff_text = "".join(diff)
-                if not diff_text:
-                    logger.info(f"No changes for {p}")
+                if not diff_text and p.exists():
+                     logger.info(f"No changes for {p}")
+                     continue
+
+            elif isinstance(op, FilePatch):
+                if not p.exists():
+                    logger.error(f"Cannot patch non-existent file: {p}")
                     continue
-            else:
-                diff_text = f"+ New File: {p}\n" + change.content
 
-            # 2. Display Diff
-            if is_interactive and not self.auto_approve:
-                console.print(Panel(f"Proposed changes for [bold]{p}[/bold]", style="blue"))
-                syntax = Syntax(diff_text, "diff", theme="monokai", line_numbers=True)
-                console.print(syntax)
+                original_content = p.read_text(encoding="utf-8")
 
-                # 3. Confirm
+                # Verify search block
+                if op.search_block not in original_content:
+                    logger.error(
+                        f"Patch failed for {p}: search_block not found in file "
+                        "(Exact match required)."
+                    )
+                    # Optionally we could try fuzzy match or just fail.
+                    # Requirement says "fail error log and skip".
+                    continue
+
+                new_content = original_content.replace(op.search_block, op.replace_block, 1)
+
+                # Generate Diff for the whole file
+                old_content_lines = original_content.splitlines(keepends=True)
+                new_content_lines = new_content.splitlines(keepends=True)
+
+                diff = list(difflib.unified_diff(
+                    old_content_lines, new_content_lines,
+                    fromfile=str(p), tofile=str(p),
+                    lineterm=""
+                ))
+                diff_text = "".join(diff)
+
+            # Interactive Review
+            if self.interactive and is_tty and not self.auto_approve and not self.dry_run:
+                console.print(
+                    Panel(f"Proposed changes for [bold]{p}[/bold] ({op.operation})", style="blue")
+                )
+                if diff_text:
+                    syntax = Syntax(diff_text, "diff", theme="monokai", line_numbers=True)
+                    console.print(syntax)
+                else:
+                    console.print(
+                        f"[yellow]New File (Full Content):[/yellow]\n{new_content[:500]}..."
+                    )
+
                 should_apply = typer.confirm(f"Apply changes to {p}?", default=True)
                 if not should_apply:
                     logger.warning(f"Skipped changes for {p}")
                     continue
 
             # Apply
-            p.parent.mkdir(parents=True, exist_ok=True)
-            p.write_text(change.content, encoding="utf-8")
-            logger.info(f"Applied changes to {p}")
+            if not self.dry_run:
+                p.parent.mkdir(parents=True, exist_ok=True)
+                p.write_text(new_content, encoding="utf-8")
+                logger.info(f"Applied {op.operation} to {p}")
 
     async def _trigger_fix(self, instructions: str) -> None:
         if self.dry_run:
@@ -393,7 +422,7 @@ class CycleOrchestrator:
             return
 
         result = await self._run_agent_with_ui(
-             coder_agent, instructions, "Fixing Code", result_type=list[FileChange]
+             coder_agent, instructions, "Fixing Code", result_type=list[FileOperation]
         )
         self._apply_agent_changes(result.output)  # type: ignore
 
@@ -569,7 +598,7 @@ class CycleOrchestrator:
 
         # coder_agent is typed to return list[FileChange]
         result = await self._run_agent_with_ui(
-             coder_agent, description, "Generating UAT", result_type=list[FileChange]
+             coder_agent, description, "Generating UAT", result_type=list[FileOperation]
         )
         self._apply_agent_changes(result.output)  # type: ignore
 
@@ -665,6 +694,6 @@ class CycleOrchestrator:
                     shutil.copy(src, dst)
 
         next_orchestrator = CycleOrchestrator(
-            next_id, dry_run=self.dry_run, auto_next=self.auto_next
+            next_id, dry_run=self.dry_run, auto_next=self.auto_next, interactive=self.interactive
         )
         await next_orchestrator.plan_cycle()

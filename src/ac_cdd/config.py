@@ -1,18 +1,43 @@
 import tomllib
 from pathlib import Path
 
-from pydantic import ConfigDict
+from pydantic import ConfigDict, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+
+def _detect_package_dir() -> str:
+    """
+    Detects the main package directory under src/.
+    Looks for the first directory containing __init__.py.
+    """
+    src_path = Path("src")
+    if src_path.exists():
+        for p in src_path.iterdir():
+            if p.is_dir() and (p / "__init__.py").exists():
+                return str(p)
+    # Fallback to standard conventions or strict default
+    return "src/ac_cdd"
 
 class PathsConfig(BaseSettings):
     model_config = ConfigDict(extra="ignore")
     documents_dir: str = "dev_documents"
-    contracts_dir: str = "src/ac_cdd/contracts"
+
+    # Dynamic package detection
+    package_dir: str = Field(default_factory=_detect_package_dir)
+
+    # Dependent defaults (handled in validator)
+    contracts_dir: str = ""
+
     sessions_dir: str = ".jules/sessions"
     src: str = "src"
     tests: str = "tests"
     templates: str = "dev_documents/templates"
+
+    @model_validator(mode="after")
+    def _set_dependent_paths(self) -> "PathsConfig":
+        if not self.contracts_dir:
+            self.contracts_dir = f"{self.package_dir}/contracts"
+        return self
 
 class ToolsConfig(BaseSettings):
     model_config = ConfigDict(extra="ignore")

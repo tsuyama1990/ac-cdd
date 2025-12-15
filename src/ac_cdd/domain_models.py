@@ -32,7 +32,25 @@ class UatAnalysis(BaseModel):
     summary: str
     behavior_analysis: str
 
-class FileChange(BaseModel):
+class FileCreate(BaseModel):
+    """New file creation"""
     model_config = ConfigDict(extra='forbid')
-    path: str = Field(..., description="Path to the file to create or modify")
-    content: str = Field(..., description="Full content of the file")
+    operation: Literal["create"] = "create"
+    path: str = Field(..., description="Path to the file to create")
+    content: str = Field(..., description="Full content of the new file")
+
+class FilePatch(BaseModel):
+    """Existing file modification via patch"""
+    model_config = ConfigDict(extra='forbid')
+    operation: Literal["patch"] = "patch"
+    path: str = Field(..., description="Path to the file to modify")
+    search_block: str = Field(
+        ...,
+        description="Exact block of code to search for (must match original file exactly)",
+    )
+    replace_block: str = Field(
+        ..., description="New block of code to replace the search block with"
+    )
+
+
+FileOperation = FileCreate | FilePatch

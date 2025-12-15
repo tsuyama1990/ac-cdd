@@ -12,13 +12,12 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from ac_cdd.agents import auditor_agent, coder_agent
 from ac_cdd.config import settings
-from ac_cdd.domain_models import AuditResult, FileChange
+from ac_cdd.domain_models import AuditResult, FileOperation
 from ac_cdd.orchestrator import CycleOrchestrator
 
 load_dotenv()
 
 # Initialize Logfire
-# Only configure if LOGFIRE_TOKEN is set to avoid error during local testing without auth
 if os.getenv("LOGFIRE_TOKEN"):
     logfire.configure()
 
@@ -30,7 +29,6 @@ def init() -> None:
     """プロジェクトの初期化と依存関係チェック"""
     console.print(Panel("AC-CDD環境の初期化中...", style="bold blue"))
 
-    # Use tools from config
     checks = [
         (settings.tools.uv_cmd, "パッケージ管理には uv が必要です。"),
         (settings.tools.gh_cmd, "PR管理には GitHub CLI (gh) が必要です。"),
@@ -56,12 +54,10 @@ def init() -> None:
             env_template = Path(settings.paths.templates) / ".env.example"
 
         if env_template.exists():
-            # Parse keys from template
             with open(env_template, encoding="utf-8") as f:
                 for line in f:
                     if line.strip() and not line.startswith("#"):
                         key = line.split("=")[0].strip()
-                        # Ask user
                         default_val = line.split("=")[1].strip() if "=" in line else ""
                         value = typer.prompt(f"Enter value for {key}", default=default_val)
                         env_content += f"{key}={value}\n"
@@ -90,7 +86,6 @@ def init() -> None:
 @app.command(name="new-cycle")
 def new_cycle(name: str) -> None:
     """新しい開発サイクルを作成します (例: 01, 02)"""
-    # Assuming 'name' corresponds to cycle_id like '01'
     cycle_id = name
     base_path = Path(settings.paths.documents_dir) / f"CYCLE{cycle_id}"
     if base_path.exists():
@@ -100,7 +95,6 @@ def new_cycle(name: str) -> None:
     base_path.mkdir(parents=True)
     templates_dir = Path(settings.paths.templates) / "cycle"
 
-    # Copy templates
     for item in ["SPEC.md", "UAT.md", "schema.py"]:
         src = templates_dir / item
         if src.exists():
@@ -117,12 +111,13 @@ def start_cycle(
     dry_run: bool = False,
     auto_next: bool = False,
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompts"),
+    interactive: bool = typer.Option(True, help="Enable interactive approval of file changes"),
 ) -> None:
     """サイクルの自動実装・監査ループを開始します (複数ID指定可)"""
-    asyncio.run(_start_cycle_async(names, dry_run, auto_next, yes))
+    asyncio.run(_start_cycle_async(names, dry_run, auto_next, yes, interactive))
 
 async def _start_cycle_async(
-    names: list[str], dry_run: bool, auto_next: bool, auto_approve: bool
+    names: list[str], dry_run: bool, auto_next: bool, auto_approve: bool, interactive: bool
 ) -> None:
     if not names:
         console.print("[red]少なくとも1つのサイクルIDを指定してください (例: 01)[/red]")
@@ -136,7 +131,11 @@ async def _start_cycle_async(
             )
 
         orchestrator = CycleOrchestrator(
-            cycle_id, dry_run=dry_run, auto_next=auto_next, auto_approve=auto_approve
+            cycle_id,
+            dry_run=dry_run,
+            auto_next=auto_next,
+            auto_approve=auto_approve,
+            interactive=interactive
         )
 
         with Progress(
@@ -203,21 +202,18 @@ async def _audit_async(repo: str) -> None:
 
         typer.secho("✅ Audit complete. Fix task assigned to Coder!", fg=typer.colors.GREEN)
 
-        # Display the proposed changes
-        changes: list[FileChange] = coder_result.output
-        for change in changes:
-            typer.echo(f"Proposed change for: {change.path}")
-            # Optionally print content or a snippet
-            typer.echo("---")
+        # Changes are now list[FileOperation]
+        changes: list[FileOperation] = coder_result.output
 
-        # In ad-hoc mode, we might want to apply them too?
-        # For now, let's apply them as the command implies action.
-        typer.secho("Applying changes...", fg=typer.colors.CYAN)
-        for change in changes:
-             p = Path(change.path)
-             p.parent.mkdir(parents=True, exist_ok=True)
-             p.write_text(change.content, encoding="utf-8")
-             typer.echo(f"Applied to {p}")
+        # Instantiate orchestrator for file application logic (reuse reuse!)
+        # Or just manually apply since we are in ad-hoc mode.
+        # But we need the patch logic.
+        # It's better to reuse CycleOrchestrator._apply_agent_changes,
+        # but that method is instance based.
+        # Let's create a dummy orchestrator for reuse.
+
+        orchestrator = CycleOrchestrator("00", dry_run=False)  # Dummy cycle ID
+        orchestrator._apply_agent_changes(changes)
 
 
     except Exception as e:
@@ -229,19 +225,20 @@ async def _audit_async(repo: str) -> None:
 def fix() -> None:
     """
     [Auto Fix] テストを実行し、失敗した場合にCoderに修正させます。
+    Smart Fix: pytest --last-failed -> pytest full -> Coder
     """
     asyncio.run(_fix_async())
 
 async def _fix_async() -> None:
-    typer.echo("🧪 Running tests with pytest...")
-
     uv_path = shutil.which("uv")
     if not uv_path:
         typer.secho("Error: 'uv' not found.", fg=typer.colors.RED)
         raise typer.Exit(1)
 
+    # 1. Try running only failed tests first
+    typer.echo("🧪 Running failed tests (pytest --last-failed)...")
     proc = await asyncio.create_subprocess_exec(
-        uv_path, "run", "pytest",
+        uv_path, "run", "pytest", "--last-failed",
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE
     )
@@ -249,9 +246,24 @@ async def _fix_async() -> None:
     logs = stdout.decode() + "\n" + stderr.decode()
 
     if proc.returncode == 0:
-        typer.secho("✨ All tests passed! Nothing to fix.", fg=typer.colors.GREEN)
-        return
+        # 2. If no failures (or no history), run full suite
+        typer.echo("✨ Last failed tests passed (or none). Running full suite...")
+        proc_full = await asyncio.create_subprocess_exec(
+            uv_path, "run", "pytest",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout_full, stderr_full = await proc_full.communicate()
+        logs_full = stdout_full.decode() + "\n" + stderr_full.decode()
 
+        if proc_full.returncode == 0:
+            typer.secho("✨ All tests passed! Nothing to fix.", fg=typer.colors.GREEN)
+            return
+
+        # Capture failure logs from full run
+        logs = logs_full
+
+    # 3. Failures detected
     typer.secho("💥 Tests failed! Invoking Coder for repairs...", fg=typer.colors.RED)
 
     try:
@@ -262,12 +274,11 @@ async def _fix_async() -> None:
         result = await coder_agent.run(prompt)
         typer.secho("✅ Fix task assigned to Coder.", fg=typer.colors.GREEN)
 
-        changes: list[FileChange] = result.output
-        for change in changes:
-             p = Path(change.path)
-             p.parent.mkdir(parents=True, exist_ok=True)
-             p.write_text(change.content, encoding="utf-8")
-             typer.echo(f"Applied fix to {p}")
+        changes: list[FileOperation] = result.output
+
+        # Reuse logic
+        orchestrator = CycleOrchestrator("00", dry_run=False)
+        orchestrator._apply_agent_changes(changes)
 
     except Exception as e:
         typer.secho(str(e), fg=typer.colors.RED)
@@ -308,8 +319,10 @@ def friendly_error_handler() -> None:
         app()
     except Exception as e:
         console.print(Panel(f"An unexpected error occurred: {str(e)}", style="bold red"))
-        if settings.debug:
+        if settings.debug:  # Assuming Settings has debug or check env
             console.print_exception()
+        elif os.getenv("DEBUG"):
+             console.print_exception()
         else:
             console.print("Run with DEBUG=1 environment variable to see full traceback.")
         raise typer.Exit(code=1) from e
