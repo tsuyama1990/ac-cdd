@@ -174,6 +174,8 @@ async def _start_cycle_async(
             "current_phase": "start",
             "error": None,
             "sandbox_id": None,
+            "dry_run": dry_run,
+            "interactive": interactive,
         }
         await _run_graph(build_graph(), initial_state, f"Cycle {cycle_id}")
 
@@ -196,6 +198,8 @@ async def _audit_async() -> None:
         "current_phase": "audit_start",
         "error": None,
         "sandbox_id": None,
+        "dry_run": False,
+        "interactive": True,
     }
     await _run_graph(build_audit_graph(), initial_state, "Ad-hoc Audit")
 
@@ -215,6 +219,8 @@ async def _fix_async() -> None:
         "current_phase": "fix_start",
         "error": None,
         "sandbox_id": None,
+        "dry_run": False,
+        "interactive": True,
     }
     await _run_graph(build_fix_graph(), initial_state, "Ad-hoc Fix")
 

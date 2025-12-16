@@ -15,6 +15,7 @@ from .domain_models import (
     CyclePlan,
     UatAnalysis,
 )
+from .presentation import ConsolePresenter
 from .sandbox import SandboxRunner
 from .services import ArtifactManager, ContractManager, FilePatcher
 from .state import CycleState
@@ -24,6 +25,7 @@ from .utils import logger
 file_patcher = FilePatcher()
 contract_manager = ContractManager()
 artifact_manager = ArtifactManager()
+presenter = ConsolePresenter()
 
 
 async def planner_node(state: CycleState) -> dict:
@@ -74,11 +76,20 @@ async def spec_writer_node(state: CycleState) -> dict:
     prompt_with_role = f"You are a QA Engineer.\n{user_task}"
 
     result = await coder_agent.run(prompt_with_role)
-    file_patcher.apply_changes(
-        result.output,
-        dry_run=state.get("dry_run", False),
-        interactive=state.get("interactive", False),
-    )
+
+    # Logic for interaction
+    # 1. Preview changes (dry_run=True)
+    preview_results = file_patcher.apply_changes(result.output, dry_run=True)
+
+    should_apply = True
+    if state.get("interactive", False):
+        should_apply = presenter.review_and_confirm(preview_results)
+    else:
+        # Just show what's happening
+        presenter.print_patch_results(preview_results)
+
+    if should_apply and not state.get("dry_run", False):
+        file_patcher.apply_changes(result.output, dry_run=False)
 
     return {"current_phase": "spec_written"}
 
@@ -129,11 +140,18 @@ async def coder_node(state: CycleState) -> dict:
         )
 
     result = await coder_agent.run(prompt)
-    file_patcher.apply_changes(
-        result.output,
-        dry_run=state.get("dry_run", False),
-        interactive=state.get("interactive", False),
-    )
+
+    # Logic for interaction
+    preview_results = file_patcher.apply_changes(result.output, dry_run=True)
+
+    should_apply = True
+    if state.get("interactive", False):
+        should_apply = presenter.review_and_confirm(preview_results)
+    else:
+        presenter.print_patch_results(preview_results)
+
+    if should_apply and not state.get("dry_run", False):
+        file_patcher.apply_changes(result.output, dry_run=False)
 
     return {
         "code_changes": result.output,
@@ -258,11 +276,18 @@ async def uat_node(state: CycleState) -> dict:
         "- Output valid Python code."
     )
     result = await coder_agent.run(description)
-    file_patcher.apply_changes(
-        result.output,
-        dry_run=state.get("dry_run", False),
-        interactive=state.get("interactive", False),
-    )
+
+    # Logic for interaction
+    preview_results = file_patcher.apply_changes(result.output, dry_run=True)
+
+    should_apply = True
+    if state.get("interactive", False):
+        should_apply = presenter.review_and_confirm(preview_results)
+    else:
+        presenter.print_patch_results(preview_results)
+
+    if should_apply and not state.get("dry_run", False):
+        file_patcher.apply_changes(result.output, dry_run=False)
 
     # 2. Run Tests in Sandbox
     sandbox = SandboxRunner(sandbox_id=state.get("sandbox_id"))

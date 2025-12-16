@@ -1,18 +1,22 @@
 import difflib
-import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
-
-import typer
-from rich.console import Console
-from rich.panel import Panel
-from rich.syntax import Syntax
 
 from ..domain_models import FileCreate, FileOperation, FilePatch
 from ..utils import logger
 
 if TYPE_CHECKING:
     from ..domain_models import FileOperation
+
+
+@dataclass
+class PatchResult:
+    success: bool
+    file_path: str
+    diff_text: str  # 適用された差分
+    message: str    # エラーメッセージ等
+    operation: str  # create or patch
 
 
 class FilePatcher:
@@ -22,18 +26,20 @@ class FilePatcher:
     """
 
     def apply_changes(
-        self, changes: list[FileOperation], dry_run: bool = False, interactive: bool = False
-    ) -> None:
+        self, changes: list[FileOperation], dry_run: bool = False
+    ) -> list[PatchResult]:
         """
         Applies a list of FileOperation objects to the file system.
+        Returns a list of PatchResult objects describing what happened.
         """
-        console = Console()
-        is_tty = sys.stdout.isatty()
+        results = []
 
         for op in changes:
             p = Path(op.path)
             new_content = ""
             diff_text = ""
+            message = ""
+            success = False
 
             if isinstance(op, FileCreate):
                 if p.exists():
@@ -54,10 +60,19 @@ class FilePatcher:
                     )
                 )
                 diff_text = "".join(diff)
+                success = True
+                message = "File created (prepared)" if dry_run else "File created"
 
             elif isinstance(op, FilePatch):
                 if not p.exists():
                     logger.error(f"Cannot patch non-existent file: {p}")
+                    results.append(PatchResult(
+                        success=False,
+                        file_path=str(p),
+                        diff_text="",
+                        message="Cannot patch non-existent file",
+                        operation=op.operation
+                    ))
                     continue
 
                 original_content = p.read_text(encoding="utf-8")
@@ -67,6 +82,13 @@ class FilePatcher:
                     logger.error(
                         f"Patch failed for {p}: search_block not found (Exact match required)."
                     )
+                    results.append(PatchResult(
+                        success=False,
+                        file_path=str(p),
+                        diff_text="",
+                        message="Patch failed: search_block not found",
+                        operation=op.operation
+                    ))
                     continue
 
                 new_content = (
@@ -86,32 +108,26 @@ class FilePatcher:
                     )
                 )
                 diff_text = "".join(diff)
-
-            # Interactive Review
-            if interactive and is_tty and not dry_run:
-                console.print(
-                    Panel(f"Proposed changes for [bold]{p}[/bold] ({op.operation})", style="blue")
-                )
-                if diff_text:
-                    syntax = Syntax(diff_text, "diff", theme="monokai", line_numbers=True)
-                    console.print(syntax)
-                else:
-                    console.print(
-                        f"[yellow]New File (Full Content):[/yellow]\n{new_content[:500]}..."
-                    )
-
-                should_apply = typer.confirm(f"Apply changes to {p}?", default=True)
-                if not should_apply:
-                    logger.warning(f"Skipped changes for {p}")
-                    continue
+                success = True
+                message = "File patched (prepared)" if dry_run else "File patched"
 
             # Apply
-            if not dry_run:
+            if success and not dry_run:
                 p.parent.mkdir(parents=True, exist_ok=True)
                 p.write_text(new_content, encoding="utf-8")
                 logger.info(f"Applied {op.operation} to {p}")
-            else:
+            elif success and dry_run:
                 logger.info(f"[DRY-RUN] Would apply {op.operation} to {p}")
+
+            results.append(PatchResult(
+                success=success,
+                file_path=str(p),
+                diff_text=diff_text,
+                message=message,
+                operation=op.operation
+            ))
+
+        return results
 
     def read_src_files(self, src_dir: str) -> str:
         """
