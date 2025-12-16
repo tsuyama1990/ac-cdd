@@ -51,12 +51,52 @@ graph TD
 
 ## Usage
 
-### Start a Development Cycle
+### 0. Define Grand Design (Critical)
+Before running any automation, you must define **what** you are building.
+The agents use `dev_documents/ALL_SPEC.md` as the "Constitution" of your project.
+
+1. **Initialize the Spec**:
+   Copy the template if it doesn't exist:
+   ```bash
+   cp dev_documents/templates/ALL_SPEC.md dev_documents/ALL_SPEC.md
+   ```
+2. **Write your Requirements**:
+   Edit `dev_documents/ALL_SPEC.md`. Describe the project goal, architecture, and feature backlog.
+   *The Planner Agent will read this to generate cycle plans.*
+
+### 0.5 Refine Specification (New!)
+Convert your raw ideas into a rigorous, structured specification using the **Architect Agent**.
+
+```bash
+uv run manage.py refine-spec
+```
+
+This will generate `dev_documents/ALL_SPEC_STRUCTURED.md`.
+**Review this file!** It will serve as the strict constitution for all subsequent AI agents.
+
+### 1. Plan the Cycle (Two Options)
+
+**Option A: Automated Planning (Default)**
+Run `start-cycle` directly. The Planner Agent will read `ALL_SPEC.md` and generate artifacts for you.
+
+**Option B: Manual/Offline Planning (Recommended)**
+For complex features, you may want to co-design the spec with a superior model (e.g., Gemini Advanced, ChatGPT o1) before starting.
+
+1. Copy the prompt: `dev_documents/templates/CYCLE_PLANNING_PROMPT.md`
+2. Chat with an LLM and paste `ALL_SPEC.md`.
+3. Save the output files to `dev_documents/CYCLExx/` (`SPEC.md`, `schema.py`, `UAT.md`).
+4. Run:
+   ```bash
+   uv run manage.py start-cycle 01
+   ```
+   *The tool will detect existing files and skip the planning phase.*
+
+### 2. Start Development Cycle
 ```bash
 uv run manage.py start-cycle 01
 ```
 This will:
-1. Plan features (SPEC/Schema/UAT).
+1. **Read `ALL_SPEC.md`** (or use existing `SPEC.md`).
 2. Generate property tests.
 3. Implement code.
 4. Run tests in E2B Sandbox.

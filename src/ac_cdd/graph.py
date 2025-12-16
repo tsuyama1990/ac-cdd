@@ -36,16 +36,35 @@ async def planner_node(state: CycleState) -> dict:
     cycle_id = state["cycle_id"]
     logger.info(f"Phase: Planning (Cycle {cycle_id})")
 
-    if state.get("plan"):
-        logger.info("Plan already exists, skipping generation.")
-        return {"current_phase": "planning_complete"}
+    # Support Offline/Manual Planning: Check if artifacts already exist
+    cycle_dir = Path(settings.paths.documents_dir) / f"CYCLE{cycle_id}"
+    spec_path = cycle_dir / "SPEC.md"
+    
+    if spec_path.exists():
+        logger.info(f"Plan artifacts found at {cycle_dir}. Skipping generation.")
+        return {"current_phase": "planning_complete", "error": None}
 
-    planning_prompt_path = Path(settings.paths.templates) / "CYCLE_PLANNING_PROMPT.md"
-    base_prompt = ""
-    if planning_prompt_path.exists():
-        base_prompt = planning_prompt_path.read_text(encoding="utf-8")
+    # Priority 1: Use Structured JSON if available
+    structured_json_path = Path(settings.paths.documents_dir) / "ALL_SPEC_STRUCTURED.json"
+    if structured_json_path.exists():
+        logger.info("Using Structured Spec (JSON) for planning.")
+        json_content = structured_json_path.read_text(encoding="utf-8")
+        user_task = (
+            f"You are the Planner. The user has defined a strict Structured Specification.\n\n"
+            f"STRUCTURED_SPEC_JSON:\n{json_content}\n\n"
+            f"Based STRICTLY on this JSON, generate the artifacts for CYCLE{cycle_id}.\n"
+            f"- SPEC.md: Must align with the 'features' list for this cycle.\n"
+            f"- schema.py: Must implement the types defined in the 'architecture_overview'.\n"
+            f"- UAT.md: Must derive scenarios from 'acceptance_criteria'."
+        )
+    else:
+        # Priority 2: Use Markdown Template + Context
+        planning_prompt_path = Path(settings.paths.templates) / "CYCLE_PLANNING_PROMPT.md"
+        base_prompt = ""
+        if planning_prompt_path.exists():
+            base_prompt = planning_prompt_path.read_text(encoding="utf-8")
 
-    user_task = f"{base_prompt}\n\nFocus specifically on generating artifacts for CYCLE{cycle_id}."
+        user_task = f"{base_prompt}\n\nFocus specifically on generating artifacts for CYCLE{cycle_id}."
 
     if state.get("goal"):
         user_task += f"\n\nUSER GOAL/INSTRUCTION: {state['goal']}"

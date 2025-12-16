@@ -6,8 +6,11 @@ The core orchestration is handled by `LangGraph`.
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Planner
-    Planner --> SpecWriter: Plan Artifacts Generated
+stateDiagram-v2
+    [*] --> CheckArtifacts
+    CheckArtifacts --> Planner: No Artifacts
+    CheckArtifacts --> SpecWriter: Artifacts Exist (Offline Plan)
+    Planner --> SpecWriter: Reads ALL_SPEC.md -> Generates Cycle Plan
     SpecWriter --> Coder: Schema & Property Tests Ready
 
     state ImplementationLoop {
