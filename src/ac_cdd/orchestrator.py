@@ -9,7 +9,6 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.syntax import Syntax
 
-from .agents import auditor_agent, coder_agent, planner_agent, qa_analyst_agent
 from .config import settings
 from .domain_models import AuditResult, CyclePlan, FileCreate, FileOperation, FilePatch, UatAnalysis
 from .process_runner import ProcessRunner
@@ -113,6 +112,9 @@ class CycleOrchestrator:
         """
         Phase 0: 計画策定 (Planning Phase)
         """
+        # Lazy import agents
+        from .agents import planner_agent
+
         if self.dry_run:
             logger.info("[DRY-RUN] Planning Cycle... (Mocking plan generation)")
             return
@@ -191,6 +193,9 @@ class CycleOrchestrator:
         """
         Phase 3.2: プロパティベーステストの生成
         """
+        # Lazy import agents
+        from .agents import coder_agent
+
         user_task = settings.prompts.property_test_template.format(cycle_id=self.cycle_id)
 
         # Add instruction to return correct path
@@ -290,6 +295,9 @@ class CycleOrchestrator:
         """
         Re-runs planning with feedback.
         """
+        # Lazy import agents
+        from .agents import planner_agent
+
         logger.info("Triggering Re-Planning with feedback...")
 
         planning_prompt_path = Path(settings.paths.templates) / "CYCLE_PLANNING_PROMPT.md"
@@ -310,6 +318,9 @@ class CycleOrchestrator:
         self._save_plan_artifacts(result.output)  # type: ignore
 
     async def _trigger_implementation(self) -> None:
+        # Lazy import agents
+        from .agents import coder_agent
+
         spec_path = f"{settings.paths.documents_dir}/CYCLE{self.cycle_id}/SPEC.md"
         description = (
             f"Implement requirements in {spec_path} "
@@ -469,6 +480,9 @@ class CycleOrchestrator:
                 logger.info(f"Applied {op.operation} to {p}")
 
     async def _trigger_fix(self, instructions: str) -> None:
+        # Lazy import agents
+        from .agents import coder_agent
+
         if self.dry_run:
             logger.info(f"[DRY-RUN] Fixing code: {instructions}")
             return
@@ -510,6 +524,9 @@ class CycleOrchestrator:
         """
         Phase 3.4: 世界一厳格な監査
         """
+        # Lazy import agents
+        from .agents import auditor_agent
+
         if self.dry_run:
             logger.info("[DRY-RUN] Mocking audit approval")
             return True
@@ -621,6 +638,9 @@ class CycleOrchestrator:
         """
         Phase 3.5: UATの生成と実行
         """
+        # Lazy import agents
+        from .agents import coder_agent
+
         if self.dry_run:
             logger.info("[DRY-RUN] UAT Phase")
             return
@@ -674,6 +694,9 @@ class CycleOrchestrator:
             raise Exception("UAT Phase Failed")
 
     async def _analyze_uat_results(self, logs: str, success: bool) -> None:
+        # Lazy import agents
+        from .agents import qa_analyst_agent
+
         logger.info("Analyzing UAT Results...")
         verdict = "PASS" if success else "FAIL"
 

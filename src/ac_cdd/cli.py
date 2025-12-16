@@ -10,7 +10,6 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
-from ac_cdd.agents import auditor_agent, coder_agent
 from ac_cdd.config import settings
 from ac_cdd.domain_models import AuditResult, FileOperation
 from ac_cdd.orchestrator import CycleOrchestrator
@@ -125,6 +124,7 @@ def start_cycle(
 async def _start_cycle_async(
     names: list[str], dry_run: bool, auto_next: bool, auto_approve: bool, interactive: bool
 ) -> None:
+    # Lazy import to avoid crash if API key is missing during init/doctor
     if not names:
         console.print("[red]少なくとも1つのサイクルIDを指定してください (例: 01)[/red]")
         raise typer.Exit(code=1)
@@ -171,6 +171,9 @@ def audit(repo: str = typer.Option(None, help="Target repository")) -> None:
 
 
 async def _audit_async(repo: str) -> None:
+    # Lazy import
+    from ac_cdd.agents import auditor_agent, coder_agent
+
     typer.echo("🔍 Fetching git diff...")
     runner = ProcessRunner()
 
@@ -235,6 +238,9 @@ def fix() -> None:
 
 
 async def _fix_async() -> None:
+    # Lazy import
+    from ac_cdd.agents import coder_agent
+
     uv_path = shutil.which("uv")
     if not uv_path:
         typer.secho("Error: 'uv' not found.", fg=typer.colors.RED)
