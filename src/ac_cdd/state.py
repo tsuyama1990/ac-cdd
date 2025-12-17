@@ -21,3 +21,4 @@ class CycleState(TypedDict):
     dry_run: bool
     interactive: bool
     goal: str | None
+    approved: bool | None # For human-in-the-loop approval

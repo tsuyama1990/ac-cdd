@@ -172,23 +172,22 @@ class GraphBuilder:
 
         result = await coder_agent.run(prompt_with_role)
 
-        # Logic for interaction
-        preview_results = self.services.file_patcher.apply_changes(result.output, dry_run=True)
+        # Return changes for review/application
+        return {
+            "code_changes": result.output,
+            "current_phase": "tests_generated",
+            "error": None,
+        }
 
-        should_apply = True
-        if state.get("interactive", False):
-            should_apply = self.services.presenter.review_and_confirm(preview_results)
-        else:
-            self.services.presenter.print_patch_results(preview_results)
-
-        if should_apply and not state.get("dry_run", False):
-            self.services.file_patcher.apply_changes(result.output, dry_run=False)
-
-        return {"current_phase": "tests_generated"}
+    async def apply_test_code_node(self, state: CycleState) -> dict[str, Any]:
+        """Apply test code changes."""
+        logger.info("Applying Test Code Changes")
+        self.services.file_patcher.apply_changes(state["code_changes"], dry_run=False)
+        return {"current_phase": "tests_applied"}
 
     async def coder_node(self, state: CycleState) -> dict[str, Any]:
         """
-        Phase 3.3: Implementation
+        Phase 3.3: Implementation (Generation Only)
         """
         cycle_id = state["cycle_id"]
         logger.info(f"Phase: Coder (Cycle {cycle_id})")
@@ -243,24 +242,18 @@ class GraphBuilder:
 
         result = await coder_agent.run(prompt)
 
-        # Logic for interaction
-        preview_results = self.services.file_patcher.apply_changes(result.output, dry_run=True)
-
-        should_apply = True
-        if state.get("interactive", False):
-            should_apply = self.services.presenter.review_and_confirm(preview_results)
-        else:
-            self.services.presenter.print_patch_results(preview_results)
-
-        if should_apply and not state.get("dry_run", False):
-            self.services.file_patcher.apply_changes(result.output, dry_run=False)
-
         return {
             "code_changes": result.output,
             "error": None,
-            "current_phase": "implementation_done",
+            "current_phase": "implementation_generated",
             "loop_count": new_loop_count,
         }
+
+    async def apply_impl_code_node(self, state: CycleState) -> dict[str, Any]:
+        """Apply implementation code changes."""
+        logger.info("Applying Implementation Changes")
+        self.services.file_patcher.apply_changes(state["code_changes"], dry_run=False)
+        return {"current_phase": "implementation_applied"}
 
     async def tester_node(self, state: CycleState) -> dict[str, Any]:
         """
@@ -397,13 +390,12 @@ class GraphBuilder:
 
         return {"audit_result": audit_res, "error": None, "current_phase": "audit_passed"}
 
-    async def uat_node(self, state: CycleState) -> dict[str, Any]:
+    async def uat_generator_node(self, state: CycleState) -> dict[str, Any]:
         """
-        Phase 3.5: UAT
-        Generate UAT tests, run them in Sandbox, Analyze results.
+        Phase 3.5a: UAT Generation
         """
         cycle_id = state["cycle_id"]
-        logger.info(f"Phase: UAT (Cycle {cycle_id})")
+        logger.info(f"Phase: UAT Generator (Cycle {cycle_id})")
 
         # 1. Generate UAT Code
         uat_path = Path(settings.paths.documents_dir) / f"CYCLE{cycle_id}/UAT.md"
@@ -418,17 +410,24 @@ class GraphBuilder:
         )
         result = await coder_agent.run(description)
 
-        # Logic for interaction
-        preview_results = self.services.file_patcher.apply_changes(result.output, dry_run=True)
+        return {
+            "code_changes": result.output,
+            "current_phase": "uat_generated",
+            "error": None
+        }
 
-        should_apply = True
-        if state.get("interactive", False):
-            should_apply = self.services.presenter.review_and_confirm(preview_results)
-        else:
-            self.services.presenter.print_patch_results(preview_results)
+    async def apply_uat_code_node(self, state: CycleState) -> dict[str, Any]:
+        """Apply UAT code changes."""
+        logger.info("Applying UAT Code Changes")
+        self.services.file_patcher.apply_changes(state["code_changes"], dry_run=False)
+        return {"current_phase": "uat_applied"}
 
-        if should_apply and not state.get("dry_run", False):
-            self.services.file_patcher.apply_changes(result.output, dry_run=False)
+    async def uat_evaluator_node(self, state: CycleState) -> dict[str, Any]:
+        """
+        Phase 3.5b: UAT Execution & Analysis
+        """
+        cycle_id = state["cycle_id"]
+        logger.info(f"Phase: UAT Evaluator (Cycle {cycle_id})")
 
         # 2. Run Tests in Sandbox
         sandbox = SandboxRunner(sandbox_id=state.get("sandbox_id"))
@@ -506,11 +505,19 @@ class GraphBuilder:
         workflow.add_node("structurer", self.structurer_node)
         workflow.add_node("planner", self.planner_node)
         workflow.add_node("spec_writer", self.spec_writer_node)
+        
         workflow.add_node("test_generator", self.test_generator_node)
+        workflow.add_node("apply_test", self.apply_test_code_node)
+        
         workflow.add_node("coder", self.coder_node)
+        workflow.add_node("apply_impl", self.apply_impl_code_node)
+        
         workflow.add_node("tester", self.tester_node)
         workflow.add_node("auditor", self.auditor_node)
-        workflow.add_node("uat", self.uat_node)
+        
+        workflow.add_node("uat_generator", self.uat_generator_node)
+        workflow.add_node("apply_uat", self.apply_uat_code_node)
+        workflow.add_node("uat_evaluator", self.uat_evaluator_node)
 
         # Define Edges
         # Conditional Entry Point
@@ -528,11 +535,30 @@ class GraphBuilder:
         workflow.add_edge("structurer", "planner")
         workflow.add_edge("planner", "spec_writer")
         workflow.add_edge("spec_writer", "test_generator")
-        workflow.add_edge("test_generator", "coder")
-        workflow.add_edge("coder", "tester")
+        
+        # Test Gen -> Approval -> Apply
+        def check_test_approval(state: CycleState) -> Literal["apply_test", "test_generator"]:
+            if state.get("approved"):
+                return "apply_test"
+            return "test_generator" # Loop back on rejection with feedback in 'error'
+        
+        workflow.add_conditional_edges(
+            "test_generator", check_test_approval, {"apply_test": "apply_test", "test_generator": "test_generator"}
+        )
+        workflow.add_edge("apply_test", "coder")
 
-        # Conditional Edges
-
+        # Coder -> Approval -> Apply
+        def check_impl_approval(state: CycleState) -> Literal["apply_impl", "coder"]:
+            if state.get("approved"):
+                return "apply_impl"
+            return "coder"
+            
+        workflow.add_conditional_edges(
+            "coder", check_impl_approval, {"apply_impl": "apply_impl", "coder": "coder"}
+        )
+        workflow.add_edge("apply_impl", "tester")
+        
+        # Testing Loop
         def check_test_result(state: CycleState) -> Literal["auditor", "coder", "end"]:
             if state.get("error"):
                 if state.get("loop_count", 0) > settings.MAX_RETRIES:
@@ -546,17 +572,29 @@ class GraphBuilder:
             "tester", check_test_result, {"auditor": "auditor", "coder": "coder", "end": END}
         )
 
-        def check_audit_result(state: CycleState) -> Literal["uat", "coder", "end"]:
+        def check_audit_result(state: CycleState) -> Literal["uat_generator", "coder", "end"]:
             if state.get("error"):
                 if state.get("loop_count", 0) > settings.MAX_RETRIES:
                     logger.error("Max retries reached in Audit Loop.")
                     return "end"
                 return "coder"
-            return "uat"
+            return "uat_generator"
 
         workflow.add_conditional_edges(
-            "auditor", check_audit_result, {"uat": "uat", "coder": "coder", "end": END}
+            "auditor", check_audit_result, {"uat_generator": "uat_generator", "coder": "coder", "end": END}
         )
+        
+        # UAT Flow
+        def check_uat_approval(state: CycleState) -> Literal["apply_uat", "uat_generator"]:
+            if state.get("approved"):
+                return "apply_uat"
+            return "uat_generator"
+            
+        workflow.add_conditional_edges(
+            "uat_generator", check_uat_approval,
+            {"apply_uat": "apply_uat", "uat_generator": "uat_generator"}
+        )
+        workflow.add_edge("apply_uat", "uat_evaluator")
 
         def check_uat_result(state: CycleState) -> Literal["end", "coder"]:
             if state.get("error"):
@@ -566,7 +604,7 @@ class GraphBuilder:
                 return "coder"
             return "end"
 
-        workflow.add_conditional_edges("uat", check_uat_result, {"end": END, "coder": "coder"})
+        workflow.add_conditional_edges("uat_evaluator", check_uat_result, {"end": END, "coder": "coder"})
 
         return workflow
 

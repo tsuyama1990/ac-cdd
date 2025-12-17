@@ -126,39 +126,105 @@ async def _get_checkpointer(cycle_id: str) -> SqliteSaver:
 
 
 async def _run_graph(graph, initial_state: dict, title: str, thread_id: str) -> None:
-    """Generic graph runner with progress UI."""
+    """Generic graph runner with progress UI and human-in-the-loop support."""
     checkpointer = await _get_checkpointer(thread_id)
-    # The graph is already compiled if passed from outside?
-    # No, GraphBuilder returns StateGraph, which needs compile().
-    # Let's fix _run_graph to accept StateGraph and compile it.
-
-    # Wait, GraphBuilder.build_main_graph returns StateGraph.
-    app = graph.compile(checkpointer=checkpointer)
+    
+    # Compile with interrupts for human review
+    app = graph.compile(
+        checkpointer=checkpointer,
+        interrupt_before=["apply_test", "apply_impl", "apply_uat"]
+    )
 
     config = {"configurable": {"thread_id": thread_id}}
-
+    
+    # State for the runner loop
+    resume_input = initial_state
+    
     console.print(Panel(f"Running: {title}", style="bold magenta"))
 
-    with Progress(
-        SpinnerColumn(), TextColumn("[progress.description]{task.description}"), console=console
-    ) as progress:
-        task_id = progress.add_task("[cyan]Executing...[/cyan]", total=None)
-
+    while True:
         try:
-            async for event in app.astream(initial_state, config=config):
-                for node_name, state_update in event.items():
-                    phase = state_update.get("current_phase", node_name)
-                    progress.update(
-                        task_id, description=f"[cyan]Node: {node_name} ({phase})..."
-                    )
-                    if state_update.get("error"):
-                        err_msg = state_update["error"][:200]
-                        console.print(f"[red]Error in {node_name}:[/red] {err_msg}...")
+            # We run the graph until it finishes or hits an interrupt
+            # We use a progress bar for the active execution phase
+            with Progress(
+                SpinnerColumn(), TextColumn("[progress.description]{task.description}"), console=console
+            ) as progress:
+                task_id = progress.add_task("[cyan]Executing...[/cyan]", total=None)
+                
+                # If we are resuming, passing None resumes from the checkpoint state.
+                # However, if it's the *first* run, we pass initial_state.
+                # After the first run, resume_input should be None (unless we are providing new input, which update_state handles differently).
+                # Actually, for resuming after interrupt, passing Command(resume=value) or just None (if logic is in state) works.
+                # Here we updated state via update_state, so we pass None to resume.
+                
+                input_to_stream = resume_input if resume_input == initial_state else None
 
-            console.print(Panel("完了しました！", style="bold green"))
+                async for event in app.astream(input_to_stream, config=config):
+                    for node_name, state_update in event.items():
+                        phase = state_update.get("current_phase", node_name)
+                        progress.update(
+                            task_id, description=f"[cyan]Node: {node_name} ({phase})..."
+                        )
+                        if state_update.get("error"):
+                            err_msg = state_update["error"][:200]
+                            console.print(f"[red]Error in {node_name}:[/red] {err_msg}...")
+
+            # Check execution status
+            snapshot = app.get_state(config)
+            
+            if not snapshot.next:
+                # Execution finished
+                console.print(Panel("完了しました！", style="bold green"))
+                break
+                
+            # If we are here, we are likely at an interruption point
+            next_step = snapshot.next[0]
+            
+            if next_step in ["apply_test", "apply_impl", "apply_uat"]:
+                # --- Human-in-the-loop Interaction ---
+                state_values = snapshot.values
+                code_changes = state_values.get("code_changes", [])
+                interactive = state_values.get("interactive", False)
+                
+                if not interactive:
+                    # Auto-approve in non-interactive mode
+                    console.print(f"[yellow]Auto-approving {next_step} (Non-interactive mode)[/yellow]")
+                    app.update_state(config, {"approved": True, "error": None})
+                else:
+                    # Show diff and ask for approval
+                    console.print(Panel(f"Review Required for {next_step}", style="bold yellow"))
+                    
+                    # Generate preview (dry-run)
+                    preview = services.file_patcher.apply_changes(code_changes, dry_run=True)
+                    
+                    # Use Presenter to confirm
+                    approved = services.presenter.review_and_confirm(preview)
+                    
+                    if approved:
+                        console.print("[green]Approved. Applying changes...[/green]")
+                        app.update_state(config, {"approved": True, "error": None})
+                    else:
+                        feedback = typing_prompt("Enter feedback/rejection reason:")
+                        console.print("[red]Rejected. Looping back to agent...[/red]")
+                        app.update_state(config, {"approved": False, "error": f"User Rejected: {feedback}"})
+                
+                # Prepared to resume
+                resume_input = None 
+                # continue the loop to resume execution
+                
+            else:
+                # Stopped for some other reason? Should not happen with current config.
+                console.print(f"[yellow]Paused at {next_step}. Resuming...[/yellow]")
+                resume_input = None
+
         except Exception as e:
             console.print(Panel(f"失敗: {str(e)}", style="bold red"))
-            # raise typer.Exit(code=1) from e
+            # Depending on severity, we might want to break or continue
+            break
+
+def typing_prompt(text: str) -> str:
+    """Helper for typed input"""
+    return typer.prompt(text)
 
 
 async def _start_cycle_async(
