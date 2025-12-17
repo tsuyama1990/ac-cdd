@@ -6,6 +6,7 @@ from pathlib import Path
 from e2b_code_interpreter import Sandbox
 
 from .config import settings
+from .hash_utils import calculate_directory_hash
 from .utils import logger
 
 
@@ -23,6 +24,7 @@ class SandboxRunner:
         self.cwd = cwd or settings.sandbox.cwd
         self.sandbox_id = sandbox_id
         self.sandbox: Sandbox | None = None
+        self._last_sync_hash: str | None = None
 
     async def _get_sandbox(self) -> Sandbox:
         """Get or create a sandbox instance."""
@@ -91,8 +93,17 @@ class SandboxRunner:
     async def _sync_to_sandbox(self, sandbox: Sandbox) -> None:
         """
         Uploads configured directories and files to the sandbox using a tarball for performance.
+        Skips if content hasn't changed.
         """
         root = Path.cwd()
+        current_hash = calculate_directory_hash(
+            root, settings.sandbox.files_to_sync, settings.sandbox.dirs_to_sync
+        )
+
+        if self._last_sync_hash == current_hash:
+            logger.info("Sandbox files up-to-date. Skipping sync.")
+            return
+
         tar_buffer = io.BytesIO()
 
         with tarfile.open(fileobj=tar_buffer, mode="w:gz") as tar:
@@ -129,6 +140,7 @@ class SandboxRunner:
             timeout=settings.sandbox.timeout
         )
         logger.info("Synced files to sandbox via tarball.")
+        self._last_sync_hash = current_hash
 
     async def close(self) -> None:
         if self.sandbox:

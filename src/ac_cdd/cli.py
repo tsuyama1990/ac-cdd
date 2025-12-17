@@ -13,7 +13,9 @@ from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from ac_cdd.config import settings
-from ac_cdd.graph import build_audit_graph, build_fix_graph, build_graph
+from ac_cdd.graph import GraphBuilder
+from ac_cdd.service_container import ServiceContainer
+from ac_cdd.services.project import ProjectManager
 
 load_dotenv()
 
@@ -23,6 +25,10 @@ if os.getenv("LOGFIRE_TOKEN"):
 
 app = typer.Typer(help="AC-CDD: AI-Native Cycle-Based Development Orchestrator")
 console = Console()
+
+# Instantiate global services (CLI is the entry point)
+services = ServiceContainer.default()
+project_manager = ProjectManager()
 
 
 @app.command()
@@ -89,24 +95,12 @@ def init() -> None:
 @app.command(name="new-cycle")
 def new_cycle(name: str) -> None:
     """新しい開発サイクルを作成します (例: 01, 02)"""
-    cycle_id = name
-    base_path = Path(settings.paths.documents_dir) / f"CYCLE{cycle_id}"
-    if base_path.exists():
-        console.print(f"[red]サイクル {cycle_id} は既に存在します！[/red]")
+    success, msg = project_manager.create_new_cycle(name)
+    if success:
+        console.print(f"[green]{msg}[/green]")
+    else:
+        console.print(f"[red]{msg}[/red]")
         raise typer.Exit(code=1)
-
-    base_path.mkdir(parents=True)
-    templates_dir = Path(settings.paths.templates) / "cycle"
-
-    for item in ["SPEC.md", "UAT.md", "schema.py"]:
-        src = templates_dir / item
-        if src.exists():
-            shutil.copy(src, base_path / item)
-        else:
-            console.print(f"[yellow]⚠ Template {item} missing.[/yellow]")
-
-    console.print(f"[green]新しいサイクルを作成しました: CYCLE{cycle_id}[/green]")
-    console.print(f"[bold]{base_path}[/bold] 内のファイルを編集してください。")
 
 
 @app.command(name="start-cycle")
@@ -131,35 +125,114 @@ async def _get_checkpointer(cycle_id: str) -> SqliteSaver:
     return SqliteSaver(conn)
 
 
-async def _run_graph(graph_builder, initial_state: dict, title: str, thread_id: str) -> None:
-    """Generic graph runner with progress UI."""
+async def _run_graph(graph, initial_state: dict, title: str, thread_id: str) -> None:
+    """Generic graph runner with progress UI and human-in-the-loop support."""
     checkpointer = await _get_checkpointer(thread_id)
-    graph = graph_builder.compile(checkpointer=checkpointer)
+    
+    # Compile with interrupts for human review
+    app = graph.compile(
+        checkpointer=checkpointer,
+        interrupt_before=["apply_test", "apply_impl", "apply_uat"]
+    )
 
     config = {"configurable": {"thread_id": thread_id}}
-
+    
+    # State for the runner loop
+    resume_input = initial_state
+    
     console.print(Panel(f"Running: {title}", style="bold magenta"))
 
-    with Progress(
-        SpinnerColumn(), TextColumn("[progress.description]{task.description}"), console=console
-    ) as progress:
-        task_id = progress.add_task("[cyan]Executing...[/cyan]", total=None)
-
+    while True:
         try:
-            async for event in graph.astream(initial_state, config=config):
-                for node_name, state_update in event.items():
-                    phase = state_update.get("current_phase", node_name)
-                    progress.update(
-                        task_id, description=f"[cyan]Node: {node_name} ({phase})..."
-                    )
-                    if state_update.get("error"):
-                        err_msg = state_update["error"][:200]
-                        console.print(f"[red]Error in {node_name}:[/red] {err_msg}...")
+            # We run the graph until it finishes or hits an interrupt
+            # We use a progress bar for the active execution phase
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=console,
+            ) as progress:
+                task_id = progress.add_task("[cyan]Executing...[/cyan]", total=None)
+                
+                # If we are resuming, passing None resumes from the checkpoint state.
+                # However, if it's the *first* run, we pass initial_state.
+                # After the first run, resume_input should be None (unless we are providing
+                # new input, which update_state handles differently).
+                # Actually, for resuming after interrupt, passing Command(resume=value)
+                # or just None (if logic is in state) works.
+                # Here we updated state via update_state, so we pass None to resume.
+                
+                input_to_stream = resume_input if resume_input == initial_state else None
 
-            console.print(Panel("完了しました！", style="bold green"))
+                async for event in app.astream(input_to_stream, config=config):
+                    for node_name, state_update in event.items():
+                        phase = state_update.get("current_phase", node_name)
+                        progress.update(
+                            task_id, description=f"[cyan]Node: {node_name} ({phase})..."
+                        )
+                        if state_update.get("error"):
+                            err_msg = state_update["error"][:200]
+                            console.print(f"[red]Error in {node_name}:[/red] {err_msg}...")
+
+            # Check execution status
+            snapshot = app.get_state(config)
+            
+            if not snapshot.next:
+                # Execution finished
+                console.print(Panel("完了しました！", style="bold green"))
+                break
+                
+            # If we are here, we are likely at an interruption point
+            next_step = snapshot.next[0]
+            
+            if next_step in ["apply_test", "apply_impl", "apply_uat"]:
+                # --- Human-in-the-loop Interaction ---
+                state_values = snapshot.values
+                code_changes = state_values.get("code_changes", [])
+                interactive = state_values.get("interactive", False)
+                
+                if not interactive:
+                    # Auto-approve in non-interactive mode
+                    console.print(
+                        f"[yellow]Auto-approving {next_step} (Non-interactive mode)[/yellow]"
+                    )
+                    app.update_state(config, {"approved": True, "error": None})
+                else:
+                    # Show diff and ask for approval
+                    console.print(Panel(f"Review Required for {next_step}", style="bold yellow"))
+                    
+                    # Generate preview (dry-run)
+                    preview = services.file_patcher.apply_changes(code_changes, dry_run=True)
+                    
+                    # Use Presenter to confirm
+                    approved = services.presenter.review_and_confirm(preview)
+                    
+                    if approved:
+                        console.print("[green]Approved. Applying changes...[/green]")
+                        app.update_state(config, {"approved": True, "error": None})
+                    else:
+                        feedback = typing_prompt("Enter feedback/rejection reason:")
+                        console.print("[red]Rejected. Looping back to agent...[/red]")
+                        app.update_state(
+                            config, {"approved": False, "error": f"User Rejected: {feedback}"}
+                        )
+                
+                # Prepared to resume
+                resume_input = None 
+                # continue the loop to resume execution
+                
+            else:
+                # Stopped for some other reason? Should not happen with current config.
+                console.print(f"[yellow]Paused at {next_step}. Resuming...[/yellow]")
+                resume_input = None
+
         except Exception as e:
             console.print(Panel(f"失敗: {str(e)}", style="bold red"))
-            # raise typer.Exit(code=1) from e
+            # Depending on severity, we might want to break or continue
+            break
+
+def typing_prompt(text: str) -> str:
+    """Helper for typed input"""
+    return typer.prompt(text)
 
 
 async def _start_cycle_async(
@@ -183,6 +256,9 @@ async def _start_cycle_async(
         except Exception as e:
             console.print(f"[yellow]Warning: Indexing failed: {e}[/yellow]")
 
+    graph_builder = GraphBuilder(services)
+    main_graph = graph_builder.build_main_graph()
+
     for cycle_id in names:
         initial_state = {
             "cycle_id": cycle_id,
@@ -194,7 +270,7 @@ async def _start_cycle_async(
             "interactive": interactive,
             "goal": goal,
         }
-        await _run_graph(build_graph(), initial_state, f"Cycle {cycle_id}", f"cycle-{cycle_id}")
+        await _run_graph(main_graph, initial_state, f"Cycle {cycle_id}", f"cycle-{cycle_id}")
 
 
 # --- Ad-hoc Workflow (Graph Based) ---
@@ -219,7 +295,9 @@ async def _audit_async() -> None:
         "interactive": True,
         "goal": None,
     }
-    await _run_graph(build_audit_graph(), initial_state, "Ad-hoc Audit", "audit-session")
+    graph_builder = GraphBuilder(services)
+    audit_graph = graph_builder.build_audit_graph()
+    await _run_graph(audit_graph, initial_state, "Ad-hoc Audit", "audit-session")
 
 
 @app.command()
@@ -241,7 +319,9 @@ async def _fix_async() -> None:
         "interactive": True,
         "goal": None,
     }
-    await _run_graph(build_fix_graph(), initial_state, "Ad-hoc Fix", "fix-session")
+    graph_builder = GraphBuilder(services)
+    fix_graph = graph_builder.build_fix_graph()
+    await _run_graph(fix_graph, initial_state, "Ad-hoc Fix", "fix-session")
 
 
 @app.command()
