@@ -1,8 +1,10 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
-from ac_cdd.services.file_ops import FilePatcher
+
 from ac_cdd.domain_models import FileCreate, FilePatch
+from ac_cdd.services.file_ops import FilePatcher
+
 
 @pytest.fixture
 def patcher():

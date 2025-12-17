@@ -105,8 +105,9 @@ class GraphBuilder:
             user_task = (
                 f"You are the Planner. The user has defined a strict System Architecture.\n\n"
                 f"SYSTEM_ARCHITECTURE_JSON:\n{json_content}\n\n"
-                f"Based STRICTLY on this Architecture, generate the artifacts for CYCLE{cycle_id}.\n"
-                f"Consult the 'implementation_roadmap' to see what belongs in this cycle.\n"
+                "Based STRICTLY on this Architecture, generate the artifacts for "
+                f"CYCLE{cycle_id}.\n"
+                "Consult the 'implementation_roadmap' to see what belongs in this cycle.\n"
             )
         elif structured_json_path.exists():
             logger.info("Using Structured Spec (JSON) for planning.")
@@ -206,10 +207,17 @@ class GraphBuilder:
                 feedback += "\n\nCRITICAL ISSUES:\n" + "\n".join(audit_res.critical_issues)
                 feedback += "\n\nSUGGESTIONS:\n" + "\n".join(audit_res.suggestions)
 
+            # Add correction history
+            history = state.get("correction_history", [])
+            if history:
+                feedback += "\n\nPREVIOUS ATTEMPTS (Do not repeat these errors):\n"
+                feedback += "\n".join(f"- {h}" for h in history[-3:])
+
             instructions = (
                 f"Fix the implementation based on the following feedback:\n"
                 f"{feedback}\n"
-                f"Analyze the stack trace or audit issues and fix the code in {settings.paths.src}/."
+                "Analyze the stack trace or audit issues and fix the code in "
+                f"{settings.paths.src}/."
             )
             prompt = instructions
         else:
@@ -279,9 +287,16 @@ class GraphBuilder:
 
             if code != 0:
                 logger.warning("Tests Failed.")
+                err_msg = f"Tests Failed:\n{logs[-2000:]}"
+
+                # Update history
+                history = state.get("correction_history", [])
+                history.append(f"Test failure at loop {state.get('loop_count', 0)}: {logs[-200:]}")
+
                 return {
                     "test_logs": logs,
-                    "error": f"Tests Failed:\n{logs[-2000:]}",
+                    "error": err_msg,
+                    "correction_history": history,
                     "current_phase": "testing_failed",
                     "sandbox_id": new_sandbox_id,
                 }
@@ -348,10 +363,17 @@ class GraphBuilder:
             combined_issues = errors + audit_res.critical_issues
             err_msg = "Audit Failed:\n" + "\n".join(combined_issues)
 
+            # Update history
+            history = state.get("correction_history", [])
+            history.append(
+                f"Audit failure at loop {state.get('loop_count', 0)}: {combined_issues[:3]}"
+            )
+
             return {
                 "audit_logs": "\n".join(errors),
                 "audit_result": audit_res,
                 "error": err_msg,
+                "correction_history": history,
                 "current_phase": "audit_failed",
             }
 
@@ -360,10 +382,16 @@ class GraphBuilder:
         # If errors exist, we must return audit_failed so Coder can apply fixes/suppressions.
 
         if errors:
+            history = state.get("correction_history", [])
+            history.append(
+                f"Static Analysis failure at loop {state.get('loop_count', 0)}: {errors[:3]}"
+            )
+
             return {
                 "audit_logs": "\n".join(errors),
                 "audit_result": audit_res,
                 "error": "Static Analysis Failed. See Audit Result for suppression advice.",
+                "correction_history": history,
                 "current_phase": "audit_failed",
             }
 

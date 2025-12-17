@@ -17,6 +17,7 @@ class CycleState(TypedDict):
     current_phase: str
     loop_count: int
     error: str | None
+    correction_history: list[str]  # History of failed fixes
     dry_run: bool
     interactive: bool
     goal: str | None
