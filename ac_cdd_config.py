@@ -111,6 +111,10 @@ class Settings(BaseSettings):
     MAX_RETRIES: int = 10
     DUMMY_CYCLE_ID: str = "00"
 
+    # Committee Config
+    NUM_AUDITORS: int = 3
+    REVIEWS_PER_AUDITOR: int = 2
+
     paths: PathsConfig = PathsConfig()
     jules: JulesConfig = JulesConfig()
     tools: ToolsConfig = ToolsConfig()

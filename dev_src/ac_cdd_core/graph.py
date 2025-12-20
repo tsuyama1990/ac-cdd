@@ -175,23 +175,23 @@ class GraphBuilder:
         return {"current_phase": "uat_passed", "error": None}
 
     async def auditor_node(self, state: CycleState) -> dict[str, Any]:
-        """Strict Auditor Node (Gemini) with Triple Check Strategy."""
-        logger.info("Phase: Strict Auditor")
+        """Committee of Auditors Node (Sequential Multi-Audit)."""
+        logger.info("Phase: Committee Auditor")
 
-        current_pass = state.get("audit_pass_count", 0)
-        logger.info(f"Audit Pass Count: {current_pass}/{3} (Target: 3)")
+        auditor_idx = state.get("current_auditor_index", 1)
+        review_count = state.get("current_auditor_review_count", 1)
+
+        logger.info(
+            f"Auditor #{auditor_idx} (Review {review_count}/{settings.REVIEWS_PER_AUDITOR})"
+        )
 
         # 1. Gather Context
         runner = ProcessRunner()
-
-        # Tree with exclusions
         tree_cmd = [
             "tree", "-L", "3", "-I",
             "__pycache__|.git|.venv|node_modules|site-packages|*.egg-info"
         ]
         tree_out, _, _ = await runner.run_command(tree_cmd, check=False)
-
-        # Git Diff
         diff_out = await self.git.get_diff("main")
 
         # Load Strict Persona Prompt
@@ -199,37 +199,52 @@ class GraphBuilder:
         if template_path.exists():
             strict_persona = template_path.read_text(encoding="utf-8")
         else:
-            # Fallback (should not happen if setup correctly)
             strict_persona = "Act as a strict code auditor. Reject if any issues found."
 
+        # Inject Auditor Identity
+        identity_prompt = (
+            f"You are Auditor #{auditor_idx} of {settings.NUM_AUDITORS} in the review committee."
+        )
+
         prompt = (
-            f"{strict_persona}\n\n"
+            f"{identity_prompt}\n{strict_persona}\n\n"
             "=== DIRECTORY STRUCTURE ===\n"
             f"{tree_out}\n\n"
             "=== CHANGES (DIFF) ===\n"
             f"{diff_out}\n\n"
         )
 
-        # 2. Run Audit (Stateless)
-        # We start a fresh run to ensure no memory bias (Triple Check requirement)
+        # 2. Run Audit
         result = await auditor_agent.run(prompt)
         audit_result: AuditResult = result.output
 
         if audit_result.is_approved:
-            logger.info("Audit Result: APPROVED")
-            return {
-                "audit_pass_count": current_pass + 1,
-                "audit_feedback": None,
-                "audit_result": audit_result,
-                "current_phase": "audit_passed"
-            }
+            logger.info(f"Auditor #{auditor_idx} APPROVED")
+
+            # Check if committee is finished
+            if auditor_idx >= settings.NUM_AUDITORS:
+                return {
+                    "audit_result": audit_result,
+                    "current_phase": "audit_passed",
+                    "audit_feedback": None
+                }
+            else:
+                # Move to next auditor
+                return {
+                    "audit_result": audit_result,
+                    "current_auditor_index": auditor_idx + 1,
+                    "current_auditor_review_count": 1,
+                    "current_phase": "audit_next_round",
+                    "audit_feedback": None
+                }
         else:
-            logger.warning("Audit Result: REJECTED")
+            logger.warning(f"Auditor #{auditor_idx} REJECTED")
+            # Stay on same auditor, increment review count
+            # Logic handled in conditional edge to decide loop vs fail
             return {
-                "audit_pass_count": 0,  # Reset on failure
-                "audit_retries": state.get("audit_retries", 0) + 1,
-                "audit_feedback": audit_result.critical_issues,
                 "audit_result": audit_result,
+                "current_auditor_review_count": review_count + 1,
+                "audit_feedback": audit_result.critical_issues,
                 "current_phase": "audit_failed"
             }
 
@@ -294,25 +309,37 @@ class GraphBuilder:
         )
 
         def check_audit(state: CycleState) -> Literal["commit", "auditor", "coder_session", "end"]:
-            pass_count = state.get("audit_pass_count", 0)
-            retries = state.get("audit_retries", 0)
+            phase = state.get("current_phase")
+            # We use the review_count stored in state,
+            # which was already incremented in node if failed
+            review_count = state.get("current_auditor_review_count", 1)
+            # But the node returns the *next* count value.
+            # If rejected, review_count is now (prev + 1).
+            # Max retries means REVIEWS_PER_AUDITOR.
+            # E.g. limit 2.
+            # 1st try (count=1) -> Reject -> returns count=2 -> (2 <= 2) -> coder_session.
+            # 2nd try (count=2) -> Reject -> returns count=3 -> (3 > 2) -> end.
 
-            audit_result = state.get("audit_result")
-            is_approved = audit_result.is_approved if audit_result else False
-
-            # Case 1: Triple Check Passed
-            if pass_count >= 3:
+            if phase == "audit_passed":
+                # All auditors approved
                 return "commit"
 
-            # Case 2: Passed, but need more checks (Triple Check Loop)
-            if is_approved:
+            if phase == "audit_next_round":
+                # Passed current auditor, loop to next
                 return "auditor"
 
-            # Case 3: Failed, but have retries left (Feedback Loop)
-            if retries < MAX_AUDIT_RETRIES:
-                return "coder_session"
+            if phase == "audit_failed":
+                # Check retries (note: review_count is already incremented)
+                # If review_count is 2, it means we are about to try for the 2nd time?
+                # No, review_count tracks "how many times have we TRIED".
+                # If node returns count=2, it means we failed the 1st time, and next will be 2nd.
+                # So if count <= LIMIT, we can retry.
+                if review_count <= settings.REVIEWS_PER_AUDITOR:
+                     return "coder_session"
+                else:
+                     logger.error("Audit Failed: Max retries exceeded for this auditor.")
+                     return "end"
 
-            # Case 4: Failed and no retries left
             return "end"
 
         workflow.add_conditional_edges(

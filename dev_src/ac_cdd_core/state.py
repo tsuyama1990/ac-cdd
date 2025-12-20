@@ -26,3 +26,6 @@ class CycleState(TypedDict):
     audit_pass_count: int
     audit_retries: int
     audit_feedback: list[str] | None
+    # Committee State
+    current_auditor_index: int  # 1-based index (1 to NUM_AUDITORS)
+    current_auditor_review_count: int  # 1-based count (1 to REVIEWS_PER_AUDITOR)
