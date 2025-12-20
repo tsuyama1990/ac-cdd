@@ -84,31 +84,15 @@ class SandboxConfig(BaseSettings):
 class AgentsConfig(BaseSettings):
     model_config = SettingsConfigDict(extra="ignore")
     # Models
-    architect_model: str = "gemini-2.5-pro"
-    structurer_model: str = "gemini-2.5-pro"
-    coder_model: str = "gemini-2.5-pro"
-    tester_model: str = "gemini-2.5-pro"
-    auditor_model: str = "gemini-2.5-pro"
-    qa_analyst_model: str = "gemini-2.5-flash"
-    planner_model: str = "gemini-2.5-pro"
+    auditor_model: str = Field(default="gemini-2.5-pro", validation_alias="SMART_MODEL")
+    qa_analyst_model: str = Field(default="gemini-2.5-flash", validation_alias="FAST_MODEL")
 
     # Prompts (Content loaded via _read_prompt)
-    architect: str = Field(
-        default_factory=lambda: _read_prompt("architect.md", "DEFAULT_ARCHITECT_PROMPT")
-    )
-    coder: str = Field(default_factory=lambda: _read_prompt("coder.md", "DEFAULT_CODER_PROMPT"))
-    tester: str = Field(default_factory=lambda: _read_prompt("tester.md", "DEFAULT_TESTER_PROMPT"))
     auditor: str = Field(
         default_factory=lambda: _read_prompt("auditor.md", "DEFAULT_AUDITOR_PROMPT")
     )
     qa_analyst: str = Field(
         default_factory=lambda: _read_prompt("qa_analyst.md", "DEFAULT_QA_ANALYST_PROMPT")
-    )
-    structurer: str = Field(
-        default_factory=lambda: _read_prompt("structurer.md", "DEFAULT_STRUCTURER_PROMPT")
-    )
-    planner: str = Field(
-        default_factory=lambda: _read_prompt("planner.md", "DEFAULT_PLANNER_PROMPT")
     )
 
 
@@ -122,6 +106,8 @@ class PromptsConfig(BaseSettings):
 
 
 class Settings(BaseSettings):
+    JULES_API_KEY: str | None = None
+    OPENROUTER_API_KEY: str | None = None
     MAX_RETRIES: int = 10
     DUMMY_CYCLE_ID: str = "00"
 
