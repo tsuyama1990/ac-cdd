@@ -1,7 +1,5 @@
-from unittest.mock import MagicMock
 
 import pytest
-
 from ac_cdd_core.graph import GraphBuilder
 
 

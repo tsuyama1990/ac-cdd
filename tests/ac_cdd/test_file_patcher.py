@@ -1,7 +1,6 @@
 from unittest.mock import patch
 
 import pytest
-
 from ac_cdd_core.domain_models import FileCreate, FilePatch
 from ac_cdd_core.services.file_ops import FilePatcher
 

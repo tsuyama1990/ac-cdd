@@ -7,8 +7,14 @@ def test_config_agents_loaded():
     assert settings.agents.qa_analyst is not None
 
     # Check for content that actually exists in the prompts or defaults
-    assert "DEFAULT_AUDITOR_PROMPT" in settings.agents.auditor or "Code Auditor" in settings.agents.auditor
-    assert "DEFAULT_QA_ANALYST_PROMPT" in settings.agents.qa_analyst or "QA Manager" in settings.agents.qa_analyst
+    assert (
+        "DEFAULT_AUDITOR_PROMPT" in settings.agents.auditor
+        or "Code Auditor" in settings.agents.auditor
+    )
+    assert (
+        "DEFAULT_QA_ANALYST_PROMPT" in settings.agents.qa_analyst
+        or "QA Manager" in settings.agents.qa_analyst
+    )
 
 
 def test_tools_config():

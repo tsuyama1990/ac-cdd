@@ -1,7 +1,6 @@
 from unittest.mock import MagicMock
 
 import pytest
-
 from ac_cdd_core.service_container import ServiceContainer
 
 
