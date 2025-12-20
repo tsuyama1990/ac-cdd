@@ -6,6 +6,7 @@ from rich.console import Console
 from rich.panel import Panel
 
 from .config import settings
+
 # from .graph import build_architect_graph, build_coder_graph
 from .service_container import ServiceContainer
 from .state import CycleState
@@ -34,7 +35,11 @@ def init() -> None:
         manager.initialize_project(settings.paths.templates)
         console.print("[green]Project initialized successfully![/green]")
         console.print(
-            f"Edit [bold]{settings.paths.templates}/ARCHITECT_INSTRUCTION.md[/bold] to start."
+            "Please follow these steps to start:\n"
+            "1. Edit [bold].env[/bold] (Add API keys and select Models)\n"
+            f"2. Edit [bold]{settings.paths.documents_dir}/ALL_SPEC.md[/bold] "
+            "(Define your requirements)\n"
+            "3. Run [bold]uv run manage.py gen-cycles[/bold]"
         )
     except Exception as e:
         console.print(f"[red]Initialization failed:[/red] {e}")

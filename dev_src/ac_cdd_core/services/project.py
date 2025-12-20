@@ -53,7 +53,16 @@ class ProjectManager:
         # Create ARCHITECT_INSTRUCTION.md if not exists
         arch_instr = templates_dest / "ARCHITECT_INSTRUCTION.md"
         if not arch_instr.exists():
-            arch_instr.write_text("# Architect Instruction\n\nDefine your system architecture here.", encoding="utf-8")
+            arch_instr.write_text(
+                "# Architect Instruction\n\nDefine your system architecture here.",
+                encoding="utf-8",
+            )
+
+        # Copy ALL_SPEC.md to dev_documents if it exists in templates
+        all_spec_template = templates_dest / "ALL_SPEC.md"
+        all_spec_dest = docs_dir / "ALL_SPEC.md"
+        if all_spec_template.exists() and not all_spec_dest.exists():
+            shutil.copy(all_spec_template, all_spec_dest)
 
         # Create other necessary dirs
         (docs_dir / "contracts").mkdir(exist_ok=True)

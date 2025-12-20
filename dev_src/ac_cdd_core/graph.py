@@ -42,7 +42,9 @@ class GraphBuilder:
         if not spec_path.exists():
              return {"error": "ALL_SPEC.md not found.", "current_phase": "architect_failed"}
 
-        files = [str(spec_path), str(template_path)]
+        # Input: user requirements (ALL_SPEC.md)
+        files = [str(spec_path)]
+        # System Instruction: ARCHITECT_INSTRUCTION.md
         instruction = template_path.read_text(encoding="utf-8")
 
         try:
