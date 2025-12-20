@@ -33,14 +33,16 @@ def init() -> None:
     manager = ProjectManager()
     try:
         manager.initialize_project(settings.paths.templates)
-        console.print("[green]Project initialized successfully![/green]")
-        console.print(
-            "Please follow these steps to start:\n"
-            "1. Edit [bold].env[/bold] (Add API keys and select Models)\n"
-            f"2. Edit [bold]{settings.paths.documents_dir}/ALL_SPEC.md[/bold] "
-            "(Define your requirements)\n"
-            "3. Run [bold]uv run manage.py gen-cycles[/bold]"
+        msg = (
+            "✅ Initialization Complete!\n\n"
+            "Next Steps:\n"
+            "1. Edit the requirements file:\n"
+            f"   {settings.paths.documents_dir}/ALL_SPEC.md\n"
+            "   (This file was copied from templates. Please define your project goals here.)\n\n"
+            "2. Generate architecture and cycle plans:\n"
+            "   uv run manage.py gen-cycles"
         )
+        console.print(Panel(msg, title="Next Action Guide", style="bold green", expand=False))
     except Exception as e:
         console.print(f"[red]Initialization failed:[/red] {e}")
         raise typer.Exit(code=1) from e
@@ -75,9 +77,21 @@ def gen_cycles(
                 console.print(f"[red]Architect Phase Failed:[/red] {final_state['error']}")
                 sys.exit(1)
             else:
-                console.print("[green]Architect Phase Complete![/green]")
+                msg = (
+                    "✅ Architecture & Planning Complete!\n\n"
+                    "Next Steps:\n"
+                    "1. Review the generated architecture:\n"
+                    f"   {settings.paths.documents_dir}/SYSTEM_ARCHITECTURE.md\n\n"
+                    "2. Review the cycle specifications:\n"
+                    f"   {settings.paths.documents_dir}/CYCLE01/SPEC.md\n"
+                    f"   {settings.paths.documents_dir}/CYCLE01/UAT.md\n"
+                    "   ...\n\n"
+                    "3. Start implementation for the first cycle:\n"
+                    "   uv run manage.py run-cycle 01\n\n"
+                    "(Or run all cycles automatically with: uv run manage.py run-cycle --auto)"
+                )
                 console.print(
-                    "Review [bold]ALL_SPEC.md[/bold] and [bold]SYSTEM_ARCHITECTURE.md[/bold]."
+                    Panel(msg, title="Next Action Guide", style="bold green", expand=False)
                 )
 
         except Exception as e:
@@ -121,7 +135,35 @@ def run_cycle(
                 console.print(f"Failed at phase: [bold]{phase}[/bold]")
                 sys.exit(1)
             else:
-                console.print(f"[green]Cycle {cycle_id} Completed Successfully![/green]")
+                if auto:
+                    msg = (
+                        "✅ All Cycles Completed!\n\n"
+                        "Next Steps:\n"
+                        "1. Perform a final system-wide audit.\n"
+                        "2. Deploy your application!"
+                    )
+                else:
+                    # Calculate next cycle ID
+                    try:
+                        next_id_int = int(cycle_id) + 1
+                        next_cycle_id = f"{next_id_int:02d}"
+                    except ValueError:
+                        next_cycle_id = "XX"
+
+                    msg = (
+                        f"✅ Cycle {cycle_id} Implementation Complete!\n\n"
+                        "Next Steps:\n"
+                        f"1. Review the changes in branch: feature/cycle-{cycle_id}\n"
+                        f"2. Check the session report: "
+                        f"dev_documents/CYCLE{cycle_id}/session_report.json\n"
+                        "3. If satisfied, merge the PR (or use 'gh pr merge').\n"
+                        "4. Proceed to the next cycle:\n"
+                        f"   uv run manage.py run-cycle {next_cycle_id}"
+                    )
+
+                console.print(
+                    Panel(msg, title="Next Action Guide", style="bold green", expand=False)
+                )
 
         except Exception as e:
             console.print(f"[red]Error during execution:[/red] {e}")
