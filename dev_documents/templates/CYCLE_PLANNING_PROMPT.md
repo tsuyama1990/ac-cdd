@@ -1,80 +1,48 @@
-# AI Architect Prompt Template
+## Task Execution Steps
+1.  **Analyze** the provided `ALL_SPEC.md` deeply.
+2.  **Architect & Decompose:**
+    * Design the global architecture.
+    * **CRITICAL:** Break down the ENTIRE project into a sequence of logical cycles (CYCLE01, CYCLE02, ... CYCLE_N).
+    * Ensure NO requirements are left behind. Every feature in `ALL_SPEC.md` must be assigned to a specific cycle.
+3.  **Generate Artifacts:**
+    * Create `SYSTEM_ARCHITECTURE.md` (containing the full roadmap).
+    * Sequentially generate the document sets (`SPEC`, `UAT`, `schema.py`) for **EVERY** cycle defined in your roadmap.
 
-Copy and paste the following prompt into your LLM chat (Gemini Pro, ChatGPT, or Claude) to generate the cycle artifacts from your `ALL_SPEC.md`.
+## Output Strategy (Handling Long Content)
+Since the full documentation will likely exceed output limits, strictly follow this procedure:
 
----
-
-## System Role & Objective
-You are a **Senior Software Architect** and **QA Lead** specializing in Contract-Driven Development (CDD).
-Your goal is to break down a high-level requirement document (`ALL_SPEC.md`) into small, verifiable development cycles.
-
-## Input Context
-I will provide you with the content of `ALL_SPEC.md`.
-
-## Task
-1.  **Analyze** the requirements and dependencies.
-2.  **Plan** a roadmap consisting of sequential cycles (`CYCLE01`, `CYCLE02`, ...).
-    - Each cycle must be independently testable.
-    - Focus on "Interfaces first" (schema.py).
-3.  **Generate** the following 3 files for **EACH** cycle.
-
-### Required Artifacts per Cycle
-
-#### 1. `SPEC.md`
-- **Purpose**: Detailed technical specifications for the AI Coder.
-- **Content**:
-    - Functional requirements (What to build).
-    - Technical constraints (Libraries, Algorithms).
-    - Definition of Done.
-    - At least, more than 5000 words.
-
-#### 2. `schema.py` (THE MOST IMPORTANT)
-- **Purpose**: The executable contract (Single Source of Truth).
-- **Content**:
-    - Python code using `pydantic`.
-    - Must define input/output models for the features in this cycle.
-    - Must include detailed docstrings describing constraints.
-    - **Rule**: If it's not in the schema, it doesn't exist.
-
-#### 3. `UAT.md`
-- **Purpose**: Acceptance criteria for the AI Auditor/Tester.
-- **Content**:
-    - Natural language scenarios describing how the user verifies the feature.
-    - Clear "Given/When/Then" structure or step-by-step instructions.
-    - At least, more than 3000 words.
+1.  **Phase 1:** Output `SYSTEM_ARCHITECTURE.md` first. This defines the roadmap.
+2.  **Phase 2:** Output artifacts for **CYCLE01**, then **CYCLE02**, and so on reference the `SYSTEM_ARCHITECTURE.md`.
+3.  **Stop Condition:**
+    * If you can finish everything, output `plan_status.json` at the very end.
+    * **If you reach the token limit:** Stop exactly at the end of a file block, write **`[TO BE CONTINUED]`**, and wait for my prompt to continue.
+    * **DO NOT** summarize or skip cycles to save space. Quality is priority.
 
 ## Output Format
-Please output the design for **CYCLE01** (and future cycles if requested) using the following format so I can easily copy-paste or parse it.
+Please start the output using the following format:
 
 ````markdown
-# CYCLE PLANNING REPORT
+# ARCHITECTURE & CYCLE PLANNING REPORT
 
-## Summary of Cycles
-- CYCLE01: [Title]
-- CYCLE02: [Title]
-...
-
----
-
-## CYCLE01
-
-### 1. `dev_documents/CYCLE01/SPEC.md`
+## 1. `dev_documents/SYSTEM_ARCHITECTURE.md`
 ```markdown
-(Content of SPEC.md)
+(Content: Must include the "Implementation Plan" listing ALL cycles from 01 to N)
 ```
 
-### 2. `dev_documents/CYCLE01/schema.py`
-```python
-(Content of schema.py)
-```
-
-### 3. `dev_documents/CYCLE01/UAT.md`
+## 2. `dev_documents/CYCLE{xx}/SPEC.md` (For EACH Cycle)
 ```markdown
-(Content of UAT.md)
+(Content for CYCLE{xx})
 ```
-````
 
----
+## 3. `dev_documents/CYCLE{xx}/UAT.md` (For EACH Cycle)
+```markdown
+(Content for CYCLE{xx})
+```
 
-## Input Data (`ALL_SPEC.md`)
-[PASTE YOUR ALL_SPEC.MD CONTENT HERE]
+## 4. `dev_documents/plan_status.json`
+```json
+{
+  "status": "completed",
+  "cycles": ["01", "02", "03", "..."]
+}
+``` 

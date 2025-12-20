@@ -49,7 +49,25 @@ def run_command(command: list[str], cwd=None, env=None):
         raise
 
 
-def check_dependency(cmd: str) -> bool:
-    import shutil
+def check_api_key() -> None:
+    """
+    Checks if the necessary API keys are set in the environment.
+    Raises ValueError if neither GOOGLE_API_KEY nor OPENROUTER_API_KEY is found.
+    """
+    import os
+    from dotenv import load_dotenv
+    
+    # Load .env explicitly
+    load_dotenv()
 
-    return shutil.which(cmd) is not None
+    # Check for common API keys
+    google_key = os.getenv("GOOGLE_API_KEY")
+    openrouter_key = os.getenv("OPENROUTER_API_KEY")
+
+    # You might also want to check settings if keys are loaded there, 
+    # but Environment Variables are the most reliable source for these libs.
+    
+    if not google_key and not openrouter_key:
+        raise ValueError(
+            "API Key not found! Please set GOOGLE_API_KEY (or OPENROUTER_API_KEY) in your .env file."
+        )

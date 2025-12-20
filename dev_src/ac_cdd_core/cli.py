@@ -10,7 +10,7 @@ from .config import settings
 # from .graph import build_architect_graph, build_coder_graph
 from .service_container import ServiceContainer
 from .state import CycleState
-from .utils import logger
+from .utils import check_api_key, logger
 
 app = typer.Typer(help="AC-CDD: AI-Native Cycle-Based Contract-Driven Development Environment")
 console = Console()
@@ -60,8 +60,15 @@ def gen_cycles(
 
     async def _run() -> None:
         console.rule("[bold blue]Architect Phase: Generating Cycles[/bold blue]")
+        
+        # Check API availability first
+        try:
+            check_api_key()
+        except ValueError as e:
+            console.print(f"[red]Configuration Error:[/red] {e}")
+            sys.exit(1)
 
-        services = ServiceContainer()
+        services = ServiceContainer.default()
         from .graph import build_architect_graph
         graph = build_architect_graph(services)
 
@@ -71,7 +78,7 @@ def gen_cycles(
         # Run the graph
         try:
             # We use aconfig={"recursion_limit": 50} for safety if needed
-            final_state = await graph.invoke(initial_state)
+            final_state = await graph.ainvoke(initial_state)
 
             if final_state.get("error"):
                 console.print(f"[red]Architect Phase Failed:[/red] {final_state['error']}")
@@ -116,7 +123,14 @@ def run_cycle(
     async def _run() -> None:
         console.rule(f"[bold green]Running Cycle {cycle_id}[/bold green]")
 
-        services = ServiceContainer()
+        # Check API availability
+        try:
+            check_api_key()
+        except ValueError as e:
+            console.print(f"[red]Configuration Error:[/red] {e}")
+            sys.exit(1)
+
+        services = ServiceContainer.default()
         from .graph import build_coder_graph
         graph = build_coder_graph(services)
 
@@ -126,7 +140,7 @@ def run_cycle(
         try:
             # We iterate through events to show progress if needed, or just invoke
             # invoke returns the final state
-            final_state = await graph.invoke(initial_state, {"recursion_limit": 50})
+            final_state = await graph.ainvoke(initial_state, {"recursion_limit": 50})
 
             if final_state.get("error"):
                 console.print(f"[red]Cycle {cycle_id} Failed:[/red] {final_state['error']}")

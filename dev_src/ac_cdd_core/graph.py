@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from langgraph.graph import END, StateGraph
+from langgraph.graph.state import CompiledStateGraph
 
 from .agents import auditor_agent, qa_analyst_agent
 from .config import settings
@@ -256,7 +257,7 @@ class GraphBuilder:
 
     # --- Graph Construction ---
 
-    def build_architect_graph(self) -> StateGraph[CycleState]:
+    def build_architect_graph(self) -> CompiledStateGraph:
         workflow = StateGraph(CycleState)
         workflow.add_node("init_branch", self.init_branch_node)
         workflow.add_node("architect_session", self.architect_session_node)
@@ -275,9 +276,9 @@ class GraphBuilder:
         )
         workflow.add_edge("commit", END)
 
-        return workflow
+        return workflow.compile()
 
-    def build_coder_graph(self) -> StateGraph[CycleState]:
+    def build_coder_graph(self) -> CompiledStateGraph:
         workflow = StateGraph(CycleState)
         workflow.add_node("checkout_branch", self.checkout_branch_node)
         workflow.add_node("coder_session", self.coder_session_node)
@@ -355,12 +356,12 @@ class GraphBuilder:
 
         workflow.add_edge("commit", END)
 
-        return workflow
+        return workflow.compile()
 
 
-def build_architect_graph(services: ServiceContainer) -> StateGraph[CycleState]:
+def build_architect_graph(services: ServiceContainer) -> CompiledStateGraph:
     return GraphBuilder(services).build_architect_graph()
 
 
-def build_coder_graph(services: ServiceContainer) -> StateGraph[CycleState]:
+def build_coder_graph(services: ServiceContainer) -> CompiledStateGraph:
     return GraphBuilder(services).build_coder_graph()
