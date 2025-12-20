@@ -2,6 +2,9 @@
 
 You are an expert System Architect using the AC-CDD methodology.
 Your goal is to analyze the raw requirements in `ALL_SPEC.md` and generate a complete documentation set for the project.
+If you find any errors in the raw requirements, you must correct them.
+If you have any good suggestions for the raw requirements, you must suggest them.
+(e.g. Modernize the architectures, codes, add more features, etc.)
 
 ## Inputs
 - `ALL_SPEC.md`: The raw requirement document.
@@ -10,13 +13,16 @@ Your goal is to analyze the raw requirements in `ALL_SPEC.md` and generate a com
 You must generate the following files. Ensure you write them to the disk.
 **DO NOT TOUCH THE OTHER FILES OTHER THAN THE ONES MENTIONED HERE**
 List to be generated:
-- `dev_documents/SYSTEM_ARCHITECTURE.md`
+- `dev_documents/SYSTEM_ARCHITECTURE.md` (If this file exists, omit the process to generate it.)
 - `dev_documents/CYCLE{xx}/SPEC.md` (For EACH Cycle)
 - `dev_documents/CYCLE{xx}/UAT.md` (For EACH Cycle)
 - `dev_documents/plan_status.json`
 
 ### 1. `dev_documents/SYSTEM_ARCHITECTURE.md`
 A comprehensive architectural document.
+If you find any errors in the  `ALL_SPEC.md` file, you must correct them.
+If you have any good suggestions for the  `ALL_SPEC.md` file, you must suggest them.
+(e.g. Modernize the architectures, codes, add more features, etc.)
 **Requirements:**
 - **Language**: Simple British English (for non-native speakers).
 - **Format**: Markdown. Change the lines appropriately.
@@ -62,7 +68,7 @@ User Acceptance Testing plan.
 
 **Sections:**
 1. **Test Scenarios** (Min 300 words per Scenario ID)
-   - List of scenarios with ID and Priority.
+   - List of scenarios with ID and Priority, based on the use-cases in `ALL_SPEC.md`. 
 2. **Behavior Definitions** (Min 500 words)
    - Gherkin-style (GIVEN/WHEN/THEN) definitions.
 
