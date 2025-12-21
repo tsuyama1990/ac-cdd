@@ -4,6 +4,27 @@ The same contents can be found in dev_documents/README.md **
 
 An AI-Native Cycle-Based Contract-Driven Development Environment.
 
+## Key Features
+
+*   **🚀 Automated Rapid Application Design (Auto-RAD)**
+    *   Just define your raw requirements in `ALL_SPEC.md`.
+    *   The `gen-cycles` command automatically acts as an **Architect**, generating `SYSTEM_ARCHITECTURE.md`, detailed `SPEC.md`, and `UAT.md` (User Acceptance Tests) for every development cycle.
+
+*   **🛡️ Committee of Code Auditors**
+    *   No more "LGTM" based on loose checks.
+    *   An automated **Committee of Auditors** (powered by Aider/Fast Model) performs strict, multi-pass code reviews.
+    *   The system iteratively fixes issues (using Aider/Smart Model) until the code passes strict quality gates.
+
+*   **✅ Integrated Behavior-Driven UAT**
+    *   Quality is not just about code style; it's about meeting requirements.
+    *   The system automatically executes tests and verifies them against the behavior definitions in `UAT.md` before any merge.
+
+*   **🤖 Hybrid Agent Orchestration**
+    *   Combines the best of breed:
+        *   **Google Jules**: For long-context architectural planning and initial implementation.
+        *   **Aider**: For precise, SOTA code editing and repository-aware auditing.
+        *   **LangGraph**: For robust state management and supervisor loops.
+
 This repository is a template for creating AI-powered software development projects. It separates the agent orchestration logic from the user's product code.
 
 ## Directory Structure
