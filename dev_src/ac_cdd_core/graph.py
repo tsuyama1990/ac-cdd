@@ -8,7 +8,6 @@ from langgraph.graph.state import CompiledStateGraph
 from .agents import qa_analyst_agent
 from .config import settings
 from .domain_models import AuditResult, UatAnalysis
-from .process_runner import ProcessRunner
 from .service_container import ServiceContainer
 from .services.git_ops import GitManager
 from .services.jules_client import JulesClient
@@ -176,16 +175,38 @@ class GraphBuilder:
 
     async def run_tests_node(self, state: CycleState) -> dict[str, Any]:
         """Run tests to capture logs for UAT analysis."""
-        logger.info("Phase: Run Tests")
+        logger.info("Phase: Run Tests (Sandbox)")
 
-        runner = ProcessRunner()
+        # Initialize: Create a new SandboxRunner instance for isolation as requested
+        from .sandbox import SandboxRunner
 
-        # Try running tests
-        cmd = ["uv", "run", "pytest", "tests/"]
-        stdout, stderr, code = await runner.run_command(cmd, check=False)
+        # Create a fresh runner to ensure clean state and safe disposal
+        runner = SandboxRunner(cwd="/home/user")
 
-        logs = f"STDOUT:\n{stdout}\n\nSTDERR:\n{stderr}"
-        return {"test_logs": logs, "test_exit_code": code, "current_phase": "tests_run"}
+        try:
+            # Setup Environment: Explicitly ensure dependencies
+            # Although SandboxRunner runs install_cmd on init, we strictly follow instructions
+            # to setup the environment.
+            logger.info("Setting up Sandbox Environment...")
+            await runner.run_command(["pip", "install", "uv", "pytest", "python-dotenv"])
+
+            # Execute Tests
+            cmd = ["uv", "run", "pytest", "tests/"]
+            stdout, stderr, code = await runner.run_command(cmd, check=False)
+
+            logs = f"STDOUT:\n{stdout}\n\nSTDERR:\n{stderr}"
+            return {"test_logs": logs, "test_exit_code": code, "current_phase": "tests_run"}
+
+        except Exception as e:
+            logger.error(f"Sandbox execution failed: {e}")
+            return {
+                "test_logs": f"Execution Failed: {e}",
+                "test_exit_code": -1,
+                "current_phase": "tests_failed_exec"
+            }
+        finally:
+            # Cleanup: Ensure sandbox resources are released
+            await runner.close()
 
     async def uat_evaluate_node(self, state: CycleState) -> dict[str, Any]:
         """Gemini-based UAT Evaluation."""
