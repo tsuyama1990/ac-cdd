@@ -37,15 +37,43 @@ class GraphBuilder:
             return self.sandbox_runner
 
         logger.info("Initializing Shared Sandbox...")
-        # Initialize with default settings
+
+        # Use template ID from settings if available (e.g., prebuilt image)
+        # self.sandbox_runner = SandboxRunner(sandbox_id=None, cwd=settings.sandbox.cwd)
+        # Note: SandboxRunner init doesn't create the sandbox immediately, run_command does.
+        # But we want to ensure deps are installed now.
         self.sandbox_runner = SandboxRunner()
 
-        # Initial setup: Dependencies
-        # We need aider-chat for remote execution + standard test deps
-        deps = ["uv", "pytest", "python-dotenv", "aider-chat"]
-        await self.sandbox_runner.run_command(["pip", "install"] + deps)
+        # We trigger a simple command to ensure connection/creation
+        await self.sandbox_runner.run_command(["echo", "Sandbox Ready"], check=False)
+
+        # Check if dependencies are already installed (optimization for reused/template sandboxes)
+        # We check for 'uv' which is our main tool
+        stdout, _, code = await self.sandbox_runner.run_command(["uv", "--version"], check=False)
+
+        if code == 0:
+            logger.info("Dependencies appear to be installed. Skipping full install.")
+        else:
+            logger.info("Installing dependencies...")
+            # We need aider-chat for remote execution + standard test deps.
+            # We install the current project in editable mode to get the 'ac-cdd' command (which JulesClient uses).
+            deps = ["uv", "pytest", "python-dotenv", "aider-chat"]
+
+            # Install dependencies
+            await self.sandbox_runner.run_command(["pip", "install"] + deps)
+
+            # Install the project itself (for the CLI tool)
+            # The files are already synced to cwd by _sync_to_sandbox called in run_command
+            await self.sandbox_runner.run_command(["pip", "install", "-e", "."])
 
         return self.sandbox_runner
+
+    async def cleanup(self) -> None:
+        """Explicitly close the sandbox runner."""
+        if self.sandbox_runner:
+            logger.info("Cleaning up shared sandbox...")
+            await self.sandbox_runner.close()
+            self.sandbox_runner = None
 
     # --- Architect Graph Nodes ---
 
@@ -60,6 +88,9 @@ class GraphBuilder:
         """Architect Session: Generates all specs and plans."""
         logger.info("Phase: Architect Session")
 
+        # Get Shared Sandbox (Persistent)
+        runner = await self._get_shared_sandbox()
+
         template_path = Path(settings.paths.templates) / "ARCHITECT_INSTRUCTION.md"
         spec_path = Path(settings.paths.documents_dir) / "ALL_SPEC.md"
         signal_file = Path(settings.paths.documents_dir) / "plan_status.json"
@@ -68,17 +99,28 @@ class GraphBuilder:
             return {"error": "ALL_SPEC.md not found.", "current_phase": "architect_failed"}
 
         # Input: user requirements (ALL_SPEC.md)
-        files = [str(spec_path)]
+        cwd = Path.cwd()
+        def _to_rel(p: Path) -> str:
+            try:
+                return str(p.relative_to(cwd))
+            except ValueError:
+                return str(p)
+
+        files = [_to_rel(spec_path)]
+
         # System Instruction: ARCHITECT_INSTRUCTION.md
         instruction = template_path.read_text(encoding="utf-8")
 
         try:
+            # Pass runner for remote execution
             result = await self.jules_client.run_session(
                 session_id="architect-session",
                 prompt=instruction,
                 files=files,
                 completion_signal_file=signal_file,
+                runner=runner,
             )
+
         except Exception as e:
             logger.error(f"Architect session failed: {e}")
             return {"error": str(e), "current_phase": "architect_failed"}
@@ -125,6 +167,13 @@ class GraphBuilder:
         uat_file = cycle_dir / "UAT.md"
         arch_file = Path(settings.paths.documents_dir) / "SYSTEM_ARCHITECTURE.md"
 
+        cwd = Path.cwd()
+        def _to_rel(p: Path) -> str:
+            try:
+                return str(p.relative_to(cwd))
+            except ValueError:
+                return str(p)
+
         # Determine if this is Initial Creation (Jules) or Fix Loop (Aider)
         if iteration_count > 1:
             # --- FIX LOOP (Aider) ---
@@ -137,7 +186,8 @@ class GraphBuilder:
             # Gather files to fix
             src_files = list(Path(settings.paths.src).rglob("*.py"))
             test_files = list(Path(settings.paths.tests).rglob("*.py"))
-            files_to_edit = [str(f) for f in src_files + test_files]
+            # Ensure relative paths for remote execution
+            files_to_edit = [_to_rel(f) for f in src_files + test_files]
 
             # Instruction
             if audit_feedback:
@@ -171,23 +221,28 @@ class GraphBuilder:
             # --- INITIAL CREATION (Jules) ---
             logger.info("Mode: Jules Creator (Initial Impl)")
 
+            # Get Shared Sandbox
+            runner = await self._get_shared_sandbox()
+
             base_instruction = template_path.read_text(encoding="utf-8")
             instruction = base_instruction.replace("{{cycle_id}}", cycle_id)
 
-            files = [str(template_path), str(arch_file)]
+            files = [_to_rel(template_path), _to_rel(arch_file)]
             if spec_file.exists():
-                files.append(str(spec_file))
+                files.append(_to_rel(spec_file))
             if uat_file.exists():
-                files.append(str(uat_file))
+                files.append(_to_rel(uat_file))
 
             signal_file = cycle_dir / "session_report.json"
 
             try:
+                # Execute Remote Jules
                 result = await self.jules_client.run_session(
                     session_id=f"coder-{cycle_id}-iter{iteration_count}",
                     prompt=instruction,
                     files=files,
                     completion_signal_file=signal_file,
+                    runner=runner,
                 )
                 return {
                     "coder_report": result,
@@ -268,7 +323,15 @@ class GraphBuilder:
         # 1. Gather Context (Files)
         src_files = list(Path(settings.paths.src).rglob("*.py"))
         test_files = list(Path(settings.paths.tests).rglob("*.py"))
-        files_to_audit = [str(f) for f in src_files + test_files]
+
+        cwd = Path.cwd()
+        def _to_rel(p: Path) -> str:
+            try:
+                return str(p.relative_to(cwd))
+            except ValueError:
+                return str(p)
+
+        files_to_audit = [_to_rel(f) for f in src_files + test_files]
 
         # Load Instruction
         template_path = Path(settings.paths.templates) / "AUDITOR_INSTRUCTION.md"
@@ -407,6 +470,7 @@ class GraphBuilder:
 
 
 def build_architect_graph(services: ServiceContainer) -> CompiledStateGraph:
+    # Deprecated legacy helper, preferably use GraphBuilder directly in CLI to access cleanup
     return GraphBuilder(services).build_architect_graph()
 
 

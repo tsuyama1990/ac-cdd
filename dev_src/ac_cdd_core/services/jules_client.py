@@ -4,12 +4,15 @@ import re
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional, TYPE_CHECKING
 
 from ac_cdd_core.config import settings
 from ac_cdd_core.process_runner import ProcessRunner
 from ac_cdd_core.utils import logger
 from rich.console import Console
+
+if TYPE_CHECKING:
+    from ac_cdd_core.sandbox import SandboxRunner
 
 console = Console()
 
@@ -61,6 +64,7 @@ class JulesClient:
         files: list[str],
         completion_signal_file: Path,
         timeout_override: int | None = None,
+        runner: Optional["SandboxRunner"] = None,
     ) -> dict[str, Any]:
         """
         Starts a Jules session and enters an event loop to monitor progress.
@@ -75,6 +79,7 @@ class JulesClient:
             prompt: The instruction prompt for the agent.
             files: List of file paths to load into context.
             completion_signal_file: The file path that signals completion (e.g., plan_status.json).
+            runner: Optional SandboxRunner for remote execution.
 
         Returns:
             The content of the completion signal file (parsed JSON).
@@ -88,7 +93,7 @@ class JulesClient:
 
         # 2. Initial Kick-off (Send the prompt)
         logger.info(f"Starting Jules Session {session_id}...")
-        await self._send_user_response(session_id, prompt, files)
+        await self._send_user_response(session_id, prompt, files, runner)
 
         loop_count = 0
         max_loops = self.max_loops
@@ -114,7 +119,7 @@ class JulesClient:
 
                 # 4. Poll Activities
                 try:
-                    activities = await self._fetch_activities(session_id)
+                    activities = await self._fetch_activities(session_id, runner)
                 except Exception as e:
                     logger.warning(f"Failed to fetch activities: {e}")
                     activities = []
@@ -143,7 +148,7 @@ class JulesClient:
 
                     # Resume working status
                     status_context.start()
-                    await self._send_user_response(session_id, user_response)
+                    await self._send_user_response(session_id, user_response, runner=runner)
 
                 elif latest.type in ("tool_use", "agent_thought", "agent_plan"):
                     # Just log/update status
@@ -179,7 +184,7 @@ class JulesClient:
                             "API says completed, but completion_signal_file is missing. "
                             "Please output the json file in the FILENAME format immediately."
                         )
-                        await self._send_user_response(session_id, auto_msg)
+                        await self._send_user_response(session_id, auto_msg, runner=runner)
 
                         # Resume status and continue loop to wait for the file
                         status_context.start()
@@ -200,54 +205,84 @@ class JulesClient:
             f"without generating {completion_signal_file}"
         )
 
-    async def _fetch_activities(self, session_id: str) -> list[JulesActivity]:
+    async def _fetch_activities(
+        self, session_id: str, runner: Optional["SandboxRunner"] = None
+    ) -> list[JulesActivity]:
         """
         Polls the Jules API (via CLI) for the latest activities.
         """
         cmd_exe = self.executable
         # Assuming CLI command: jules activities --session <id> --json
-        cmd = [cmd_exe, "activities", "--session", session_id, "--output", "json"]
+        # NOTE: If running remotely, we assume 'jules' is in path
+        cmd = ["jules" if runner else cmd_exe, "activities", "--session", session_id, "--output", "json"]
 
         try:
-            result = await asyncio.get_event_loop().run_in_executor(
-                None,
-                lambda: subprocess.run(cmd, check=True, capture_output=True, text=True),
-            )
-            data = json.loads(result.stdout)
+            if runner:
+                # Remote execution
+                stdout, stderr, code = await runner.run_command(cmd, check=True)
+                result_stdout = stdout
+            else:
+                # Local execution
+                result = await asyncio.get_event_loop().run_in_executor(
+                    None,
+                    lambda: subprocess.run(cmd, check=True, capture_output=True, text=True),
+                )
+                result_stdout = result.stdout
+
+            data = json.loads(result_stdout)
             # transform to objects
             return [JulesActivity.from_dict(item) for item in data]
-        except (subprocess.CalledProcessError, json.JSONDecodeError):
-            # If CLI fails or returns non-JSON, log and return empty list to keep polling
-            # logger.debug(f"Fetch activities failed: {e}") # Debug log to reduce noise
+
+        except (subprocess.CalledProcessError, RuntimeError) as e:
+            # RuntimeError comes from SandboxRunner.run_command if check=True
+            # logger.debug(f"Fetch activities failed: {e}")
+            return []
+        except json.JSONDecodeError:
             return []
         except FileNotFoundError:
-            # Logic for when 'jules' executable is missing (e.g. in tests not mocking it)
             return []
 
     async def _send_user_response(
-        self, session_id: str, message: str, files: list[str] = None
+        self,
+        session_id: str,
+        message: str,
+        files: list[str] = None,
+        runner: Optional["SandboxRunner"] = None,
     ) -> None:
         """
         Sends a message (or prompt) to the agent.
         """
         cmd_exe = self.executable
-        cmd = [cmd_exe, "chat", "--session", session_id]
+        # If remote, assume 'jules' is in path.
+        cmd = ["jules" if runner else cmd_exe, "chat", "--session", session_id]
 
         if files:
             for file_path in files:
-                if Path(file_path).exists():
+                # For remote, we assume files are synced.
+                # For local, we check existence.
+                if runner:
+                    # Just append the path, assume it exists on remote relative to cwd
                     cmd.extend(["--file", str(file_path)])
+                else:
+                    if Path(file_path).exists():
+                        cmd.extend(["--file", str(file_path)])
 
         cmd.append(message)
 
         try:
-            await asyncio.get_event_loop().run_in_executor(
-                None,
-                lambda: subprocess.run(cmd, check=True, capture_output=True, text=True),
-            )
-        except subprocess.CalledProcessError as e:
-            logger.error(f"Failed to send message: {e.stderr}")
-            raise JulesSessionError(f"Failed to send message: {e.stderr}") from e
+            if runner:
+                await runner.run_command(cmd, check=True)
+            else:
+                await asyncio.get_event_loop().run_in_executor(
+                    None,
+                    lambda: subprocess.run(cmd, check=True, capture_output=True, text=True),
+                )
+        except (subprocess.CalledProcessError, RuntimeError) as e:
+            err_msg = str(e)
+            if hasattr(e, "stderr"):
+                err_msg += f": {e.stderr}"
+            logger.error(f"Failed to send message: {err_msg}")
+            raise JulesSessionError(f"Failed to send message: {err_msg}") from e
 
     def _parse_and_save(self, text: str) -> None:
         r"""
