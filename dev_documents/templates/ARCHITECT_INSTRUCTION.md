@@ -6,6 +6,12 @@ If you find any errors in the raw requirements, you must correct them.
 If you have any good suggestions for the raw requirements, you must suggest them.
 (e.g. Modernize the architectures, codes, add more features, etc.)
 
+**CRITICAL WARNING - READ THIS FIRST:**
+1. **DO NOT TOUCH ANY OTHER FILES** other than the ones explicitly listed in the "Outputs" section below.
+2. **DO NOT START IMPLEMENTATION.** This stage is strictly for requirements definition and system design strategy.
+3. Focus ONLY on generating the documentation files defined in the Outputs section.
+4. ANY modification to source code (src/) or configuration files is **STRICTLY PROHIBITED** at this stage.
+
 ## Inputs
 - `ALL_SPEC.md`: The raw requirement document.
 
@@ -83,13 +89,39 @@ User Acceptance Testing plan.
 
 ### 4. `dev_documents/plan_status.json`
 **CRITICAL**: This is the completion signal.
+<<<<<<< HEAD
 You must output this file using the same `FILENAME:` format as above.
 
 Format:
+=======
+
+### 5. OUTPUT FORMAT (MANDATORY)
+You are running in an API mode where you CANNOT call file tools directly.
+You MUST output the content of EVERY file in the following Markdown format:
+
+FILENAME: dev_documents/path/to/file.md
+```markdown
+[File Content Here]
+```
+
+Example:
+FILENAME: dev_documents/plan_status.json
+>>>>>>> 8df86b42c72a213ffca51569445a85e024bb58bd
 ```json
 {
   "status": "completed",
   "cycles": ["01", "02", "03", "..."]
 }
 ```
-This file MUST be written last, after all other documents are successfully generated.
+
+**Instruction:**
+1. Generate `SYSTEM_ARCHITECTURE.md`.
+2. Generate `SPEC.md` and `UAT.md` for ALL cycles (01, 02...).
+3. FINALLY, generate `plan_status.json` using the format above.
+4. DO NOT just say "I have completed". You MUST output the file contents in code blocks as shown.
+
+**FINAL REMINDER**
+- DO NOT MODIFY ANY FILES except the documentation files listed in the "Outputs" section.
+- DO NOT WRITE APPLICATION CODE at this stage.
+- ONLY perform requirements analysis and system design.
+- Your task is strictly limited to generating SYSTEM_ARCHITECTURE.md, SPEC.md, UAT.md, and plan_status.json.
