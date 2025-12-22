@@ -1,11 +1,11 @@
 ## Task Execution Steps
 1.  **Analyze** the provided `ALL_SPEC.md` deeply.
 2.  **Architect & Decompose:**
-    * Design the global architecture.
+    * Design the global architecture following the instructions in `ARCHITECT_INSTRUCTION.md`.
     * **CRITICAL:** Break down the ENTIRE project into a sequence of logical cycles (CYCLE01, CYCLE02, ... CYCLE_N).
     * Ensure NO requirements are left behind. Every feature in `ALL_SPEC.md` must be assigned to a specific cycle.
 3.  **Generate Artifacts:**
-    * Create `SYSTEM_ARCHITECTURE.md` (containing the full roadmap).
+    * Create `SYSTEM_ARCHITECTURE.md` (containing the full roadmap) adhering to the strict format in `ARCHITECT_INSTRUCTION.md`.
     * Sequentially generate the document sets (`SPEC`, `UAT`, `schema.py`) for **EVERY** cycle defined in your roadmap.
 
 ## Output Strategy (Handling Long Content)
@@ -26,7 +26,7 @@ Please start the output using the following format:
 
 ## 1. `dev_documents/SYSTEM_ARCHITECTURE.md`
 ```markdown
-(Content: Must include the "Implementation Plan" listing ALL cycles from 01 to N)
+(Content: Follow the strict format defined in ARCHITECT_INSTRUCTION.md)
 ```
 
 ## 2. `dev_documents/CYCLE{xx}/SPEC.md` (For EACH Cycle)
