@@ -35,11 +35,14 @@ class GitManager:
         branch_name = f"feature/{prefix}-{id}"
         logger.info(f"Switching to branch {branch_name}...")
 
-        # Try to checkout first (if it exists)
-        _, _, code = await self.runner.run_command([self.git_cmd, "checkout", branch_name], check=False)
+        # Check if branch exists
+        _, _, code = await self.runner.run_command(
+            [self.git_cmd, "rev-parse", "--verify", branch_name], check=False
+        )
         
         if code == 0:
-            logger.info(f"Checked out existing branch {branch_name}")
+            logger.info(f"Branch {branch_name} exists. Checking out...")
+            await self._run_git(["checkout", branch_name])
         else:
             # If not, create it
             logger.info(f"Branch does not exist. Creating {branch_name}...")
