@@ -26,6 +26,9 @@ def check_environment() -> None:
     """Checks for required tools and API keys."""
     import os
     import shutil
+    from dotenv import load_dotenv
+
+    load_dotenv()
 
     missing_tools = []
     missing_vars = []
@@ -43,11 +46,11 @@ def check_environment() -> None:
     # Check strict requirements. Note: OpenRouter is optional if Gemini is used directly,
     # but we should check at least one LLM key.
     # Jules requires JULES_API_KEY.
-    required_vars = ["JULES_API_KEY"]
+    required_vars = ["JULES_API_KEY", "E2B_API_KEY"]
 
     # We need at least one model provider
-    if not os.environ.get("GEMINI_API_KEY") and not os.environ.get("OPENROUTER_API_KEY"):
-         missing_vars.append("GEMINI_API_KEY (or OPENROUTER_API_KEY)")
+    if not os.environ.get("GEMINI_API_KEY") and not os.environ.get("GOOGLE_API_KEY") and not os.environ.get("OPENROUTER_API_KEY"):
+         missing_vars.append("GEMINI_API_KEY (or GOOGLE_API_KEY / OPENROUTER_API_KEY)")
 
     for var in required_vars:
         if not os.environ.get(var):
