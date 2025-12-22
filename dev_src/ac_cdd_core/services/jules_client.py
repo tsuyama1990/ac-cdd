@@ -128,18 +128,20 @@ class JulesClient:
                     await asyncio.sleep(self.poll_interval)
                     continue
 
+                # Process all activities in order to capture all file generation events
+                for activity in activities:
+                    if activity.content:
+                        self._parse_and_save(activity.content)
+
                 latest = activities[-1]
 
-                # 5. Handle States
+                # 5. Handle States (Logic based on LATEST activity state)
                 if latest.type == "agent_message" and latest.requires_response:
                     status_context.stop()
 
-                    # Ensure we process any files in the message content before asking
-                    if latest.content:
-                        self._parse_and_save(latest.content)
-                        self.console.print(
-                            f"\n[bold magenta]Jules asks:[/bold magenta] {latest.content}"
-                        )
+                    self.console.print(
+                        f"\n[bold magenta]Jules asks:[/bold magenta] {latest.content}"
+                    )
 
                     # Get User Input
                     user_response = await asyncio.get_event_loop().run_in_executor(
@@ -152,10 +154,6 @@ class JulesClient:
 
                 elif latest.type in ("tool_use", "agent_thought", "agent_plan"):
                     # Just log/update status
-                    # Parse any files that might be in the output/thought
-                    if latest.content:
-                        self._parse_and_save(latest.content)
-
                     # Update status message if tool name is available
                     if latest.tool_name:
                         status_context.update(f"[bold green]Jules is using {latest.tool_name}...")
@@ -193,8 +191,6 @@ class JulesClient:
 
                 else:
                     # Unknown or generic activity
-                    if latest.content:
-                        self._parse_and_save(latest.content)
                     await asyncio.sleep(self.poll_interval)
 
         finally:
@@ -292,7 +288,7 @@ class JulesClient:
         - Any or no language identifier after ```
         """
         # Improved Regex
-        pattern = re.compile(r"FILENAME:\s*([^\n]+)\s*\n\s*```[^\n]*\n(.*?)```", re.DOTALL)
+        pattern = re.compile(r"FILENAME:\s*(.*?)\s*\n+```(?:[\w+\-]*)\n(.*?)```", re.DOTALL)
 
         matches = pattern.findall(text)
         if not matches:
