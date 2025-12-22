@@ -14,6 +14,7 @@ from .services.jules_client import JulesClient
 from .services.aider_client import AiderClient
 from .state import CycleState
 from .utils import logger
+from .sandbox import SandboxRunner
 
 MAX_AUDIT_RETRIES = 2
 
@@ -24,6 +25,55 @@ class GraphBuilder:
         self.jules_client = JulesClient()
         self.aider_client = AiderClient()
         self.git = GitManager()
+        # Shared sandbox for the lifecycle of the graph execution (approx. one cycle)
+        self.sandbox_runner: SandboxRunner | None = None
+
+    async def _get_shared_sandbox(self) -> SandboxRunner:
+        """
+        Get or initialize the shared sandbox runner.
+        Ensures dependencies are installed once.
+        """
+        if self.sandbox_runner:
+            return self.sandbox_runner
+
+        logger.info("Initializing Shared Sandbox...")
+
+        # Use template ID from settings if available (e.g., prebuilt image)
+        # self.sandbox_runner = SandboxRunner(sandbox_id=None, cwd=settings.sandbox.cwd)
+        # Note: SandboxRunner init doesn't create the sandbox immediately, run_command does.
+        # But we want to ensure deps are installed now.
+        self.sandbox_runner = SandboxRunner()
+
+        # We trigger a simple command to ensure connection/creation
+        await self.sandbox_runner.run_command(["echo", "Sandbox Ready"], check=False)
+
+        # Check if dependencies are already installed (optimization for reused/template sandboxes)
+        # We check for 'uv' which is our main tool
+        stdout, _, code = await self.sandbox_runner.run_command(["uv", "--version"], check=False)
+
+        if code == 0:
+            logger.info("Dependencies appear to be installed. Skipping full install.")
+        else:
+            logger.info("Installing dependencies...")
+            # We need aider-chat for remote execution + standard test deps.
+            # We install the current project in editable mode to get the 'ac-cdd' command (which JulesClient uses).
+            deps = ["uv", "pytest", "python-dotenv", "aider-chat"]
+
+            # Install dependencies
+            await self.sandbox_runner.run_command(["pip", "install"] + deps)
+
+            # Install the project itself (for the CLI tool)
+            # The files are already synced to cwd by _sync_to_sandbox called in run_command
+            await self.sandbox_runner.run_command(["pip", "install", "-e", "."])
+
+        return self.sandbox_runner
+
+    async def cleanup(self) -> None:
+        """Explicitly close the sandbox runner."""
+        if self.sandbox_runner:
+            logger.info("Cleaning up shared sandbox...")
+            await self.sandbox_runner.close()
+            self.sandbox_runner = None
 
     # --- Architect Graph Nodes ---
 
@@ -38,6 +88,9 @@ class GraphBuilder:
         """Architect Session: Generates all specs and plans."""
         logger.info("Phase: Architect Session")
 
+        # Get Shared Sandbox (Persistent)
+        runner = await self._get_shared_sandbox()
+
         template_path = Path(settings.paths.templates) / "ARCHITECT_INSTRUCTION.md"
         spec_path = Path(settings.paths.documents_dir) / "ALL_SPEC.md"
         signal_file = Path(settings.paths.documents_dir) / "plan_status.json"
@@ -46,17 +99,28 @@ class GraphBuilder:
             return {"error": "ALL_SPEC.md not found.", "current_phase": "architect_failed"}
 
         # Input: user requirements (ALL_SPEC.md)
-        files = [str(spec_path)]
+        cwd = Path.cwd()
+        def _to_rel(p: Path) -> str:
+            try:
+                return str(p.relative_to(cwd))
+            except ValueError:
+                return str(p)
+
+        files = [_to_rel(spec_path)]
+
         # System Instruction: ARCHITECT_INSTRUCTION.md
         instruction = template_path.read_text(encoding="utf-8")
 
         try:
+            # Pass runner for remote execution
             result = await self.jules_client.run_session(
                 session_id="architect-session",
                 prompt=instruction,
                 files=files,
                 completion_signal_file=signal_file,
+                runner=runner,
             )
+
         except Exception as e:
             logger.error(f"Architect session failed: {e}")
             return {"error": str(e), "current_phase": "architect_failed"}
@@ -103,21 +167,30 @@ class GraphBuilder:
         uat_file = cycle_dir / "UAT.md"
         arch_file = Path(settings.paths.documents_dir) / "SYSTEM_ARCHITECTURE.md"
 
+        cwd = Path.cwd()
+        def _to_rel(p: Path) -> str:
+            try:
+                return str(p.relative_to(cwd))
+            except ValueError:
+                return str(p)
+
         # Determine if this is Initial Creation (Jules) or Fix Loop (Aider)
         if iteration_count > 1:
             # --- FIX LOOP (Aider) ---
             logger.info("Mode: Aider Fixer (Refinement/Repair)")
             audit_feedback = state.get("audit_feedback")
 
+            # Get Shared Sandbox (Persistent)
+            runner = await self._get_shared_sandbox()
+
             # Gather files to fix
-            # TODO: In the future, use git status or Aider's repo map to narrow down context.
             src_files = list(Path(settings.paths.src).rglob("*.py"))
             test_files = list(Path(settings.paths.tests).rglob("*.py"))
-            files_to_edit = [str(f) for f in src_files + test_files]
+            # Ensure relative paths for remote execution
+            files_to_edit = [_to_rel(f) for f in src_files + test_files]
 
             # Instruction
             if audit_feedback:
-                # feedback is a list of strings
                 feedback_text = "\n".join(f"- {issue}" for issue in audit_feedback)
                 instruction = (
                     f"You are the Lead Engineer fixing issues found during audit.\n"
@@ -132,8 +205,9 @@ class GraphBuilder:
                 )
 
             try:
+                # Execute Remote Aider
                 result = await self.aider_client.run_fix(
-                    files=files_to_edit, instruction=instruction
+                    files=files_to_edit, instruction=instruction, runner=runner
                 )
                 return {
                     "coder_report": {"tool": "aider", "output": result},
@@ -147,23 +221,28 @@ class GraphBuilder:
             # --- INITIAL CREATION (Jules) ---
             logger.info("Mode: Jules Creator (Initial Impl)")
 
+            # Get Shared Sandbox
+            runner = await self._get_shared_sandbox()
+
             base_instruction = template_path.read_text(encoding="utf-8")
             instruction = base_instruction.replace("{{cycle_id}}", cycle_id)
 
-            files = [str(template_path), str(arch_file)]
+            files = [_to_rel(template_path), _to_rel(arch_file)]
             if spec_file.exists():
-                files.append(str(spec_file))
+                files.append(_to_rel(spec_file))
             if uat_file.exists():
-                files.append(str(uat_file))
+                files.append(_to_rel(uat_file))
 
             signal_file = cycle_dir / "session_report.json"
 
             try:
+                # Execute Remote Jules
                 result = await self.jules_client.run_session(
                     session_id=f"coder-{cycle_id}-iter{iteration_count}",
                     prompt=instruction,
                     files=files,
                     completion_signal_file=signal_file,
+                    runner=runner,
                 )
                 return {
                     "coder_report": result,
@@ -177,20 +256,12 @@ class GraphBuilder:
         """Run tests to capture logs for UAT analysis."""
         logger.info("Phase: Run Tests (Sandbox)")
 
-        # Initialize: Create a new SandboxRunner instance for isolation as requested
-        from .sandbox import SandboxRunner
-
-        # Create a fresh runner to ensure clean state and safe disposal
-        runner = SandboxRunner(cwd="/home/user")
-
         try:
-            # Setup Environment: Explicitly ensure dependencies
-            # Although SandboxRunner runs install_cmd on init, we strictly follow instructions
-            # to setup the environment.
-            logger.info("Setting up Sandbox Environment...")
-            await runner.run_command(["pip", "install", "uv", "pytest", "python-dotenv"])
+            # Use Shared Sandbox
+            runner = await self._get_shared_sandbox()
 
             # Execute Tests
+            # Dependencies are already installed in _get_shared_sandbox
             cmd = ["uv", "run", "pytest", "tests/"]
             stdout, stderr, code = await runner.run_command(cmd, check=False)
 
@@ -204,9 +275,6 @@ class GraphBuilder:
                 "test_exit_code": -1,
                 "current_phase": "tests_failed_exec"
             }
-        finally:
-            # Cleanup: Ensure sandbox resources are released
-            await runner.close()
 
     async def uat_evaluate_node(self, state: CycleState) -> dict[str, Any]:
         """Gemini-based UAT Evaluation."""
@@ -249,12 +317,21 @@ class GraphBuilder:
 
         iteration_count = state.get("iteration_count", 1)
 
+        # Get Shared Sandbox (Persistent)
+        runner = await self._get_shared_sandbox()
+
         # 1. Gather Context (Files)
-        # Include both src and tests for context
-        # TODO: In the future, use git status or Aider's repo map to narrow down context.
         src_files = list(Path(settings.paths.src).rglob("*.py"))
         test_files = list(Path(settings.paths.tests).rglob("*.py"))
-        files_to_audit = [str(f) for f in src_files + test_files]
+
+        cwd = Path.cwd()
+        def _to_rel(p: Path) -> str:
+            try:
+                return str(p.relative_to(cwd))
+            except ValueError:
+                return str(p)
+
+        files_to_audit = [_to_rel(f) for f in src_files + test_files]
 
         # Load Instruction
         template_path = Path(settings.paths.templates) / "AUDITOR_INSTRUCTION.md"
@@ -265,13 +342,14 @@ class GraphBuilder:
 
         instruction += f"\n\n(Iteration {iteration_count})"
 
-        # 2. Run Audit via Aider
-        output = await self.aider_client.run_audit(files=files_to_audit, instruction=instruction)
+        # 2. Run Audit via Aider (Remote)
+        output = await self.aider_client.run_audit(
+            files=files_to_audit, instruction=instruction, runner=runner
+        )
 
         logger.info(f"Audit Round {iteration_count} Complete.")
 
         # 3. Parse Output for Structured Report
-        # Look for content between markers
         marker_start = "=== AUDIT REPORT START ==="
         marker_end = "=== AUDIT REPORT END ==="
 
@@ -282,23 +360,19 @@ class GraphBuilder:
                 end_idx = output.index(marker_end)
                 extracted_text = output[start_idx:end_idx].strip()
             except ValueError:
-                # Should not happen given the check, but safe fallback
                 extracted_text = ""
 
         if not extracted_text:
-            # Fallback: take the last 20 lines or full output if short
             lines = output.strip().split("\n")
             if len(lines) > 20:
                 extracted_text = "\n".join(lines[-20:])
             else:
                 extracted_text = output.strip()
 
-        # Split into lines for feedback
         feedback_lines = [line.strip() for line in extracted_text.split("\n") if line.strip()]
 
-        # Dummy result to satisfy type hints if strictly checked elsewhere
         dummy_result = AuditResult(
-            is_approved=False,  # Always assume false/improve in fixed loop
+            is_approved=False,
             critical_issues=feedback_lines,
             minor_issues=[],
             score=0,
@@ -396,6 +470,7 @@ class GraphBuilder:
 
 
 def build_architect_graph(services: ServiceContainer) -> CompiledStateGraph:
+    # Deprecated legacy helper, preferably use GraphBuilder directly in CLI to access cleanup
     return GraphBuilder(services).build_architect_graph()
 
 

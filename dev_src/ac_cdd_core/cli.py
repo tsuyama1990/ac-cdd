@@ -31,7 +31,10 @@ def check_environment() -> None:
     missing_vars = []
 
     # 1. Executables
-    required_tools = ["uv", "gh", "git", "jules", "aider"]
+    # Removing 'aider' and 'jules' from local requirements as we aim for fully remote architecture.
+    # 'git' and 'uv' are still needed for local project management.
+    # 'gh' is optional but recommended for PRs.
+    required_tools = ["uv", "git"]
     for tool in required_tools:
         if not shutil.which(tool):
             missing_tools.append(tool)
@@ -121,8 +124,11 @@ def gen_cycles(
             sys.exit(1)
 
         services = ServiceContainer.default()
-        from .graph import build_architect_graph
-        graph = build_architect_graph(services)
+        from .graph import GraphBuilder
+
+        # Instantiate builder to manage resources
+        builder = GraphBuilder(services)
+        graph = builder.build_architect_graph()
 
         # Initialize state
         initial_state = CycleState(cycle_id=settings.DUMMY_CYCLE_ID)
@@ -157,6 +163,9 @@ def gen_cycles(
             console.print(f"[red]Error during execution:[/red] {e}")
             logger.exception("Graph execution failed")
             sys.exit(1)
+        finally:
+            # Graceful cleanup
+            await builder.cleanup()
 
     asyncio.run(_run())
 
@@ -183,8 +192,11 @@ def run_cycle(
             sys.exit(1)
 
         services = ServiceContainer.default()
-        from .graph import build_coder_graph
-        graph = build_coder_graph(services)
+        from .graph import GraphBuilder
+
+        # Instantiate builder to manage resources
+        builder = GraphBuilder(services)
+        graph = builder.build_coder_graph()
 
         # Initialize state
         initial_state = CycleState(cycle_id=cycle_id)
@@ -235,6 +247,9 @@ def run_cycle(
             console.print(f"[red]Error during execution:[/red] {e}")
             logger.exception("Graph execution failed")
             sys.exit(1)
+        finally:
+            # Graceful cleanup
+            await builder.cleanup()
 
     asyncio.run(_run())
 

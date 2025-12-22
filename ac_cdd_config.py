@@ -115,6 +115,7 @@ class Settings(BaseSettings):
     OPENROUTER_API_KEY: str | None = None
     MAX_RETRIES: int = 10
     DUMMY_CYCLE_ID: str = "00"
+    E2B_API_KEY: str | None = None
 
     # Committee Config
     NUM_AUDITORS: int = 3

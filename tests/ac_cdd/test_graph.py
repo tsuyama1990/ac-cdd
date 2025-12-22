@@ -9,15 +9,8 @@ async def test_architect_graph_structure(mock_services):
     builder = GraphBuilder(mock_services)
     graph = builder.build_architect_graph()
 
-    # The graph object from langgraph isn't easily inspectable for nodes/edges directly
-    # in the same way depending on version, but we can compile it.
-    compiled = graph.compile()
-
-    # Check if compiled graph has expected nodes
-    # Note: langgraph StateGraph compilation returns a Runnable
-    # We can check the underlying graph definition if accessible, but for now
-    # let's assume if it compiles, the structure is valid according to definition.
-    assert compiled is not None
+    # The build_architect_graph method returns a CompiledStateGraph, so no need to compile again.
+    assert graph is not None
 
 
 @pytest.mark.asyncio
@@ -26,5 +19,5 @@ async def test_coder_graph_structure(mock_services):
     builder = GraphBuilder(mock_services)
     graph = builder.build_coder_graph()
 
-    compiled = graph.compile()
-    assert compiled is not None
+    # The build_coder_graph method returns a CompiledStateGraph.
+    assert graph is not None

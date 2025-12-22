@@ -74,7 +74,7 @@ def get_model(model_name: str) -> Any:
 # QA Analyst Agent
 qa_analyst_agent: Agent[Any, UatAnalysis] = Agent(
     model=get_model(settings.agents.qa_analyst_model),
-    system_prompt=settings.agents.qa_analyst,
+    system_prompt=settings.aider.qa_analyst,
 )
 
 
