@@ -88,6 +88,10 @@ class GitManager:
     async def get_current_branch(self) -> str:
         return await self._run_git(["rev-parse", "--abbrev-ref", "HEAD"])
 
+    async def get_remote_url(self) -> str:
+        """Returns the URL of the 'origin' remote."""
+        return await self._run_git(["config", "--get", "remote.origin.url"])
+
     async def get_diff(self, target_branch: str = "main") -> str:
         """Returns the diff between HEAD and target branch."""
         return await self._run_git(["diff", f"{target_branch}...HEAD"])

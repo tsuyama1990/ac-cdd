@@ -117,6 +117,10 @@ class Settings(BaseSettings):
     DUMMY_CYCLE_ID: str = "00"
     E2B_API_KEY: str | None = None
 
+    # GCP Config for Jules API
+    GCP_PROJECT_ID: str | None = None
+    GCP_REGION: str = "us-central1"
+
     # Committee Config
     NUM_AUDITORS: int = 3
     REVIEWS_PER_AUDITOR: int = 2

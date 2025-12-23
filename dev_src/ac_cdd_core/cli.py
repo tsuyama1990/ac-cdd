@@ -146,17 +146,17 @@ def gen_cycles(
                 sys.exit(1)
             else:
                 msg = (
-                    "✅ Architecture & Planning Complete!\n\n"
+                    "✅ Architect Phase Request Sent!\n\n"
+                    "Jules has created a Pull Request with the architectural plans.\n\n"
                     "Next Steps:\n"
-                    "1. Review the generated architecture:\n"
-                    f"   {settings.paths.documents_dir}/SYSTEM_ARCHITECTURE.md\n\n"
-                    "2. Review the cycle specifications:\n"
-                    f"   {settings.paths.documents_dir}/CYCLE01/SPEC.md\n"
-                    f"   {settings.paths.documents_dir}/CYCLE01/UAT.md\n"
-                    "   ...\n\n"
-                    "3. Start implementation for the first cycle:\n"
-                    "   uv run manage.py run-cycle 01\n\n"
-                    "(Or run all cycles automatically with: uv run manage.py run-cycle --auto)"
+                    "1. Review the Pull Request on GitHub.\n"
+                    "2. Merge the PR if the architecture looks correct.\n"
+                    "3. Pull the changes locally:\n"
+                    "   git pull origin main  (or your working branch)\n"
+                    "4. Verify the generated documents exist:\n"
+                    f"   ls {settings.paths.documents_dir}/SYSTEM_ARCHITECTURE.md\n"
+                    "5. Start implementation for the first cycle:\n"
+                    "   uv run manage.py run-cycle --id 01"
                 )
                 console.print(
                     Panel(msg, title="Next Action Guide", style="bold green", expand=False)
@@ -232,14 +232,15 @@ def run_cycle(
                         next_cycle_id = "XX"
 
                     msg = (
-                        f"✅ Cycle {cycle_id} Implementation Complete!\n\n"
+                        f"✅ Cycle {cycle_id} Implementation Request Sent!\n\n"
+                        "Jules has created a Pull Request with the implementation.\n\n"
                         "Next Steps:\n"
-                        f"1. Review the changes in branch: feature/cycle-{cycle_id}\n"
-                        f"2. Check the session report: "
-                        f"dev_documents/CYCLE{cycle_id}/session_report.json\n"
-                        "3. If satisfied, merge the PR (or use 'gh pr merge').\n"
+                        "1. Review the Pull Request on GitHub.\n"
+                        "2. Merge the PR if the implementation and tests pass.\n"
+                        "3. Pull the changes locally:\n"
+                        "   git checkout main && git pull\n"
                         "4. Proceed to the next cycle:\n"
-                        f"   uv run manage.py run-cycle {next_cycle_id}"
+                        f"   uv run manage.py run-cycle --id {next_cycle_id}"
                     )
 
                 console.print(
