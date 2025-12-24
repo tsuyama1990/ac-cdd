@@ -126,8 +126,19 @@ class GraphBuilder:
             # Note: The actual 'cycles' plan is inside the PR content.
             # For the local flow to continue perfectly, we might need to parse the PR desc or file.
             # For now, we assume the user will review the PR.
-            pr_url = result.get("pr_url", "No URL found")
-            logger.info(f"Architect PR created: {pr_url}")
+            pr_url = result.get("pr_url")
+            if pr_url:
+                logger.info(f"Architect PR created: {pr_url}")
+            else:
+                msg = (
+                    "Jules session finished but NO Pull Request was created.\n"
+                    "Possible causes:\n"
+                    "1. The prompt instructed to output text instead of creating files.\n"
+                    "2. The agent decided no changes were necessary.\n"
+                    "Check the GCP Console for the session logs."
+                )
+                logger.error(msg)
+                return {"error": "No PR created by Jules", "current_phase": "architect_failed"}
 
         except Exception as e:
             logger.error(f"Architect session failed: {e}")
@@ -253,14 +264,24 @@ class GraphBuilder:
                     runner=runner,
                 )
 
-                pr_url = result.get("pr_url", "No URL found")
-                logger.info(f"Coder PR created: {pr_url}")
-
-                return {
-                    "coder_report": result,
-                    "current_phase": "coder_complete",
-                    "iteration_count": iteration_count,
-                }
+                pr_url = result.get("pr_url")
+                if pr_url:
+                    logger.info(f"Coder PR created: {pr_url}")
+                    return {
+                        "coder_report": result,
+                        "current_phase": "coder_complete",
+                        "iteration_count": iteration_count,
+                    }
+                else:
+                    msg = (
+                        "Jules session finished but NO Pull Request was created.\n"
+                        "Possible causes:\n"
+                        "1. The prompt instructed to output text instead of creating files.\n"
+                        "2. The agent decided no changes were necessary.\n"
+                        "Check the GCP Console for the session logs."
+                    )
+                    logger.error(msg)
+                    return {"error": "No PR created by Jules", "current_phase": "coder_failed"}
             except Exception as e:
                 return {"error": str(e), "current_phase": "coder_failed"}
 

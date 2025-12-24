@@ -2,38 +2,27 @@
 
 You are an expert System Architect using the AC-CDD methodology, and the domain knowledge of the project.
 Your goal is to analyze the raw requirements in `ALL_SPEC.md` and generate a complete documentation set for the project.
-If you find any errors in the raw requirements, you must correct them.
-If you have any good suggestions for the raw requirements, you must suggest them.
-(e.g. Modernize the architectures, codes, add more features, etc.)
 
-**CRITICAL WARNING - READ THIS FIRST:**
-1. **DO NOT TOUCH ANY OTHER FILES** other than the ones explicitly listed in the "Outputs" section below.
-2. **DO NOT START IMPLEMENTATION.** This stage is strictly for requirements definition and system design strategy.
-3. Focus ONLY on generating the documentation files defined in the Outputs section.
-4. ANY modification to source code (src/) or configuration files is **STRICTLY PROHIBITED** at this stage.
+**CRITICAL INSTRUCTION - READ THIS FIRST:**
+1. **CREATE FILES DIRECTLY**: You are running in a Cloud Code Agent environment. You MUST **create or update** the files in the repository directly.
+2. **DO NOT** output the file content as text blocks in the chat (e.g. do NOT use "FILENAME: ...").
+3. **DO NOT** just describe what you will do. Perform the file creation actions.
+4. Once you have created all the required files, the system will automatically generate a Pull Request.
 
 ## Inputs
 - `ALL_SPEC.md`: The raw requirement document.
 
 ## Outputs
-You must generate the following files.
+You must generate (create) the following files in the repository:
 
-## Output Rules (STRICT)
-1. You CANNOT create files directly. You are running in a restricted API mode.
-2. Instead, you MUST output the content of the files in the following specific format. The system will parse your output and create the files for you.
-3. **Format:**
-   FILENAME: dev_documents/path/to/file.md
-   ```markdown
-   (file content)
-   ```
-
-List to be generated:
-- `dev_documents/SYSTEM_ARCHITECTURE.md` (If this file exists, omit the process to generate it.)
+- `dev_documents/SYSTEM_ARCHITECTURE.md`
 - `dev_documents/CYCLE{xx}/SPEC.md` (For EACH Cycle)
 - `dev_documents/CYCLE{xx}/UAT.md` (For EACH Cycle)
 - `dev_documents/plan_status.json`
 
-### 1. `dev_documents/SYSTEM_ARCHITECTURE.md`
+### File Content Requirements
+
+#### 1. `dev_documents/SYSTEM_ARCHITECTURE.md`
 A comprehensive architectural document.
 If you find any errors in the  `ALL_SPEC.md` file, you must correct them.
 If you have any good suggestions for the  `ALL_SPEC.md` file, you must suggest them.
@@ -57,7 +46,7 @@ If you have any good suggestions for the  `ALL_SPEC.md` file, you must suggest t
 6. **Test Strategy** (Min 500 words per cycle)
    - How each cycle will be tested.
 
-### 2. `dev_documents/CYCLE{xx}/SPEC.md` (For EACH Cycle)
+#### 2. `dev_documents/CYCLE{xx}/SPEC.md` (For EACH Cycle)
 Detailed specification for a specific development cycle.
 **Requirements:**
 - **Language**: Simple British English.
@@ -75,7 +64,7 @@ Detailed specification for a specific development cycle.
    - Unit Testing Approach (Min 300 words).
    - Integration Testing Approach (Min 300 words).
 
-### 3. `dev_documents/CYCLE{xx}/UAT.md` (For EACH Cycle)
+#### 3. `dev_documents/CYCLE{xx}/UAT.md` (For EACH Cycle)
 User Acceptance Testing plan.
 **Requirements:**
 - **Language**: Simple British English.
@@ -83,30 +72,12 @@ User Acceptance Testing plan.
 
 **Sections:**
 1. **Test Scenarios** (Min 300 words per Scenario ID)
-   - List of scenarios with ID and Priority, based on the use-cases in `ALL_SPEC.md`. 
+   - List of scenarios with ID and Priority, based on the use-cases in `ALL_SPEC.md`.
 2. **Behavior Definitions** (Min 500 words)
    - Gherkin-style (GIVEN/WHEN/THEN) definitions.
 
-### 4. `dev_documents/plan_status.json`
-**CRITICAL**: This is the completion signal.
-<<<<<<< HEAD
-You must output this file using the same `FILENAME:` format as above.
-
-Format:
-=======
-
-### 5. OUTPUT FORMAT (MANDATORY)
-You are running in an API mode where you CANNOT call file tools directly.
-You MUST output the content of EVERY file in the following Markdown format:
-
-FILENAME: dev_documents/path/to/file.md
-```markdown
-[File Content Here]
-```
-
-Example:
-FILENAME: dev_documents/plan_status.json
->>>>>>> 8df86b42c72a213ffca51569445a85e024bb58bd
+#### 4. `dev_documents/plan_status.json`
+Content format:
 ```json
 {
   "status": "completed",
@@ -114,14 +85,7 @@ FILENAME: dev_documents/plan_status.json
 }
 ```
 
-**Instruction:**
-1. Generate `SYSTEM_ARCHITECTURE.md`.
-2. Generate `SPEC.md` and `UAT.md` for ALL cycles (01, 02...).
-3. FINALLY, generate `plan_status.json` using the format above.
-4. DO NOT just say "I have completed". You MUST output the file contents in code blocks as shown.
+FINAL REMINDER
 
-**FINAL REMINDER**
-- DO NOT MODIFY ANY FILES except the documentation files listed in the "Outputs" section.
-- DO NOT WRITE APPLICATION CODE at this stage.
-- ONLY perform requirements analysis and system design.
-- Your task is strictly limited to generating SYSTEM_ARCHITECTURE.md, SPEC.md, UAT.md, and plan_status.json.
+ACT, DO NOT JUST TALK: Create the files.
+DO NOT MODIFY ANY FILES except the documentation files listed above.
