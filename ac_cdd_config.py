@@ -50,7 +50,7 @@ class JulesConfig(BaseSettings):
     # Default to regular command name 'jules'
     executable: str = "jules"
     timeout_seconds: int = 3600
-    polling_interval_seconds: int = 5
+    polling_interval_seconds: int = 10
 
 
 class ToolsConfig(BaseSettings):
