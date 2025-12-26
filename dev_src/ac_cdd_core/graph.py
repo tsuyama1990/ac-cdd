@@ -356,9 +356,26 @@ class GraphBuilder:
 
         result = await qa_analyst_agent.run(prompt)
         
-        # Use .data for the structured Pydantic model
-        analysis: UatAnalysis = result.data
+        logger.info(f"DEBUG: QA Result Type: {type(result)}")
+        logger.info(f"DEBUG: QA Result Data Type: {type(result.data)}")
         
+        analysis = result.data
+        if isinstance(analysis, str):
+             # Fallback if it comes back as string (try to parse if it looks like JSON, or fail gracefully)
+             logger.warning(f"QA Agent returned string instead of object: {analysis}")
+             # Attempt to parse if it looks like JSON
+             if "{" in analysis:
+                 try:
+                     import json
+                     # rudimentary cleanup if it has markdown code blocks
+                     clean_json = analysis.replace("```json", "").replace("```", "").strip()
+                     analysis = UatAnalysis.model_validate_json(clean_json)
+                 except Exception as e:
+                      logger.error(f"Failed to parse JSON from string: {e}")
+                      return {"error": f"UAT Analysis format error: {analysis}", "current_phase": "uat_failed"}
+             else:
+                 return {"error": f"UAT Analysis returned unstructured text: {analysis}", "current_phase": "uat_failed"}
+
         logger.info(f"UAT Analysis: {analysis.verdict} - {analysis.summary[:100]}...")
 
         verdict = (
