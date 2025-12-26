@@ -331,8 +331,29 @@ class JulesClient:
                         activities = act_data.get("activities", [])
 
                         if len(activities) > last_activity_count:
-                            self.console.print(f"\n[bold blue]New Activity detected ({len(activities)} total)[/bold blue]")
-                            # TODO: Log activity details if useful
+                            # self.console.print(f"\n[bold blue]New Activity detected ({len(activities)} total)[/bold blue]")
+                            
+                            # Determine new activities (assuming chronological append)
+                            new_items = activities[last_activity_count:]
+                            for act in new_items:
+                                # Extract message content (checking likely fields)
+                                message = act.get("displayMessage") or act.get("text") or act.get("description")
+                                
+                                # Check for detail/reasoning if available (often in 'detail' or 'reasoning')
+                                if not message and "detail" in act:
+                                    message = act["detail"]
+
+                                if message:
+                                    self.console.print(f"\n[bold magenta]Jules:[/bold magenta] {message}")
+                                    
+                                    # Heuristic: If message ends with a question mark or seems like a question, prompt user
+                                    if "?" in message or "advice" in message.lower() or "proceed" in message.lower():
+                                        self.console.print("[bold yellow]>> Jules is asking for input. Type your response and press Enter:[/bold yellow]")
+                                else:
+                                    # Fallback for debugging unknown structures
+                                    # self.console.print(f"[dim]Activity: {act}[/dim]")
+                                    pass
+
                             last_activity_count = len(activities)
 
                     # --- 3. Non-blocking User Input Check (Linux/Mac) ---
