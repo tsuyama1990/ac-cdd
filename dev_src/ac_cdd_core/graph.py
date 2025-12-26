@@ -355,7 +355,11 @@ class GraphBuilder:
         )
 
         result = await qa_analyst_agent.run(prompt)
-        analysis: UatAnalysis = result.output
+        
+        # Use .data for the structured Pydantic model
+        analysis: UatAnalysis = result.data
+        
+        logger.info(f"UAT Analysis: {analysis.verdict} - {analysis.summary[:100]}...")
 
         verdict = (
             "PASS"
