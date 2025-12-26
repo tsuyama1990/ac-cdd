@@ -10,6 +10,8 @@ import time
 from google.auth.transport.requests import Request as GoogleAuthRequest
 from typing import Any, Optional, Dict, List
 from pathlib import Path
+import urllib.request
+import urllib.error
 
 from ac_cdd_core.config import settings
 from ac_cdd_core.utils import logger
@@ -276,6 +278,23 @@ class JulesClient:
         result["session_name"] = session_name
         return result
 
+    async def _check_for_inquiry(self, client: httpx.AsyncClient, session_url: str) -> Optional[str]:
+        """
+        Checks if the session is waiting for user feedback by inspecting recent activities.
+        """
+        try:
+            act_url = f"{session_url}/activities?pageSize=50"
+            act_resp = await client.get(act_url, headers=self._get_headers(), timeout=10.0)
+            
+            if act_resp.status_code == 200:
+                activities = act_resp.json().get("activities", [])
+                for act in activities:
+                    if "agentMessaged" in act:
+                        return act["agentMessaged"].get("agentMessage")
+        except Exception as e:
+            logger.warning(f"Failed to check for inquiry: {e}")
+        return None
+
     async def wait_for_completion(self, session_name: str) -> Dict[str, Any]:
         """
         Polls for PR creation and handles user interaction (Human-in-the-loop).
@@ -306,55 +325,14 @@ class JulesClient:
                         data = resp.json()
                         state = data.get("state")
 
-                        # Check for PR
-                        if "outputs" in data:
-                            for output in data["outputs"]:
-                                if "pullRequest" in output:
-                                    pr_url = output["pullRequest"].get("url")
-                                    if pr_url:
-                                        self.console.print(f"\n[bold green]PR Created: {pr_url}[/bold green]")
-                                        return {"pr_url": pr_url, "status": "success", "raw": data}
 
-                        # Check Terminal States if no PR yet
-                        if state == "SUCCEEDED":
-                            self.console.print("[yellow]Session Succeeded but NO PR found.[/yellow]")
-                            return {"status": "success", "raw": data}
-
-                        if state == "FAILED":
-                            logger.error(f"Full Session Data on Failure: {json.dumps(data, indent=2)}")
-                            error_msg = data.get("error", {}).get("message", "Unknown error")
-                            logger.error(f"Jules Session Failed: {error_msg}")
-                            raise JulesSessionError(f"Jules Session Failed: {error_msg}")
-                        
                         # --- INTERACTIVE HANDLING START ---
-                        # If Jules is waiting for user feedback (Interactive Question)
-                        if state == "AWAITING_USER_FEEDBACK":
-                             # We need to find WHAT the question is.
-                             act_url = f"{session_url}/activities?pageSize=10" # Get recent
-                             act_resp = await client.get(act_url, headers=self._get_headers(), timeout=10.0)
+                        # Check for inquiries in both AWAITING_USER_FEEDBACK and COMPLETED states
+                        # COMPLETED might be a "turn complete" state waiting for next input
+                        if state in ["AWAITING_USER_FEEDBACK", "COMPLETED"]:
+                             question = await self._check_for_inquiry(client, session_url)
                              
-                             if act_resp.status_code == 200:
-                                 activities = act_resp.json().get("activities", [])
-                                 # Look for the latest "agentMessaged"
-                                 question = None
-                                 for act in activities: # usually sorted newest first? or oldest first? Checks imply newest is usually last appended but check timestamps if needed.
-                                      # API docs say: activities are returned in reverse chronological order (newest first) by default? 
-                                      # Use simple search for now on the list we get.
-                                      if "agentMessaged" in act:
-                                          question = act["agentMessaged"].get("agentMessage")
-                                          if question: 
-                                              # Found a question.
-                                              break
-                                 
-                                 # Fallback if structure differs or we missed it
-                                 if not question:
-                                     question = "Jules is waiting for feedback but no clear question found. Please review the plan or provide next steps."
-
-                                 # Only reply if we haven't already replied to identical request?
-                                 # For simplicity, we assume AWAITING_USER_FEEDBACK persists until we reply.
-                                 # We risk loop if manager agent reply doesn't satisfy Jules.
-                                 # Ideally track processed state. But let's rely on Manager Agent to be helpful.
-                                 
+                             if question:
                                  self.console.print(f"\n[bold magenta]Jules Question Detected:[/bold magenta] {question}")
                                  self.console.print("[dim]Consulting Manager Agent...[/dim]")
                                  
@@ -371,11 +349,33 @@ class JulesClient:
                                      # Sleep a bit to allow state transition
                                      await asyncio.sleep(5)
                                      continue # Restart loop to check status change
-
+                                     
                                  except Exception as e:
                                      logger.error(f"Manager Agent failed: {e}")
-                                     # Fallthrough to manual input wait
+                                     # Fallthrough if manager fails (maybe retry or just wait)
+
                         # --- INTERACTIVE HANDLING END ---
+
+                        # Check Terminal States if no PR yet or no inquiry found
+                        if state in ["SUCCEEDED", "COMPLETED"]:
+                            # If we are here in COMPLETED state, it means no question was found/handled above
+                            if "outputs" in data:
+                                for output in data["outputs"]:
+                                    if "pullRequest" in output:
+                                        pr_url = output["pullRequest"].get("url")
+                                        if pr_url:
+                                            self.console.print(f"\n[bold green]PR Created: {pr_url}[/bold green]")
+                                            return {"pr_url": pr_url, "status": "success", "raw": data}
+
+                            self.console.print("[yellow]Session Succeeded/Completed but NO PR found.[/yellow]")
+                            return {"status": "success", "raw": data}
+
+                        if state == "FAILED":
+                            logger.error(f"Full Session Data on Failure: {json.dumps(data, indent=2)}")
+                            error_msg = data.get("error", {}).get("message", "Unknown error")
+                            logger.error(f"Jules Session Failed: {error_msg}")
+                            raise JulesSessionError(f"Jules Session Failed: {error_msg}")
+
 
                     # --- 2. Check Activities (Logging only) ---
                     # (Code below remains for logging purposes, but logic handled above for interaction)
