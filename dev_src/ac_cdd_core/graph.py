@@ -53,8 +53,15 @@ class GraphBuilder:
         stdout, _, code = await self.sandbox_runner.run_command(["uv", "--version"], check=False)
 
         if code == 0:
-            logger.info("Dependencies appear to be installed. Skipping full install.")
-        else:
+            # Also check for aider, as it's critical
+            _, _, aider_code = await self.sandbox_runner.run_command(["aider", "--version"], check=False)
+            if aider_code == 0:
+                logger.info("Dependencies appear to be installed. Skipping full install.")
+            else:
+                 logger.info("uv found but aider missing. Installing dependencies...")
+                 code = 1 # Force install path
+        
+        if code != 0:
             logger.info("Installing dependencies...")
             # We need aider-chat for remote execution + standard test deps.
             # We install the current project in editable mode to get the 'ac-cdd' command (which JulesClient uses).
