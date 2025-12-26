@@ -357,7 +357,7 @@ class GraphBuilder:
             "If tests failed or scenarios are missing, verdict is FAIL."
         )
 
-        result = await qa_analyst_agent.run(prompt, result_type=UatAnalysis)
+        result = await qa_analyst_agent.run(prompt)
         
         logger.info(f"DEBUG: QA Result Type: {type(result)}")
         logger.info(f"DEBUG: QA Result Data Type: {type(result.data)}")
