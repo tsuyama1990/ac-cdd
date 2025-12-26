@@ -339,7 +339,7 @@ class JulesClient:
                                  try:
                                      # Ask Manager Agent
                                      mgr_response = await self.manager_agent.run(question)
-                                     reply_text = mgr_response.data
+                                     reply_text = mgr_response.output
                                      
                                      self.console.print(f"[bold cyan]Manager Agent Reply:[/bold cyan] {reply_text}")
                                      
