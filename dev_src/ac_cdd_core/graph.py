@@ -419,7 +419,7 @@ class GraphBuilder:
                  analysis = UatAnalysis(
                      verdict=verdict,
                      summary=summary,
-                     test_results=[] # We can't easily parse structured test results from unstructured text reliably
+                     behavior_analysis=summary  # Fallback: reuse summary as behavior analysis
                  )
                  logger.info(f"Parsed unstructured QA output: Verdict={verdict}")
 
