@@ -36,9 +36,21 @@ If you find Critical issues (Architectural flaws, Safety risks, Hardcoding):
 If you find only suggestions for improvement:
 -> APPROVE (but list the improvements).
 
-Format your response EXACTLY as follows:
-
 === AUDIT REPORT START ===
+
+## 1. System Architecture & Design Patterns
+(Write at least 100 words analyzing the separation of concerns, interface stability, and alignment with specs...)
+
+## 2. Robustness & Reliability
+(Write at least 100 words analyzing error handling, hardcoding, concurrency, and edge cases...)
+
+## 3. Usability & Maintainability
+(Write at least 100 words analyzing naming, docstrings, and developer experience...)
+
+## 4. Test Design & Quality
+(Write at least 100 words analyzing assertion quality, failure scenarios, and isolation...)
+
+## Summary of Issues
 - [Critical] [Robustness] Hardcoded API URL found in `src/client.py`. Use env vars.
 - [Critical] [Architecture] `UserManager` is directly accessing the database; should use `Repository` pattern.
 - [Suggestion] [Tests] `test_login` tests happy path only; add test for invalid password.
