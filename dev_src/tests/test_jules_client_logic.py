@@ -1,8 +1,9 @@
 
 import unittest
-from unittest.mock import MagicMock, AsyncMock, patch
-import asyncio
-from ac_cdd_core.services.jules_client import JulesClient, JulesSessionError
+from unittest.mock import AsyncMock, MagicMock, patch
+
+from ac_cdd_core.services.jules_client import JulesClient
+
 
 class TestJulesClientLogic(unittest.IsolatedAsyncioTestCase):
     

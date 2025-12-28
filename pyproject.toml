@@ -77,7 +77,7 @@ addopts = "--cov=dev_src --cov=src --cov-report=term-missing"
 testpaths = ["tests"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["dev_src/ac_cdd_core"]
+packages = ["dev_src/ac_cdd_core", "src/mlip_autopipec"]
 
 [tool.mypy]
 strict = true

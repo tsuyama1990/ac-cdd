@@ -2,6 +2,7 @@ import numpy as np
 from ase.atoms import Atoms
 from ase.calculators.lj import LennardJones
 
+
 def get_lj_potential(atoms: Atoms) -> float:
     """
     Calculates the potential energy of a system using the Lennard-Jones potential.

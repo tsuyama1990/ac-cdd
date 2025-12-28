@@ -1,21 +1,17 @@
 import asyncio
 import json
-import httpx
-import google.auth
-import sys
-import select
 import os
-import re
-import time
-from google.auth.transport.requests import Request as GoogleAuthRequest
-from typing import Any, Optional, Dict, List
-from pathlib import Path
-import urllib.request
 import urllib.error
+import urllib.request
+from pathlib import Path
+from typing import Any
 
+import google.auth
+import httpx
 from ac_cdd_core.config import settings
-from ac_cdd_core.utils import logger
 from ac_cdd_core.services.git_ops import GitManager
+from ac_cdd_core.utils import logger
+from google.auth.transport.requests import Request as GoogleAuthRequest
 from rich.console import Console
 
 console = Console()
@@ -34,7 +30,7 @@ class JulesApiError(Exception):
 class JulesApiClient:
     BASE_URL = "https://jules.googleapis.com/v1alpha"
 
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self, api_key: str | None = None):
         self.api_key = api_key or settings.JULES_API_KEY
         if not self.api_key:
             from dotenv import load_dotenv
@@ -60,7 +56,7 @@ class JulesApiClient:
             "Content-Type": "application/json"
         }
 
-    def _request(self, method: str, endpoint: str, data: Optional[Dict] = None) -> Dict[str, Any]:
+    def _request(self, method: str, endpoint: str, data: dict | None = None) -> dict[str, Any]:
         url = f"{self.BASE_URL}/{endpoint}"
         body = json.dumps(data).encode("utf-8") if data else None
         
@@ -82,18 +78,18 @@ class JulesApiClient:
             logger.error(f"Network Error: {e}")
             raise JulesApiError(f"Network request failed: {e}") from e
 
-    def list_sources(self) -> List[Dict[str, Any]]:
+    def list_sources(self) -> list[dict[str, Any]]:
         data = self._request("GET", "sources")
         return data.get("sources", [])
 
-    def find_source_by_repo(self, repo_name: str) -> Optional[str]:
+    def find_source_by_repo(self, repo_name: str) -> str | None:
         sources = self.list_sources()
         for src in sources:
             if repo_name in src.get("name", ""):
                  return src["name"]
         return None
 
-    def create_session(self, source: str, prompt: str) -> Dict[str, Any]:
+    def create_session(self, source: str, prompt: str) -> dict[str, Any]:
         payload = {
             "prompt": prompt,
             "sourceContext": {
@@ -105,7 +101,7 @@ class JulesApiClient:
         }
         return self._request("POST", "sessions", payload)
 
-    def approve_plan(self, session_id: str) -> Dict[str, Any]:
+    def approve_plan(self, session_id: str) -> dict[str, Any]:
         """Approves the current plan in the session, triggering PR creation."""
         # Note: The endpoint uses a colon verb syntax
         endpoint = f"{session_id}:approvePlan"
@@ -113,7 +109,7 @@ class JulesApiClient:
         # Documentation implies simple POST is enough for default approval
         return self._request("POST", endpoint, {})
 
-    def list_activities(self, session_id_path: str) -> List[Dict[str, Any]]:
+    def list_activities(self, session_id_path: str) -> list[dict[str, Any]]:
         try:
             resp = self._request("GET", f"{session_id_path}/activities?pageSize=50")
             return resp.get("activities", [])
@@ -155,11 +151,11 @@ class JulesClient:
         # Instantiate internal API client for delegation
         self.api_client = JulesApiClient(api_key=self.credentials.token if self.credentials else settings.JULES_API_KEY)
 
-    def list_activities(self, session_id_path: str) -> List[Dict[str, Any]]:
+    def list_activities(self, session_id_path: str) -> list[dict[str, Any]]:
         """Delegates activity listing to the API Client."""
         return self.api_client.list_activities(session_id_path)
 
-    def _get_headers(self) -> Dict[str, str]:
+    def _get_headers(self) -> dict[str, str]:
         headers = {
             "Content-Type": "application/json",
         }
@@ -184,7 +180,7 @@ class JulesClient:
         files: list[str],
         completion_signal_file: Path,
         runner: Any = None,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Orchestrates the Jules session:
         1. Creates a session with 'AUTO_CREATE_PR' mode.
@@ -264,7 +260,7 @@ class JulesClient:
         result["session_name"] = session_name
         return result
 
-    async def continue_session(self, session_name: str, prompt: str) -> Dict[str, Any]:
+    async def continue_session(self, session_name: str, prompt: str) -> dict[str, Any]:
         """
         Continues an existing session by sending a new prompt and waiting for the result.
         """
@@ -285,7 +281,7 @@ class JulesClient:
         result["session_name"] = session_name
         return result
 
-    async def _check_for_inquiry(self, client: httpx.AsyncClient, session_url: str) -> Optional[tuple[str, str]]:
+    async def _check_for_inquiry(self, client: httpx.AsyncClient, session_url: str) -> tuple[str, str] | None:
         """
         Checks if the session is waiting for user feedback by inspecting recent activities.
         Returns tuple (message, activity_id) if found, else None.
@@ -308,7 +304,7 @@ class JulesClient:
             logger.warning(f"Failed to check for inquiry: {e}")
         return None
 
-    async def wait_for_completion(self, session_name: str) -> Dict[str, Any]:
+    async def wait_for_completion(self, session_name: str) -> dict[str, Any]:
         """
         Polls for PR creation and handles user interaction (Human-in-the-loop).
         """
@@ -438,7 +434,8 @@ class JulesClient:
                     # This allows the user to type concurrently with polling loop
                     # Only works on POSIX systems with select().
                     try:
-                        import sys, select
+                        import select
+                        import sys
                         # Check if stdin has data waiting
                         if sys.stdin in select.select([sys.stdin], [], [], 0)[0]:
                             line = sys.stdin.readline()

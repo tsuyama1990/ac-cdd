@@ -26,6 +26,7 @@ def check_environment() -> None:
     """Checks for required tools and API keys."""
     import os
     import shutil
+
     from dotenv import load_dotenv
 
     load_dotenv()

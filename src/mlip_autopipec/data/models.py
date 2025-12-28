@@ -1,15 +1,16 @@
+
 from pydantic import BaseModel
-from typing import List, Optional
+
 
 class DFTResult(BaseModel):
     """
     A Pydantic model to represent the results of a DFT calculation.
     """
     total_energy_ev: float
-    forces: List[List[float]]
-    stress: List[List[float]]
+    forces: list[list[float]]
+    stress: list[list[float]]
     was_successful: bool
-    error_message: Optional[str] = None
+    error_message: str | None = None
 
 class TrainingConfig(BaseModel):
     """

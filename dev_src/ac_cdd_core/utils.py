@@ -55,6 +55,7 @@ def check_api_key() -> None:
     Raises ValueError if neither GOOGLE_API_KEY nor OPENROUTER_API_KEY is found.
     """
     import os
+
     from dotenv import load_dotenv
     
     # Load .env explicitly

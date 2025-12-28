@@ -1,4 +1,5 @@
 from pathlib import Path
+
 import yaml
 from ase.io import read
 
@@ -7,12 +8,13 @@ from mlip_autopipec.data.models import TrainingConfig
 from mlip_autopipec.modules.c_labelling_engine import LabellingEngine
 from mlip_autopipec.modules.d_training_engine import TrainingEngine
 
+
 def run_cycle01_workflow(config_path: str | Path, structure_path: str | Path):
     """
     Orchestrates the simple, linear workflow for Cycle 01.
     This version handles multiple atomic structures from the input file.
     """
-    with open(config_path, "r") as f:
+    with open(config_path) as f:
         config = yaml.safe_load(f)
 
     db_path = Path(config["database"]["path"])

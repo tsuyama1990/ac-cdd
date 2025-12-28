@@ -1,11 +1,9 @@
 import subprocess
 from pathlib import Path
-from typing import List
 
-from ase.atoms import Atoms
-from ase.calculators.singlepoint import SinglePointCalculator
-from ase.io import write
 import numpy as np
+from ase.atoms import Atoms
+from ase.io import write
 
 from mlip_autopipec.data.database import AseDB
 from mlip_autopipec.data.models import TrainingConfig
@@ -30,7 +28,7 @@ class TrainingEngine:
         self._model_path = self._work_dir / f"{self._model_name}.model"
 
 
-    def execute(self, ids: List[int]) -> Path:
+    def execute(self, ids: list[int]) -> Path:
         training_data = self._load_and_prepare_data(ids)
         train_file_path = self._work_dir / "temp_train.xyz"
 
@@ -43,13 +41,13 @@ class TrainingEngine:
                 "mace_run_train",
                 f"--name={self._model_name}",
                 f"--train_file={train_file_path}",
-                f"--energy_key=energy",
-                f"--forces_key=forces",
+                "--energy_key=energy",
+                "--forces_key=forces",
                 f"--r_max={self._config.r_cut}",
                 f"--max_num_epochs={self._config.num_epochs}",
                 f"--lr={self._config.learning_rate}",
-                f"--device=cpu", # Forcing CPU for broader compatibility
-                f"--save_cpu", # Ensure model is saved in a CPU-compatible format
+                "--device=cpu", # Forcing CPU for broader compatibility
+                "--save_cpu", # Ensure model is saved in a CPU-compatible format
                 "--E0s=average", # Provide required atomic energy references
                 "--batch_size=1", # Use a batch size compatible with small test data
                 "--valid_batch_size=1",
@@ -84,7 +82,7 @@ class TrainingEngine:
         raise FileNotFoundError("MACE did not produce the expected model file.")
 
 
-    def _load_and_prepare_data(self, ids: List[int]) -> List[Atoms]:
+    def _load_and_prepare_data(self, ids: list[int]) -> list[Atoms]:
         prepared_atoms_list = []
         for db_id in ids:
             row = self._db._db.get(id=db_id)

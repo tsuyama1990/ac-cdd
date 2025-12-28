@@ -1,5 +1,4 @@
 from pathlib import Path
-from typing import Tuple
 
 from ase.atoms import Atoms
 
@@ -32,7 +31,7 @@ class LabellingEngine:
         atoms: Atoms,
         pseudo_dir: str | Path,
         ecutwfc: int = 60,
-        kpts: Tuple[int, int, int] = (4, 4, 4),
+        kpts: tuple[int, int, int] = (4, 4, 4),
     ) -> int:
         """
         Executes the full DFT labelling workflow for a given atomic structure.

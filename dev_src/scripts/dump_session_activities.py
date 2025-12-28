@@ -1,8 +1,9 @@
 import asyncio
 import json
+
 import httpx
 from ac_cdd_core.services.jules_client import JulesClient
-from ac_cdd_core.config import settings
+
 
 async def dump_activities(session_id: str):
     client = JulesClient()

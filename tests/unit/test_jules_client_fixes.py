@@ -1,7 +1,9 @@
 
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
 from ac_cdd_core.services.jules_client import JulesClient
+
 
 @pytest.mark.asyncio
 async def test_jules_url_construction():

@@ -1,8 +1,10 @@
 
 import shlex
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import MagicMock, patch, AsyncMock
 from ac_cdd_core.sandbox import SandboxRunner
+
 
 def test_shlex_quoting():
     """Verify that multiline commands are safely quoted using shlex.join."""

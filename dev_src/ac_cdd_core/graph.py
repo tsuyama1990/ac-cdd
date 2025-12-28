@@ -1,7 +1,7 @@
 import json
+import re
 from pathlib import Path
 from typing import Any, Literal
-import re
 
 from langgraph.graph import END, StateGraph
 from langgraph.graph.state import CompiledStateGraph
@@ -9,13 +9,13 @@ from langgraph.graph.state import CompiledStateGraph
 from .agents import qa_analyst_agent
 from .config import settings
 from .domain_models import AuditResult, UatAnalysis
+from .sandbox import SandboxRunner
 from .service_container import ServiceContainer
+from .services.aider_client import AiderClient
 from .services.git_ops import GitManager
 from .services.jules_client import JulesClient
-from .services.aider_client import AiderClient
 from .state import CycleState
 from .utils import logger
-from .sandbox import SandboxRunner
 
 MAX_AUDIT_RETRIES = 2
 
@@ -392,7 +392,6 @@ class GraphBuilder:
              # Attempt to parse if it looks like JSON
              if "{" in analysis:
                  try:
-                     import json
                      # rudimentary cleanup if it has markdown code blocks
                      clean_json = analysis.replace("```json", "").replace("```", "").strip()
                      analysis = UatAnalysis.model_validate_json(clean_json)
