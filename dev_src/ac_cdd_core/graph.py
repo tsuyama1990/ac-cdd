@@ -345,10 +345,32 @@ class GraphBuilder:
 
             # Execute Tests
             # Dependencies are already installed in _get_shared_sandbox
-            cmd = ["uv", "run", "pytest", "tests/"]
+            # Execute Tests
+            # Dependencies are already installed in _get_shared_sandbox
+            # Use -q to suppress uv's own output (installation logs)
+            cmd = ["uv", "run", "-q", "pytest", "tests/"]
             stdout, stderr, code = await runner.run_command(cmd, check=False)
 
-            logs = f"STDOUT:\n{stdout}\n\nSTDERR:\n{stderr}"
+            # Filter out any remaining installation logs from stdout/stderr
+            # Patterns like: "Uninstalling...", "Successfully installed...", "Obtaining...", "Found existing..."
+            def clean_logs(text: str) -> str:
+                lines = text.splitlines()
+                cleaned = []
+                # Simple heuristic: remove lines that look like pip/uv ops
+                block_keywords = [
+                    "Uninstalling", "Successfully installed", "Attempting uninstall", 
+                    "Found existing", "Obtaining file://", "Built autonomous-dev-env",
+                    "Uninstalled", "Installed"
+                ]
+                for line in lines:
+                    if not any(k in line for k in block_keywords):
+                        cleaned.append(line)
+                return "\n".join(cleaned)
+
+            filtered_stdout = clean_logs(stdout)
+            filtered_stderr = clean_logs(stderr)
+
+            logs = f"STDOUT:\n{filtered_stdout}\n\nSTDERR:\n{filtered_stderr}"
             return {"test_logs": logs, "test_exit_code": code, "current_phase": "tests_run"}
 
         except Exception as e:
