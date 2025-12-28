@@ -312,6 +312,22 @@ class JulesClient:
         self.console.print(f"[bold green]Jules is working... (Session: {session_name})[/bold green]")
         self.console.print("[dim]Type your message and press Enter at any time to chat with Jules.[/dim]")
 
+        # Initial Population of Processed IDs to avoid re-answering old questions
+        # asking for activities immediately
+        if session_name.startswith("sessions/"):
+            session_id_path = session_name
+        else:
+            session_id_path = f"sessions/{session_name}"
+
+        try:
+             initial_acts = self.list_activities(session_id_path)
+             for act in initial_acts:
+                 if "name" in act:
+                     processed_activity_ids.add(act["name"])
+             logger.info(f"Initialized with {len(processed_activity_ids)} existing activities to ignore.")
+        except Exception as e:
+            logger.warning(f"Failed to fetch initial activities: {e}")
+
         async with httpx.AsyncClient() as client:
             while True:
                 if asyncio.get_event_loop().time() - start_time > self.timeout:
