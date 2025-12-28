@@ -84,8 +84,8 @@ class SandboxConfig(BaseSettings):
 class AgentsConfig(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
     # Models
-    auditor_model: str = Field(default="gemini-2.5-pro", validation_alias="SMART_MODEL")
-    qa_analyst_model: str = Field(default="gemini-2.5-flash", validation_alias="FAST_MODEL")
+    auditor_model: str = Field(default="openrouter/google/gemini-pro-1.5", validation_alias="SMART_MODEL")
+    qa_analyst_model: str = Field(default="openrouter/google/gemini-flash-1.5", validation_alias="FAST_MODEL")
 
 class AiderConfig(BaseSettings):
     model_config = SettingsConfigDict(extra="ignore")
