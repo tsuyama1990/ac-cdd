@@ -332,29 +332,10 @@ class JulesClient:
                         data = resp.json()
                         state = data.get("state")
 
-                        # --- PRIORITY CHECK: Success/Completion ---
-                        # If we are COMPLETED/SUCCEEDED, check for PR *first* before asking more questions.
-                        # This avoids the infinite loop where we answer a question even though the task is done.
-                        if state in ["SUCCEEDED", "COMPLETED"]:
-                             if "outputs" in data:
-                                for output in data["outputs"]:
-                                    if "pullRequest" in output:
-                                        pr_url = output["pullRequest"].get("url")
-                                        if pr_url:
-                                            self.console.print(f"\n[bold green]PR Created: {pr_url}[/bold green]")
-                                            return {"pr_url": pr_url, "status": "success", "raw": data}
-                             
-                             # If state is SUCCEEDED/COMPLETED but no PR, we might be done without one.
-                             # Only continue checking for questions if we are explicitly strictly not done.
-                             # But "SUCCEEDED" usually means final. "COMPLETED" can be intermediate step (rarely) or final.
-                             # If we have no PR but are succeeded, maybe we just return success.
-                             if state == "SUCCEEDED":
-                                 self.console.print("[yellow]Session Succeeded but NO PR found.[/yellow]")
-                                 return {"status": "success", "raw": data}
-
-                        # --- INTERACTIVE HANDLING START ---
-                        # Only check for questions if we are NOT successfully done yet
-                        if state in ["AWAITING_USER_FEEDBACK", "COMPLETED"]:
+                        # --- 1. INTERACTIVE HANDLING CHECK ---
+                        # Check for inquiries first. Even if state is COMPLETED/SUCCEEDED, 
+                        # the agent might have sent a message requiring response before the final PR.
+                        if state in ["AWAITING_USER_FEEDBACK", "COMPLETED", "SUCCEEDED"]:
                              inquiry_result = await self._check_for_inquiry(client, session_url)
                              
                              if inquiry_result:
@@ -389,9 +370,24 @@ class JulesClient:
                                          logger.error(f"Manager Agent failed: {e}")
                                          # Fallthrough if manager fails (maybe retry or just wait)
                                  
-                                 # If duplicate, we just loop again (waiting for state change or new msg)
+                                 # If duplicate, we effectively fall through to check for PR below.
 
-                        # --- INTERACTIVE HANDLING END ---
+                        # --- 2. SUCCESS/COMPLETION CHECK ---
+                        # If we are COMPLETED/SUCCEEDED and no pending inquiry (or handled above), check for PR.
+                        if state in ["SUCCEEDED", "COMPLETED"]:
+                             if "outputs" in data:
+                                for output in data["outputs"]:
+                                    if "pullRequest" in output:
+                                        pr_url = output["pullRequest"].get("url")
+                                        if pr_url:
+                                            self.console.print(f"\n[bold green]PR Created: {pr_url}[/bold green]")
+                                            return {"pr_url": pr_url, "status": "success", "raw": data}
+                             
+                             # If state is SUCCEEDED/COMPLETED but no PR, we might be done without one.
+                             # But only if we are sure there's no inquiry (checked above).
+                             if state == "SUCCEEDED":
+                                 self.console.print("[yellow]Session Succeeded but NO PR found.[/yellow]")
+                                 return {"status": "success", "raw": data}
 
                         # Check Terminal States if no PR yet or no inquiry found
                         if state == "FAILED":
