@@ -1,4 +1,7 @@
 from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv()  # Explicitly load .env into os.environ
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
