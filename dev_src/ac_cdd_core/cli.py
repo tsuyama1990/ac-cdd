@@ -50,8 +50,12 @@ def check_environment() -> None:
     required_vars = ["JULES_API_KEY", "E2B_API_KEY"]
 
     # We need at least one model provider
-    if not os.environ.get("GEMINI_API_KEY") and not os.environ.get("GOOGLE_API_KEY") and not os.environ.get("OPENROUTER_API_KEY"):
-         missing_vars.append("GEMINI_API_KEY (or GOOGLE_API_KEY / OPENROUTER_API_KEY)")
+    if (
+        not os.environ.get("GEMINI_API_KEY")
+        and not os.environ.get("GOOGLE_API_KEY")
+        and not os.environ.get("OPENROUTER_API_KEY")
+    ):
+        missing_vars.append("GEMINI_API_KEY (or GOOGLE_API_KEY / OPENROUTER_API_KEY)")
 
     for var in required_vars:
         if not os.environ.get(var):
@@ -64,7 +68,9 @@ def check_environment() -> None:
             console.print("[bold red]Missing Executables:[/bold red]")
             for tool in missing_tools:
                 console.print(f"- {tool}")
-            console.print("\n[yellow]Please install these tools and ensure they are in your PATH.[/yellow]\n")
+            console.print(
+                "\n[yellow]Please install these tools and ensure they are in your PATH.[/yellow]\n"
+            )
 
         if missing_vars:
             console.print("[bold red]Missing Environment Variables:[/bold red]")
@@ -78,6 +84,7 @@ def check_environment() -> None:
             raise typer.Exit(code=1)
     else:
         console.print("[bold green]✓ Environment Check Passed[/bold green]")
+
 
 @app.command()
 def init() -> None:
@@ -119,7 +126,7 @@ def gen_cycles(
 
     async def _run() -> None:
         console.rule("[bold blue]Architect Phase: Generating Cycles[/bold blue]")
-        
+
         # Check API availability first
         try:
             check_api_key()
@@ -178,8 +185,15 @@ def gen_cycles(
 def run_cycle(
     cycle_id: Annotated[str, typer.Option("--id", help="Cycle ID (e.g., '01')")] = "01",
     auto: Annotated[bool, typer.Option(help="Run without manual confirmation")] = False,
-    start_iter: Annotated[int, typer.Option("--start-iter", help="Force start at specific iteration (0=Creator, 1=Refiner)")] = 0,
-    resume_session: Annotated[str, typer.Option("--resume", help="Resume from existing Jules Session ID")] = None,
+    start_iter: Annotated[
+        int,
+        typer.Option(
+            "--start-iter", help="Force start at specific iteration (0=Creator, 1=Refiner)"
+        ),
+    ] = 0,
+    resume_session: Annotated[
+        str, typer.Option("--resume", help="Resume from existing Jules Session ID")
+    ] = None,
 ) -> None:
     """
     Run a Development Cycle.
@@ -188,7 +202,9 @@ def run_cycle(
     import asyncio
 
     async def _run() -> None:
-        console.rule(f"[bold green]Running Cycle {cycle_id} (Start Iter: {start_iter})[/bold green]")
+        console.rule(
+            f"[bold green]Running Cycle {cycle_id} (Start Iter: {start_iter})[/bold green]"
+        )
 
         # Check API availability
         try:
@@ -206,28 +222,34 @@ def run_cycle(
 
         # Initialize state
         initial_state = CycleState(cycle_id=cycle_id, iteration_count=start_iter)
-        
+
         # Resume Logic
         if resume_session:
             from .services.jules_client import JulesClient
-            
+
             # Normalize ID
-            session_name = resume_session if resume_session.startswith("sessions/") else f"sessions/{resume_session}"
+            session_name = (
+                resume_session
+                if resume_session.startswith("sessions/")
+                else f"sessions/{resume_session}"
+            )
             console.print(f"[bold cyan]Resuming Session: {session_name}[/bold cyan]")
-            
+
             jules = JulesClient()
             try:
                 # We reuse wait_for_completion to robustly check status and get PR
                 # It handles FAILED-but-PR cases too.
                 result = await jules.wait_for_completion(session_name)
-                
+
                 if result.get("status") == "success" and result.get("pr_url"):
                     initial_state["resume_mode"] = True
                     initial_state["pr_url"] = result["pr_url"]
                     initial_state["jules_session_name"] = session_name
                     console.print(f"[green]✓ Found PR: {result['pr_url']}[/green]")
                 else:
-                    console.print(f"[red]Cannot resume: Session not successful or no PR found.[/red]")
+                    console.print(
+                        "[red]Cannot resume: Session not successful or no PR found.[/red]"
+                    )
                     sys.exit(1)
             except Exception as e:
                 console.print(f"[red]Resume failed:[/red] {e}")
@@ -285,6 +307,7 @@ def run_cycle(
             await builder.cleanup()
 
     asyncio.run(_run())
+
 
 @app.command()
 def info() -> None:

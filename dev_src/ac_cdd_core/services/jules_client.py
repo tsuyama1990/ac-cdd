@@ -473,9 +473,7 @@ class JulesClient:
                     # --- 2. Check Activities (Logging only) ---
                     # (Logic handled above)
                     act_url = f"{session_url}/activities"
-                    act_resp = await client.get(
-                        act_url, headers=self._get_headers(), timeout=10.0
-                    )
+                    act_resp = await client.get(act_url, headers=self._get_headers(), timeout=10.0)
 
                     if act_resp.status_code == 200:
                         act_data = act_resp.json()

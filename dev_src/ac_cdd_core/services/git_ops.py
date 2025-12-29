@@ -98,7 +98,7 @@ class GitManager:
 
     async def get_changed_files(self, base_branch: str = "main") -> list[str]:
         """
-        Returns a list of unique file paths that have changed 
+        Returns a list of unique file paths that have changed
         (Committed, Staged, Unstaged, Untracked).
         """
         files = set()

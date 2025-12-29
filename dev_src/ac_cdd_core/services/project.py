@@ -45,11 +45,11 @@ class ProjectManager:
         """
         docs_dir = Path(settings.paths.documents_dir)
         docs_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # Ensure templates directory exists
         templates_dest = Path(templates_path)
         templates_dest.mkdir(parents=True, exist_ok=True)
-        
+
         # Create ARCHITECT_INSTRUCTION.md if not exists
         arch_instr = templates_dest / "ARCHITECT_INSTRUCTION.md"
         if not arch_instr.exists():
@@ -66,4 +66,3 @@ class ProjectManager:
 
         # Create other necessary dirs
         (docs_dir / "contracts").mkdir(exist_ok=True)
-

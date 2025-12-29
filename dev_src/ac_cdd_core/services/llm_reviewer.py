@@ -1,4 +1,3 @@
-
 import litellm
 from ac_cdd_core.utils import logger
 
@@ -14,15 +13,10 @@ class LLMReviewer:
         # Ensure litellm is verbose enough for debugging if needed, but keep logs clean by default.
         litellm.suppress_instrumentation = True
 
-    async def review_code(
-        self, 
-        files: dict[str, str], 
-        instruction: str, 
-        model: str
-    ) -> str:
+    async def review_code(self, files: dict[str, str], instruction: str, model: str) -> str:
         """
         Sends file contents and instructions to the LLM for review.
-        
+
         Args:
             files: Dictionary mapping file paths to their content.
             instruction: The prompt/instruction for the review.
@@ -42,11 +36,11 @@ class LLMReviewer:
                 model=model,
                 messages=[
                     {"role": "system", "content": "You are an automated code reviewer."},
-                    {"role": "user", "content": prompt}
+                    {"role": "user", "content": prompt},
                 ],
-                temperature=0.0, # Deterministic output for reviews
+                temperature=0.0,  # Deterministic output for reviews
             )
-            
+
             # Extract content from response
             content = response.choices[0].message.content
             return content
@@ -65,12 +59,12 @@ class LLMReviewer:
         prompt_parts.append("</instruction>")
         prompt_parts.append("")
         prompt_parts.append("<files>")
-        
+
         for file_path, content in files.items():
             prompt_parts.append(f'<file path="{file_path}">')
             prompt_parts.append(content)
             prompt_parts.append("</file>")
-            
+
         prompt_parts.append("</files>")
-        
+
         return "\n".join(prompt_parts)

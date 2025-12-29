@@ -27,9 +27,11 @@ def test_apply_changes_patch_success(patcher):
     """Test patching an existing file."""
     ops = [FilePatch(path="existing.py", search_block="old_code", replace_block="new_code")]
 
-    with patch("pathlib.Path.read_text", return_value="start\nold_code\nend"), patch(
-        "pathlib.Path.write_text"
-    ) as mock_write, patch("pathlib.Path.exists", return_value=True):
+    with (
+        patch("pathlib.Path.read_text", return_value="start\nold_code\nend"),
+        patch("pathlib.Path.write_text") as mock_write,
+        patch("pathlib.Path.exists", return_value=True),
+    ):
         results = patcher.apply_changes(ops, dry_run=False)
 
         assert len(results) == 1

@@ -37,10 +37,10 @@ async def test_syntax_check_node(mock_services):
 
         # Verify calls
         # We expect 2 main calls: compileall and ruff check
-        # (plus the dependency check if _get_shared_sandbox logic triggers it, 
+        # (plus the dependency check if _get_shared_sandbox logic triggers it,
         # but we mocked the runner not the method entirely?
-        # Wait, I patched _get_shared_sandbox to return mock_runner directly, 
-        # so the logic inside _get_shared_sandbox regarding ruff version check 
+        # Wait, I patched _get_shared_sandbox to return mock_runner directly,
+        # so the logic inside _get_shared_sandbox regarding ruff version check
         # is SKIPPED by the patch.
         # So I only expect calls from syntax_check_node.)
 

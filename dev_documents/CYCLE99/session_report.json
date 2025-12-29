@@ -1,6 +1,0 @@
-{
-  "status": "implemented",
-  "cycle_id": "99",
-  "test_result": "passed",
-  "notes": "Implemented the generate_qe_input function and verified its correctness with a unit test for a Silicon crystal."
-}

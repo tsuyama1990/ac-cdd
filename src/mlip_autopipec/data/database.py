@@ -64,8 +64,8 @@ class AseDB:
 
         # Filter out None values from key-value pairs, as ASE DB doesn't support them.
         key_value_pairs = {
-            'was_successful': result.was_successful,
-            'error_message': result.error_message,
+            "was_successful": result.was_successful,
+            "error_message": result.error_message,
         }
         kvp_filtered = {k: v for k, v in key_value_pairs.items() if v is not None}
 

@@ -70,9 +70,7 @@ class LabellingEngine:
             result = dft_utils.parse_qe_output(stdout + "\n" + stderr)
             result.was_successful = False
             if not result.error_message:
-                result.error_message = (
-                    f"Subprocess failed with return code != 0. Stderr: {stderr}"
-                )
+                result.error_message = f"Subprocess failed with return code != 0. Stderr: {stderr}"
         else:
             # 3. Parse the output
             result = dft_utils.parse_qe_output(stdout)

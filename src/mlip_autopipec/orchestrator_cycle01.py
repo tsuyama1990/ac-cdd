@@ -25,13 +25,13 @@ def run_cycle01_workflow(config_path: str | Path, structure_path: str | Path):
 
     print(f"Reading initial structures from: {structure_path}")
     # Read all structures from the file using index=':'
-    initial_structures = read(structure_path, index=':')
+    initial_structures = read(structure_path, index=":")
     if not isinstance(initial_structures, list):
         initial_structures = [initial_structures]
 
     db_ids = []
     for i, atoms in enumerate(initial_structures):
-        print(f"Starting Labelling Engine for structure {i+1}/{len(initial_structures)}...")
+        print(f"Starting Labelling Engine for structure {i + 1}/{len(initial_structures)}...")
         db_id = labeller.execute(
             atoms=atoms,
             pseudo_dir=config["labelling"]["pseudo_dir"],

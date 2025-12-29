@@ -22,6 +22,7 @@ def get_lj_potential(atoms: Atoms) -> float:
     atoms.calc = calc
     return atoms.get_potential_energy()
 
+
 def get_lj_forces(atoms: Atoms) -> np.ndarray:
     """
     Calculates the atomic forces of a system using the Lennard-Jones potential.
