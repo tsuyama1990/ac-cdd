@@ -168,3 +168,39 @@ class AiderClient:
         except Exception as e:
             logger.error(f"Aider fix failed: {e}")
             return f"SYSTEM_ERROR: Aider fix failed due to internal error: {e}"
+
+    def parse_audit_report(self, output: str) -> str:
+        """
+        Parses the raw Aider output to extract the clean 'Audit Report'.
+        Removes internal logs, token stats, and diff blocks if markers exist.
+        Otherwise filters specific Aider lines.
+        """
+        marker_start = "=== AUDIT REPORT START ==="
+        marker_end = "=== AUDIT REPORT END ==="
+        
+        # 1. Try to extract content between markers
+        if marker_start in output:
+             content_after_start = output.split(marker_start, 1)[1]
+             if marker_end in content_after_start:
+                 report_body = content_after_start.split(marker_end, 1)[0]
+                 return report_body.strip()
+             else:
+                 # Start found but no end (maybe crashed or truncated?)
+                 return content_after_start.strip()
+                 
+        # 2. Fallback: Filter obvious noise lines
+        clean_lines = []
+        lines = output.splitlines()
+        for line in lines:
+            # Skip Aider/System logs
+            if any(x in line for x in ["Defined run_cmd", "Tokens:", "Git repo:", "Repo-map:", "Model:", "Aider v", "Added "]):
+                continue
+            if line.strip().startswith("<<<<<<< SEARCH"):
+                # If code edit block appears in audit (shouldn't happen but user report showed it), skip it?
+                # User report showed "LLM did not conform...".
+                # If we want JUST the report, and no markers found, we return what's left.
+                pass
+            
+            clean_lines.append(line)
+            
+        return "\n".join(clean_lines).strip()

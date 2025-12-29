@@ -48,6 +48,9 @@ class SandboxRunner:
             timeout=settings.sandbox.timeout  # Pass explicit timeout for keep-alive
         )
 
+        # Ensure CWD exists
+        self.sandbox.commands.run(f"mkdir -p {self.cwd}")
+
         # Initial setup: Sync files FIRST, then install dependencies
         # (Crucial for lightweight setup where we might rely on local configs, though here we just install ruff)
         await self._sync_to_sandbox(self.sandbox)

@@ -74,7 +74,7 @@ class SandboxConfig(BaseSettings):
     model_config = SettingsConfigDict(extra="ignore")
     template: str | None = None  # None uses default (base)
     timeout: int = 3600  # Default timeout in seconds (increased to 2 hours)
-    cwd: str = "/home/user"
+    cwd: str = "/home/user/project"
     dirs_to_sync: list[str] = ["src", "tests", "contracts", "dev_documents", "dev_src"]
     files_to_sync: list[str] = ["pyproject.toml", "uv.lock", ".auditignore", "README.md", "ac_cdd_config.py"]
     install_cmd: str = "pip install --no-cache-dir ruff aider-chat"

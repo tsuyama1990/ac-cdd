@@ -56,6 +56,13 @@ class GraphBuilder:
             logger.info("Installing dependencies (ruff, aider-chat)...")
             await self.sandbox_runner.run_command(["pip", "install", "ruff", "aider-chat"])
 
+        # Init Git Repo for Aider (to avoid warnings and enable git-aware features)
+        await self.sandbox_runner.run_command(["git", "init"], check=False)
+        await self.sandbox_runner.run_command(["git", "config", "user.email", "bot@ac-cdd.com"], check=False)
+        await self.sandbox_runner.run_command(["git", "config", "user.name", "AC-CDD Bot"], check=False)
+        await self.sandbox_runner.run_command(["git", "add", "."], check=False)
+        await self.sandbox_runner.run_command(["git", "commit", "-m", "init"], check=False)
+
         return self.sandbox_runner
 
     async def cleanup(self) -> None:
@@ -476,24 +483,8 @@ class GraphBuilder:
             }
 
         # 3. Parse Output for Structured Report
-        marker_start = "=== AUDIT REPORT START ==="
-        marker_end = "=== AUDIT REPORT END ==="
-
-        extracted_text = ""
-        if marker_start in output and marker_end in output:
-            try:
-                start_idx = output.index(marker_start) + len(marker_start)
-                end_idx = output.index(marker_end)
-                extracted_text = output[start_idx:end_idx].strip()
-            except ValueError:
-                extracted_text = ""
-
-        if not extracted_text:
-            lines = output.strip().split("\n")
-            if len(lines) > 20:
-                extracted_text = "\n".join(lines[-20:])
-            else:
-                extracted_text = output.strip()
+        # Use shared parser from AiderClient
+        extracted_text = self.aider_client.parse_audit_report(output)
 
         feedback_lines = [line.strip() for line in extracted_text.split("\n") if line.strip()]
         
