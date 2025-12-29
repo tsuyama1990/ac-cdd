@@ -1,21 +1,20 @@
-
 import asyncio
 import sys
-import os
 from pathlib import Path
 
 # Add project root to path
 project_root = Path(__file__).resolve().parents[2]
 sys.path.append(str(project_root))
 
-from dev_src.ac_cdd_core.services.jules_client import JulesClient
-from dev_src.ac_cdd_core.services.llm_reviewer import LLMReviewer
-from dev_src.ac_cdd_core.services.git_ops import GitManager
-from dev_src.ac_cdd_core.config import settings
+from dev_src.ac_cdd_core.config import settings  # noqa: E402
+from dev_src.ac_cdd_core.services.git_ops import GitManager  # noqa: E402
+from dev_src.ac_cdd_core.services.jules_client import JulesClient  # noqa: E402
+from dev_src.ac_cdd_core.services.llm_reviewer import LLMReviewer  # noqa: E402
+
 
 async def main():
     print("=== LLM Reviewer Audit Debug (Session 1461081734443671409) ===")
-    
+
     session_id = "1461081734443671409"
     jules_client = JulesClient()
     git = GitManager()
@@ -26,19 +25,19 @@ async def main():
     try:
         session_path = f"sessions/{session_id}"
         session_data = jules_client.api_client._request("GET", session_path)
-        
+
         pr_url = None
         if "outputs" in session_data:
             for output in session_data["outputs"]:
                 if "pullRequest" in output:
                     pr_url = output["pullRequest"].get("url")
                     break
-        
+
         if not pr_url:
             print("No PR URL found in session outputs.")
         else:
             print(f"Found PR URL: {pr_url}")
-            
+
             # 2. Checkout PR
             try:
                 # SKIP Clean State to avoid stashing this script itself!
@@ -65,7 +64,7 @@ async def main():
     extensions = [".py", ".toml", ".md"]
     files_to_audit = [f for f in files_to_audit if any(f.endswith(ext) for ext in extensions)]
     files_to_audit = sorted(list(set(files_to_audit)))
-    
+
     if not files_to_audit:
         print("No relevant changed files found. Auditing 'ac_cdd_config.py' as smoke test.")
         files_to_audit = ["ac_cdd_config.py"]
@@ -87,11 +86,11 @@ async def main():
         "Perform a strict code review. Check for security issues, "
         "hardcoded credentials, and architectural violations."
     )
-    
+
     # Use FAST_MODEL for reading
     model = settings.reviewer.fast_model
     print(f"Sending to LLM ({model})...")
-    
+
     try:
         result = await reviewer.review_code(files_content, instruction, model)
         print("\n=== Audit Result ===\n")
@@ -99,6 +98,7 @@ async def main():
         print("\n=== End Result ===")
     except Exception as e:
         print(f"Review failed: {e}")
+
 
 if __name__ == "__main__":
     asyncio.run(main())

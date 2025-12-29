@@ -39,7 +39,7 @@ class GitManager:
         _, _, code = await self.runner.run_command(
             [self.git_cmd, "rev-parse", "--verify", branch_name], check=False
         )
-        
+
         if code == 0:
             logger.info(f"Branch {branch_name} exists. Checking out...")
             await self._run_git(["checkout", branch_name])
@@ -98,29 +98,35 @@ class GitManager:
 
     async def get_changed_files(self, base_branch: str = "main") -> list[str]:
         """
-        Returns a list of unique file paths that have changed (Committed, Staged, Unstaged, Untracked).
+        Returns a list of unique file paths that have changed 
+        (Committed, Staged, Unstaged, Untracked).
         """
         files = set()
-        
+
         # 1. Diff against base branch (Committed vs Base)
         try:
             out = await self._run_git(["diff", "--name-only", f"{base_branch}...HEAD"], check=False)
-            if out: files.update(out.splitlines())
+            if out:
+                files.update(out.splitlines())
         except Exception:
-            pass 
-            
+            # Ignore errors if branch reference doesn't exist yet
+            logger.debug("Diff check failed (likely no base branch yet).")
+
         # 2. Staged
         out = await self._run_git(["diff", "--name-only", "--cached"], check=False)
-        if out: files.update(out.splitlines())
-        
+        if out:
+            files.update(out.splitlines())
+
         # 3. Unstaged
         out = await self._run_git(["diff", "--name-only"], check=False)
-        if out: files.update(out.splitlines())
-        
+        if out:
+            files.update(out.splitlines())
+
         # 4. Untracked
         out = await self._run_git(["ls-files", "--others", "--exclude-standard"], check=False)
-        if out: files.update(out.splitlines())
-        
+        if out:
+            files.update(out.splitlines())
+
         return sorted(list(files))
 
     async def merge_pr(self, pr_url: str) -> None:

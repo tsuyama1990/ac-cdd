@@ -6,7 +6,7 @@ from pathlib import Path
 def load_user_config():
     """
     Loads ac_cdd_config.py from the current working directory.
-    This allows the tool to run as an installed package without relying on specific directory structures.
+    This allows the tool to run as an installed package without relying on specific structure.
     """
     cwd = Path.cwd()
     config_path = cwd / "ac_cdd_config.py"
