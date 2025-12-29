@@ -5,8 +5,8 @@ It is designed to provide complete transparency into "who is doing what" during 
 
 ## 🏗 System Architecture
 
-AC-CDD utilizes a **Hybrid Agent System** orchestrated by **LangGraph**. It combines the autonomous capabilities of Google's Jules API with the precision editing and auditing power of the `aider` CLI.
-Crucially, all code execution and modification (testing, fixing, auditing) occurs within a secure **E2B Sandbox** to ensure isolation and consistency.
+AC-CDD utilizes a **Hybrid Agent System** orchestrated by **LangGraph**. It combines the autonomous capabilities of Google's Jules API with a direct **LLMReviewer** for auditing.
+Crucially, all testing and validtion occurs within a secure **E2B Sandbox** to ensure isolation and consistency.
 
 ### Role & Tool Mapping
 
@@ -14,8 +14,8 @@ Crucially, all code execution and modification (testing, fixing, auditing) occur
 |---|---|---|---|---|
 | **Architect** | **Google Jules API** | Standard Jules Model | Analyzes requirements (`ALL_SPEC.md`), designs architecture, and generates `SPEC.md` and `UAT.md`. Operates in a text-only mode. | Local (Controller) |
 | **Coder (Initial)** | **Google Jules API** | Standard Jules Model | Performs the **Initial Implementation** (Iteration 0). Scaffolds the project from scratch. | Local (Controller) |
-| **Coder (Fixer)** | **aider (CLI)** | `SMART_MODEL` (e.g., Claude 3.5 Sonnet) via OpenRouter (Optional) | Handles **Refinement & Repair** (Iteration > 0). Uses `aider`'s superior code editing capabilities to apply fixes. | **Remote E2B Sandbox** |
-| **Auditor** | **aider (CLI)** | `FAST_MODEL` (e.g., Gemini 2.0 Flash) via OpenRouter (Optional) | Strictly reviews code in **Read-Only** mode. Leverages `aider`'s Repository Map to understand context and detect issues across the codebase. | **Remote E2B Sandbox** |
+| **Coder (Fixer)** | **Google Jules API** | Standard Jules Model | Handles **Refinement & Repair** (Iteration > 0). Resumes the session to fix issues identified by the auditor. | Cloud (Jules Session) |
+| **Auditor** | **LLMReviewer (API)** | `FAST_MODEL` (e.g., Llama 3/Gemini Flash) | Strictly reviews code in **Read-Only** mode. Uses direct LLM API calls to analyze files and generate strict feedback. | Local / Direct API |
 
 ## 🔄 Detailed Workflow Logic
 
@@ -40,13 +40,13 @@ graph TD
     InitSandbox --> Loop{Iteration Loop}
 
     Loop -->|Iter = 1| Jules["Jules (Initial Implementation)"]
-    Loop -->|Iter > 1| AiderFix["Aider (Remote Fixer)"]
+    Loop -->|Iter > 1| JulesFix["Jules (Fixer / Resumed Session)"]
 
     Jules --> RunTests["Run Tests (Remote)"]
-    AiderFix --> RunTests
+    JulesFix --> RunTests
 
     RunTests --> UATEval["UAT Evaluation (QA Analyst)"]
-    UATEval --> StrictAudit["Strict Audit (Remote Aider)"]
+    UATEval --> StrictAudit["Strict Audit (Direct LLM Reviewer)"]
 
     StrictAudit -->|Feedback| Loop
 
@@ -61,13 +61,13 @@ graph TD
     *   **Tests**: `pytest` runs inside the **E2B Sandbox** via `SandboxRunner`. This ensures tests run in a clean, consistent environment with all dependencies installed.
     *   **UAT**: The `QA Analyst` agent evaluates captured test logs against `UAT.md`.
 3.  **Strict Audit**:
-    *   **Agent**: **Aider** (Read-Only).
-    *   **Execution**: Runs remotely in the sandbox.
-    *   **Logic**: Reviews the code against `AUDITOR_INSTRUCTION.md`. Even if the code works, it *must* find improvements.
+    *   **Agent**: **LLMReviewer** (Read-Only).
+    *   **Execution**: Direct API calls using `FAST_MODEL`.
+    *   **Logic**: Reviews the code against `AUDITOR_INSTRUCTION.md` and generates structured feedback.
 4.  **Iteration 2+ (Refinement)**:
-    *   **Agent**: **Aider** (Fixer).
-    *   **Execution**: Runs remotely in the sandbox. `aider` applies precise edits to the code.
-    *   **Sync**: Modified files (`src/`, `tests/`) are automatically **downloaded** from the sandbox back to the local file system via `sync_from_sandbox`.
+    *   **Agent**: **Jules** (Fixer).
+    *   **Execution**: Resumes the original Jules session with the audit feedback as a prompt.
+    *   **Sync**: Modified PR is checked out locally for the next round of testing.
 5.  **Completion**:
     *   The loop continues until `MAX_ITERATIONS` (defined in config) is reached.
     *   The final state is committed to the feature branch.
@@ -132,5 +132,6 @@ The system's behavior is controlled via environment variables and configuration 
 
 *   **Fully Remote**: By running Aider and tests in the sandbox, we eliminate "it works on my machine" issues and protect the developer's environment.
 *   **Jules**: Excellent at "0 to 1" creation and understanding broad project goals.
-*   **Aider**: The SOTA tool for applying diffs and editing existing code, making it superior for the "Fixer" role.
+*   **(Removed) Aider**: Replaced by direct Jules interaction for simplicity and unified session management.
+*   **LLMReviewer**: Provides fast, cheaper, and strictly controlled auditing using Standard LLMs (Llama 3, Gemini Flash) without the overhead of a full agent loop.
 *   **LangGraph**: Acts as the supervisor, ensuring the process forces rigorous refinement cycles.

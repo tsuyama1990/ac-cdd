@@ -12,8 +12,8 @@ An AI-Native Cycle-Based Contract-Driven Development Environment.
 
 *   **🛡️ Committee of Code Auditors**
     *   No more "LGTM" based on loose checks.
-    *   An automated **Committee of Auditors** (powered by Aider/Fast Model) performs strict, multi-pass code reviews.
-    *   The system iteratively fixes issues (using Aider/Smart Model) until the code passes strict quality gates.
+    *   An automated **Committee of Auditors** (powered by LLMReviewer/Fast Model) performs strict, multi-pass code reviews.
+    *   The system iteratively fixes issues (using Jules/Smart Model) until the code passes strict quality gates.
 
 *   **🔒 Secure Sandboxed Execution**
     *   **Fully Remote Architecture**: All code execution, testing, and AI-based fixing happens inside a secure, ephemeral **E2B Sandbox**.
@@ -26,8 +26,8 @@ An AI-Native Cycle-Based Contract-Driven Development Environment.
 
 *   **🤖 Hybrid Agent Orchestration**
     *   Combines the best of breed:
-        *   **Google Jules**: For long-context architectural planning and initial implementation.
-        *   **Aider**: For precise, SOTA code editing and repository-aware auditing (Running remotely).
+        *   **Google Jules**: For long-context architectural planning, initial implementation, and refinement (Fixer).
+        *   **LLMReviewer**: For strict, direct API-based code auditing.
         *   **LangGraph**: For robust state management and supervisor loops.
 
 This repository is a template for creating AI-powered software development projects. It separates the agent orchestration logic from the user's product code.
@@ -47,7 +47,8 @@ This repository is a template for creating AI-powered software development proje
 *   `uv` (Universal Python Package Manager)
 *   `git`
 *   `gh` (GitHub CLI)
-*   *Note: `aider` and `jules` CLI tools are NO LONGER required locally. They are managed within the remote sandbox.*
+*   `gh` (GitHub CLI)
+*   *Note: `aider` is NO LONGER required. Auditing and Fixing are handled by direct LLM APIs and Jules.*
 
 ### Installation
 
@@ -78,9 +79,9 @@ You must provide the following keys in your `.env` file:
 
 *   `JULES_API_KEY`: Required for the Jules autonomous agent interface.
 *   `E2B_API_KEY`: Required for the secure sandbox environment.
-*   `GEMINI_API_KEY` or `GOOGLE_API_KEY`: Required for Gemini models (Auditor, QA Analyst).
-*   `ANTHROPIC_API_KEY`: Required for Claude models (Aider Fixer).
-*   `OPENROUTER_API_KEY`: (Optional) Required if you use OpenRouter models.
+*   `GEMINI_API_KEY` or `GOOGLE_API_KEY`: Required for Gemini models (Auditor).
+*   `ANTHROPIC_API_KEY`: Required for Claude models (if used for Audit/Review).
+*   `OPENROUTER_API_KEY`: (Optional) Recommended for accessing diverse models for auditing.
 
 #### Multi-Model Configuration
 
@@ -131,8 +132,8 @@ This will:
 2.  Run the Coder Session (Implementation).
 3.  **Run Tests**: Executes in the secure E2B Sandbox.
 4.  **UAT Evaluation**: QA Analyst checks results.
-5.  **Strict Auditing**: Aider runs in the sandbox to audit code.
-6.  **Fixing**: If needed, Aider fixes code in the sandbox and syncs changes back to your local machine.
+5.  **Strict Auditing**: LLMReviewer runs to strictly audit the code.
+6.  **Fixing**: If needed, Jules resumes the session to fix code and updates the PR.
 7.  Commit if successful.
 
 ## Development (of this tool)
