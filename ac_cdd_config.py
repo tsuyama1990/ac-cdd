@@ -1,10 +1,11 @@
 from pathlib import Path
+
 from dotenv import load_dotenv
 
 load_dotenv()  # Explicitly load .env into os.environ
 
-from pydantic import Field, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field, model_validator  # noqa: E402
+from pydantic_settings import BaseSettings, SettingsConfigDict  # noqa: E402
 
 
 def _detect_package_dir() -> str:
@@ -48,6 +49,7 @@ class PathsConfig(BaseSettings):
             self.contracts_dir = f"{self.package_dir}/contracts"
         return self
 
+
 class JulesConfig(BaseSettings):
     model_config = SettingsConfigDict(extra="ignore")
     # Default to regular command name 'jules'
@@ -76,7 +78,13 @@ class SandboxConfig(BaseSettings):
     timeout: int = 3600  # Default timeout in seconds (increased to 2 hours)
     cwd: str = "/home/user/project"
     dirs_to_sync: list[str] = ["src", "tests", "contracts", "dev_documents", "dev_src"]
-    files_to_sync: list[str] = ["pyproject.toml", "uv.lock", ".auditignore", "README.md", "ac_cdd_config.py"]
+    files_to_sync: list[str] = [
+        "pyproject.toml",
+        "uv.lock",
+        ".auditignore",
+        "README.md",
+        "ac_cdd_config.py",
+    ]
     install_cmd: str = "pip install --no-cache-dir ruff"
     test_cmd: list[str] = ["uv", "run", "pytest"]
     lint_check_cmd: list[str] = ["uv", "run", "ruff", "check", "--fix", "."]
@@ -87,13 +95,26 @@ class SandboxConfig(BaseSettings):
 class AgentsConfig(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
     # Models
-    auditor_model: str = Field(default="openrouter/google/gemini-pro-1.5", validation_alias="SMART_MODEL")
-    qa_analyst_model: str = Field(default="openrouter/google/gemini-flash-1.5", validation_alias="FAST_MODEL")
+    auditor_model: str = Field(
+        default="openrouter/google/gemini-pro-1.5", validation_alias="SMART_MODEL"
+    )
+    qa_analyst_model: str = Field(
+        default="openrouter/google/gemini-flash-1.5", validation_alias="FAST_MODEL"
+    )
+
 
 class ReviewerConfig(BaseSettings):
     model_config = SettingsConfigDict(extra="ignore")
-    smart_model: str = Field(default="claude-3-5-sonnet", description="Model for editing code (Fixer)", validation_alias="SMART_MODEL")
-    fast_model: str = Field(default="openrouter/google/gemini-flash-1.5", description="Model for reading/auditing code", validation_alias="FAST_MODEL")
+    smart_model: str = Field(
+        default="claude-3-5-sonnet",
+        description="Model for editing code (Fixer)",
+        validation_alias="SMART_MODEL",
+    )
+    fast_model: str = Field(
+        default="openrouter/google/gemini-flash-1.5",
+        description="Model for reading/auditing code",
+        validation_alias="FAST_MODEL",
+    )
 
     # Prompts (Content loaded via _read_prompt)
     auditor: str = Field(

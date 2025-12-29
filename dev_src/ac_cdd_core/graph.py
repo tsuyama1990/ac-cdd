@@ -404,7 +404,7 @@ class GraphBuilder:
                 # We return 'error' to stop? No, we want to feed back.
                 # But current logic stops on 'error'.
                 # Let's treat it as a failure that triggers feedback loop via Auditor
-                # For now, let's treat it as 'test_logs' equivalent so it passes to Auditor who REJECTS it.
+                # For now, treat as 'test_logs' equivalent so it passes to Auditor who REJECTS it.
                 logs = f"Syntax Check: PASS\nLinting Failed:\n{stdout_l}\n{stderr_l}"
                 return {
                     "test_logs": logs,

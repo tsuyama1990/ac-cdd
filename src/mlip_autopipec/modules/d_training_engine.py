@@ -27,7 +27,6 @@ class TrainingEngine:
         self._model_name = "trained_model"
         self._model_path = self._work_dir / f"{self._model_name}.model"
 
-
     def execute(self, ids: list[int]) -> Path:
         training_data = self._load_and_prepare_data(ids)
         train_file_path = self._work_dir / "temp_train.xyz"
@@ -46,15 +45,15 @@ class TrainingEngine:
                 f"--r_max={self._config.r_cut}",
                 f"--max_num_epochs={self._config.num_epochs}",
                 f"--lr={self._config.learning_rate}",
-                "--device=cpu", # Forcing CPU for broader compatibility
-                "--save_cpu", # Ensure model is saved in a CPU-compatible format
-                "--E0s=average", # Provide required atomic energy references
-                "--batch_size=1", # Use a batch size compatible with small test data
+                "--device=cpu",  # Forcing CPU for broader compatibility
+                "--save_cpu",  # Ensure model is saved in a CPU-compatible format
+                "--E0s=average",  # Provide required atomic energy references
+                "--batch_size=1",  # Use a batch size compatible with small test data
                 "--valid_batch_size=1",
             ]
 
             # Execute the training command
-            result = subprocess.run(command, capture_output=True, text=True)
+            result = subprocess.run(command, capture_output=True, text=True)  # noqa: S603
 
             if result.returncode != 0:
                 error_message = (
@@ -81,7 +80,6 @@ class TrainingEngine:
 
         raise FileNotFoundError("MACE did not produce the expected model file.")
 
-
     def _load_and_prepare_data(self, ids: list[int]) -> list[Atoms]:
         prepared_atoms_list = []
         for db_id in ids:
@@ -105,8 +103,8 @@ class TrainingEngine:
 
             training_atoms = atoms.copy()
             # ASE's XYZ writer looks for results in the .info dictionary
-            training_atoms.info['energy'] = target_energy
-            training_atoms.arrays['forces'] = np.array(target_forces)
+            training_atoms.info["energy"] = target_energy
+            training_atoms.arrays["forces"] = np.array(target_forces)
 
             prepared_atoms_list.append(training_atoms)
 
