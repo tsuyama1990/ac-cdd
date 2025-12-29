@@ -181,7 +181,7 @@ class SandboxRunner:
 
         # Extract
         sandbox.commands.run(
-            f"tar -xzf bundle.tar.gz -C {self.cwd}", timeout=settings.sandbox.timeout
+            f"tar -xzf {remote_tar_path} -C {self.cwd}", timeout=settings.sandbox.timeout
         )
         logger.info("Synced files to sandbox via tarball.")
         self._last_sync_hash = current_hash
