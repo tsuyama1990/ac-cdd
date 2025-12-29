@@ -236,6 +236,16 @@ class GraphBuilder:
             logger.info(f"Checking out PR: {pr_url}...")
             await self.git.checkout_pr(pr_url)
             
+            # Sync with main to ensure latest system fixes are applied
+            try:
+                current_branch = await self.git.get_current_branch()
+                if current_branch != "main":
+                    logger.info(f"Syncing main into {current_branch}...")
+                    # We use merge_branch which checks out target again, but that's fine
+                    await self.git.merge_branch(current_branch, "main")
+            except Exception as e:
+                logger.warning(f"Failed to sync main into feature branch: {e}")
+            
             return {
                 "coder_report": {"pr_url": pr_url, "status": "resumed"},
                 "current_phase": "coder_complete_resumed",
