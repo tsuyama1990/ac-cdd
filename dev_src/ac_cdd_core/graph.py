@@ -18,6 +18,13 @@ from .utils import logger
 MAX_AUDIT_RETRIES = 2
 
 
+def _to_relative_path(p: Path) -> str:
+    """Helper to convert path to relative path from CWD."""
+    try:
+        return str(p.relative_to(Path.cwd()))
+    except ValueError:
+        return str(p)
+
 class GraphBuilder:
     def __init__(self, services: ServiceContainer):
         self.services = services
@@ -412,12 +419,7 @@ class GraphBuilder:
         def is_py(f: str) -> bool:
             return f.endswith(".py")
 
-        cwd = Path.cwd()
-        def _to_rel(p: Path) -> str:
-            try: 
-                return str(p.relative_to(cwd))
-            except ValueError:
-                return str(p)
+
 
         files_to_audit = set()
         
@@ -445,7 +447,7 @@ class GraphBuilder:
             )
             
             for f in src_files + test_files + contract_files:
-                files_to_audit.add(_to_rel(f))
+                files_to_audit.add(_to_relative_path(f))
                 
         files_to_audit = sorted(list(files_to_audit))
 
@@ -462,7 +464,7 @@ class GraphBuilder:
         
         for d in docs:
             if d.exists():
-                files_to_audit.append(_to_rel(d))
+                files_to_audit.append(_to_relative_path(d))
                 
         files_to_audit = sorted(list(set(files_to_audit)))
 
