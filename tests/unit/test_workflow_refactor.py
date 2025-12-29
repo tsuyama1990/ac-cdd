@@ -8,7 +8,7 @@ from ac_cdd_config import config
 
 def test_config_update():
     """Verify SandboxConfig loads with new install_cmd."""
-    expected_cmd = "pip install --no-cache-dir ruff aider-chat"
+    expected_cmd = "pip install --no-cache-dir ruff"
     assert config.sandbox.install_cmd == expected_cmd, (
         f"Expected {expected_cmd}, got {config.sandbox.install_cmd}"
     )
