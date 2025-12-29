@@ -48,13 +48,13 @@ class SandboxRunner:
             timeout=settings.sandbox.timeout  # Pass explicit timeout for keep-alive
         )
 
-        # Initial setup: install UV and sync files
+        # Initial setup: Sync files FIRST, then install dependencies
+        await self._sync_to_sandbox(self.sandbox)
+
         if settings.sandbox.install_cmd:
             self.sandbox.commands.run(
                 settings.sandbox.install_cmd, timeout=settings.sandbox.timeout
             )
-
-        await self._sync_to_sandbox(self.sandbox)
 
         return self.sandbox
 
