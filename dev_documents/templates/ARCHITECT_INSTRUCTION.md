@@ -75,12 +75,24 @@ User Acceptance Testing plan.
 **Requirements:**
 - **Language**: Simple British English.
 - **Format**: Markdown. Change the lines appropriately.
+- **Execution Responsibility**: The User (Manual or via script).
+- **Goal**: Provide a "Great User Experience" for the UAT process.
 
 **Sections:**
 1. **Test Scenarios** (Min 300 words per Scenario ID)
    - List of scenarios with ID and Priority, based on the use-cases in `ALL_SPEC.md`.
 2. **Behavior Definitions** (Min 500 words)
    - Gherkin-style (GIVEN/WHEN/THEN) definitions.
+3. **UAT Execution Guide**
+   - Instruct the developer to create a dedicated directory: `tests/uat/`.
+   - Instruct the developer to generate Python scripts (e.g., `tests/uat/test_cycle{xx}_uat.py`) that implement these scenarios.
+   - **Crucial Requirement**: The UAT scripts must be self-explanatory when run. They should NOT require reading a README.
+   - **Logging Requirements**: The script output must be verbose and beautiful (using rich or similar) to display:
+     - Test Description (What is being tested?)
+     - Expected Output (What should happen?)
+     - Actual Output (What happened?)
+     - Verification Result (PASS/FAIL)
+     - Explicit statement of what is being verified through the expected output.
 
 #### 4. `dev_documents/plan_status.json`
 Content format:

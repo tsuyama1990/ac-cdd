@@ -183,7 +183,7 @@ def gen_cycles(
 
 @app.command(name="run-cycle")
 def run_cycle(
-    cycle_id: Annotated[str, typer.Option("--id", help="Cycle ID (e.g., '01')")] = "01",
+    cycle_id: Annotated[str, typer.Option("--id", help="Cycle ID (e.g., '01') or 'all'")] = "01",
     auto: Annotated[bool, typer.Option(help="Run without manual confirmation")] = False,
     start_iter: Annotated[
         int,
@@ -198,12 +198,13 @@ def run_cycle(
     """
     Run a Development Cycle.
     Implements features, runs tests, performs UAT, and Audits.
+    If --id all is specified, runs cycles 01 through 05 sequentially.
     """
     import asyncio
 
-    async def _run() -> None:
+    async def execute_single_cycle(target_cycle: str) -> None:
         console.rule(
-            f"[bold green]Running Cycle {cycle_id} (Start Iter: {start_iter})[/bold green]"
+            f"[bold green]Running Cycle {target_cycle} (Start Iter: {start_iter})[/bold green]"
         )
 
         # Check API availability
@@ -221,7 +222,7 @@ def run_cycle(
         graph = builder.build_coder_graph()
 
         # Initialize state
-        initial_state = CycleState(cycle_id=cycle_id, iteration_count=start_iter)
+        initial_state = CycleState(cycle_id=target_cycle, iteration_count=start_iter)
 
         # Resume Logic
         if resume_session:
@@ -261,29 +262,36 @@ def run_cycle(
             final_state = await graph.ainvoke(initial_state, {"recursion_limit": 50})
 
             if final_state.get("error"):
-                console.print(f"[red]Cycle {cycle_id} Failed:[/red] {final_state['error']}")
+                console.print(f"[red]Cycle {target_cycle} Failed:[/red] {final_state['error']}")
                 # Check specific phase failures
                 phase = final_state.get("current_phase")
                 console.print(f"Failed at phase: [bold]{phase}[/bold]")
                 sys.exit(1)
             else:
-                if auto:
+                if auto and cycle_id.lower() == "all":
+                    console.print(
+                        f"[bold green]Cycle {target_cycle} Completed Successfully![/bold green]"
+                    )
+                elif auto:
                     msg = (
                         "✅ All Cycles Completed!\n\n"
                         "Next Steps:\n"
                         "1. Perform a final system-wide audit.\n"
                         "2. Deploy your application!"
                     )
+                    console.print(
+                        Panel(msg, title="Next Action Guide", style="bold green", expand=False)
+                    )
                 else:
                     # Calculate next cycle ID
                     try:
-                        next_id_int = int(cycle_id) + 1
+                        next_id_int = int(target_cycle) + 1
                         next_cycle_id = f"{next_id_int:02d}"
                     except ValueError:
                         next_cycle_id = "XX"
 
                     msg = (
-                        f"✅ Cycle {cycle_id} Implementation Request Sent!\n\n"
+                        f"✅ Cycle {target_cycle} Implementation Request Sent!\n\n"
                         "Jules has created a Pull Request with the implementation.\n\n"
                         "Next Steps:\n"
                         "1. Review the Pull Request on GitHub.\n"
@@ -293,10 +301,9 @@ def run_cycle(
                         "4. Proceed to the next cycle:\n"
                         f"   uv run manage.py run-cycle --id {next_cycle_id}"
                     )
-
-                console.print(
-                    Panel(msg, title="Next Action Guide", style="bold green", expand=False)
-                )
+                    console.print(
+                        Panel(msg, title="Next Action Guide", style="bold green", expand=False)
+                    )
 
         except Exception as e:
             console.print(f"[red]Error during execution:[/red] {e}")
@@ -306,7 +313,24 @@ def run_cycle(
             # Graceful cleanup
             await builder.cleanup()
 
-    asyncio.run(_run())
+    async def _run_all() -> None:
+        cycles_to_run = ["01", "02", "03", "04", "05"] if cycle_id.lower() == "all" else [cycle_id]
+
+        for c_id in cycles_to_run:
+            await execute_single_cycle(c_id)
+
+        if cycle_id.lower() == "all":
+            msg = (
+                "✅ Sequence 01 -> 05 Completed!\n\n"
+                "Next Steps:\n"
+                "1. Perform a final system-wide audit.\n"
+                "2. Deploy your application!"
+            )
+            console.print(
+                Panel(msg, title="All Cycles Completed", style="bold green", expand=False)
+            )
+
+    asyncio.run(_run_all())
 
 
 @app.command()
