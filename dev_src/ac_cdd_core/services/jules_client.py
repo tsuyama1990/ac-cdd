@@ -184,6 +184,7 @@ class JulesClient:
         files: list[str],
         completion_signal_file: Path,
         runner: Any = None,
+        target_branch: str = "main",  # NEW: Target branch for PR
     ) -> dict[str, Any]:
         """
         Orchestrates the Jules session:
@@ -231,7 +232,10 @@ class JulesClient:
             "prompt": full_prompt,
             "sourceContext": {
                 "source": f"sources/github/{owner}/{repo_name}",
-                "githubRepoContext": {"startingBranch": branch},
+                "githubRepoContext": {
+                    "startingBranch": branch,
+                    "targetBranch": target_branch,  # NEW: Specify PR target
+                },
             },
             "automationMode": "AUTO_CREATE_PR",
         }

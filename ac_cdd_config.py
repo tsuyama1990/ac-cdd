@@ -1,10 +1,11 @@
 from pathlib import Path
+from typing import Literal
 
 from dotenv import load_dotenv
 
 load_dotenv()  # Explicitly load .env into os.environ
 
-from pydantic import Field, model_validator  # noqa: E402
+from pydantic import BaseModel, Field, model_validator  # noqa: E402
 from pydantic_settings import BaseSettings, SettingsConfigDict  # noqa: E402
 
 
@@ -150,6 +151,23 @@ class Settings(BaseSettings):
     REVIEWS_PER_AUDITOR: int = 2
     MAX_ITERATIONS: int = 3  # Fixed Iteration Mode
 
+    # Session Config
+    class SessionConfig(BaseModel):
+        """Session-based development configuration."""
+
+        # Session ID (auto-generated from timestamp if None)
+        session_id: str | None = None
+
+        # Integration branch settings
+        integration_branch_prefix: str = "dev"
+        auto_merge_to_integration: bool = True
+
+        # Final merge settings
+        final_merge_strategy: Literal["merge", "squash", "rebase"] = "squash"
+        auto_delete_session_branches: bool = True
+
+    session: SessionConfig = Field(default_factory=SessionConfig)
+
     paths: PathsConfig = PathsConfig()
     jules: JulesConfig = JulesConfig()
     tools: ToolsConfig = ToolsConfig()
@@ -157,8 +175,25 @@ class Settings(BaseSettings):
     agents: AgentsConfig = AgentsConfig()
     reviewer: ReviewerConfig = ReviewerConfig()
     prompts: PromptsConfig = PromptsConfig()
+    # Computed Properties
+    @property
+    def current_session_id(self) -> str:
+        """Get or generate session ID from timestamp with milliseconds."""
+        if self.session.session_id:
+            return self.session.session_id
+        # Generate from timestamp with milliseconds to prevent collisions
+        from datetime import datetime
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+        now = datetime.now()
+        return f"session-{now.strftime('%Y%m%d-%H%M%S-%f')[:20]}"  # YYYYMMDD-HHMMSS-mmm
+
+    @property
+    def integration_branch(self) -> str:
+        """Get integration branch name for current session."""
+        return f"{self.session.integration_branch_prefix}/{self.current_session_id}"
+
+    # Model Config
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="allow")
 
 
 config = Settings()

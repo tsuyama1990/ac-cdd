@@ -10,7 +10,7 @@ from .config import settings
 # from .graph import build_architect_graph, build_coder_graph
 from .service_container import ServiceContainer
 from .state import CycleState
-from .utils import check_api_key, logger
+from .utils import logger
 
 app = typer.Typer(help="AC-CDD: AI-Native Cycle-Based Contract-Driven Development Environment")
 console = Console()
@@ -117,10 +117,13 @@ def init() -> None:
 @app.command(name="gen-cycles")
 def gen_cycles(
     cycles: Annotated[int, typer.Option(help="Max number of cycles to plan")] = 5,
+    session_id: Annotated[
+        str, typer.Option(help="Session ID (auto-generated if not provided)")
+    ] = None,
 ) -> None:
     """
-    Run the Architect Phase.
-    Generates SYSTEM_ARCHITECTURE.md and ALL_SPEC.md.
+    Run the Architect Phase and start a new development session.
+    Creates an integration branch for isolated development.
     """
     import asyncio
 
@@ -128,11 +131,8 @@ def gen_cycles(
         console.rule("[bold blue]Architect Phase: Generating Cycles[/bold blue]")
 
         # Check API availability first
-        try:
-            check_api_key()
-        except ValueError as e:
-            console.print(f"[red]Configuration Error:[/red] {e}")
-            sys.exit(1)
+        from ac_cdd_core.messages import ensure_api_key
+        ensure_api_key()
 
         services = ServiceContainer.default()
         from .graph import GraphBuilder
@@ -141,8 +141,8 @@ def gen_cycles(
         builder = GraphBuilder(services)
         graph = builder.build_architect_graph()
 
-        # Initialize state
-        initial_state = CycleState(cycle_id=settings.DUMMY_CYCLE_ID)
+        # Initialize state with session
+        initial_state = CycleState(cycle_id=settings.DUMMY_CYCLE_ID, session_id=session_id)
 
         # Run the graph
         try:
@@ -153,21 +153,19 @@ def gen_cycles(
                 console.print(f"[red]Architect Phase Failed:[/red] {final_state['error']}")
                 sys.exit(1)
             else:
-                msg = (
-                    "✅ Architect Phase Request Sent!\n\n"
-                    "Jules has created a Pull Request with the architectural plans.\n\n"
-                    "Next Steps:\n"
-                    "1. Review the Pull Request on GitHub.\n"
-                    "2. Merge the PR if the architecture looks correct.\n"
-                    "3. Pull the changes locally:\n"
-                    "   git pull origin main  (or your working branch)\n"
-                    "4. Verify the generated documents exist:\n"
-                    f"   ls {settings.paths.documents_dir}/SYSTEM_ARCHITECTURE.md\n"
-                    "5. Start implementation for the first cycle:\n"
-                    "   uv run manage.py run-cycle --id 01"
-                )
-                console.print(
-                    Panel(msg, title="Next Action Guide", style="bold green", expand=False)
+                session_id_final = final_state.session_id
+                integration_branch = final_state.integration_branch
+
+                # Save session for future use
+                from ac_cdd_core.messages import SuccessMessages
+
+                from .session_manager import SessionManager
+
+                SessionManager.save_session(session_id_final, integration_branch)
+
+                # Show success message
+                SuccessMessages.show_panel(
+                    SuccessMessages.architect_complete(session_id_final, integration_branch)
                 )
 
         except Exception as e:
@@ -184,6 +182,7 @@ def gen_cycles(
 @app.command(name="run-cycle")
 def run_cycle(
     cycle_id: Annotated[str, typer.Option("--id", help="Cycle ID (e.g., '01') or 'all'")] = "01",
+    session_id: Annotated[str, typer.Option("--session", help="Session ID")] = None,
     auto: Annotated[bool, typer.Option(help="Run without manual confirmation")] = False,
     start_iter: Annotated[
         int,
@@ -196,9 +195,8 @@ def run_cycle(
     ] = None,
 ) -> None:
     """
-    Run a Development Cycle.
+    Run a Development Cycle within a session.
     Implements features, runs tests, performs UAT, and Audits.
-    If --id all is specified, runs cycles 01 through 05 sequentially.
     """
     import asyncio
 
@@ -208,11 +206,8 @@ def run_cycle(
         )
 
         # Check API availability
-        try:
-            check_api_key()
-        except ValueError as e:
-            console.print(f"[red]Configuration Error:[/red] {e}")
-            sys.exit(1)
+        from ac_cdd_core.messages import ensure_api_key
+        ensure_api_key()
 
         services = ServiceContainer.default()
         from .graph import GraphBuilder
@@ -221,40 +216,53 @@ def run_cycle(
         builder = GraphBuilder(services)
         graph = builder.build_coder_graph()
 
-        # Initialize state
-        initial_state = CycleState(cycle_id=target_cycle, iteration_count=start_iter)
-
-        # Resume Logic
-        if resume_session:
-            from .services.jules_client import JulesClient
-
-            # Normalize ID
-            session_name = (
-                resume_session
-                if resume_session.startswith("sessions/")
-                else f"sessions/{resume_session}"
+        # Load session using consolidated helper (with optional resume)
+        from .session_manager import SessionManager, SessionValidationError
+        from .validators import SessionValidator, ValidationError
+        
+        try:
+            session_id_to_use, integration_branch, resume_info = await SessionManager.load_or_reconcile_session(
+                session_id=session_id,
+                auto_reconcile=True,
+                resume_jules_session=resume_session,  # Integrated!
             )
-            console.print(f"[bold cyan]Resuming Session: {session_name}[/bold cyan]")
-
-            jules = JulesClient()
-            try:
-                # We reuse wait_for_completion to robustly check status and get PR
-                # It handles FAILED-but-PR cases too.
-                result = await jules.wait_for_completion(session_name)
-
-                if result.get("status") == "success" and result.get("pr_url"):
-                    initial_state["resume_mode"] = True
-                    initial_state["pr_url"] = result["pr_url"]
-                    initial_state["jules_session_name"] = session_name
-                    console.print(f"[green]✓ Found PR: {result['pr_url']}[/green]")
+            
+            # Show appropriate message
+            if resume_info:
+                console.print(f"[green]✓ Resumed Jules session with PR: {resume_info['pr_url']}[/green]")
+            elif not session_id:
+                if SessionManager.load_session() is None:
+                    console.print(f"[green]✓ Reconciled session: {session_id_to_use}[/green]")
                 else:
-                    console.print(
-                        "[red]Cannot resume: Session not successful or no PR found.[/red]"
-                    )
-                    sys.exit(1)
-            except Exception as e:
-                console.print(f"[red]Resume failed:[/red] {e}")
+                    console.print(f"[dim]Using saved session: {session_id_to_use}[/dim]")
+        except SessionValidationError as e:
+            console.print(f"[red]{e}[/red]")
+            sys.exit(1)
+
+        # Validate session using validator class
+        try:
+            validator = SessionValidator(session_id_to_use, integration_branch, check_remote=True)
+            is_valid, error_msg = await validator.validate()
+            if not is_valid:
+                console.print(f"[red]{error_msg}[/red]")
                 sys.exit(1)
+        except ValidationError as e:
+            console.print(f"[red]{e}[/red]")
+            sys.exit(1)
+
+        # Initialize state
+        initial_state = CycleState(
+            cycle_id=target_cycle,
+            iteration_count=start_iter,
+            session_id=session_id_to_use,
+            integration_branch=integration_branch,
+        )
+
+        # Apply resume info if present
+        if resume_info:
+            initial_state.resume_mode = True
+            initial_state.pr_url = resume_info["pr_url"]
+            initial_state.jules_session_name = resume_info["jules_session_name"]
 
         try:
             # We iterate through events to show progress if needed, or just invoke
@@ -273,15 +281,8 @@ def run_cycle(
                         f"[bold green]Cycle {target_cycle} Completed Successfully![/bold green]"
                     )
                 elif auto:
-                    msg = (
-                        "✅ All Cycles Completed!\n\n"
-                        "Next Steps:\n"
-                        "1. Perform a final system-wide audit.\n"
-                        "2. Deploy your application!"
-                    )
-                    console.print(
-                        Panel(msg, title="Next Action Guide", style="bold green", expand=False)
-                    )
+                    from ac_cdd_core.messages import SuccessMessages
+                    SuccessMessages.show_panel(SuccessMessages.all_cycles_complete())
                 else:
                     # Calculate next cycle ID
                     try:
@@ -290,19 +291,9 @@ def run_cycle(
                     except ValueError:
                         next_cycle_id = "XX"
 
-                    msg = (
-                        f"✅ Cycle {target_cycle} Implementation Request Sent!\n\n"
-                        "Jules has created a Pull Request with the implementation.\n\n"
-                        "Next Steps:\n"
-                        "1. Review the Pull Request on GitHub.\n"
-                        "2. Merge the PR if the implementation and tests pass.\n"
-                        "3. Pull the changes locally:\n"
-                        "   git checkout main && git pull\n"
-                        "4. Proceed to the next cycle:\n"
-                        f"   uv run manage.py run-cycle --id {next_cycle_id}"
-                    )
-                    console.print(
-                        Panel(msg, title="Next Action Guide", style="bold green", expand=False)
+                    from ac_cdd_core.messages import SuccessMessages
+                    SuccessMessages.show_panel(
+                        SuccessMessages.cycle_complete(target_cycle, next_cycle_id)
                     )
 
         except Exception as e:
@@ -320,14 +311,10 @@ def run_cycle(
             await execute_single_cycle(c_id)
 
         if cycle_id.lower() == "all":
-            msg = (
-                "✅ Sequence 01 -> 05 Completed!\n\n"
-                "Next Steps:\n"
-                "1. Perform a final system-wide audit.\n"
-                "2. Deploy your application!"
-            )
-            console.print(
-                Panel(msg, title="All Cycles Completed", style="bold green", expand=False)
+            from ac_cdd_core.messages import SuccessMessages
+            SuccessMessages.show_panel(
+                SuccessMessages.all_cycles_complete(),
+                title="All Cycles Completed"
             )
 
     asyncio.run(_run_all())
@@ -337,3 +324,79 @@ def run_cycle(
 def info() -> None:
     """Show configuration and status."""
     console.print(Panel(str(settings.model_dump()), title="Current Configuration"))
+
+
+@app.command(name="finalize-session")
+def finalize_session(
+    session_id: Annotated[str, typer.Option("--session", help="Session ID")] = None,
+) -> None:
+    """
+    Finalize a development session by creating a PR to main.
+    """
+    import asyncio
+    import json
+    from pathlib import Path
+
+    async def _run() -> None:
+        from .session_manager import SessionManager, SessionValidationError
+        
+        # Load session using consolidated helper
+        try:
+            session_id_to_use, integration_branch, _ = await SessionManager.load_or_reconcile_session(
+                session_id=session_id,
+                auto_reconcile=False  # Don't auto-reconcile for finalize
+            )
+        except SessionValidationError as e:
+            console.print(f"[red]{e}[/red]")
+            sys.exit(1)
+        
+        # Validate session
+        is_valid, error_msg = SessionManager.validate_session(session_id_to_use, integration_branch)
+        if not is_valid:
+            console.print(f"[red]{error_msg}[/red]")
+            sys.exit(1)
+        
+        # Optional: Validate all cycles are complete
+        plan_status_file = Path(settings.paths.documents_dir) / "plan_status.json"
+        if plan_status_file.exists():
+            try:
+                plan_data = json.loads(plan_status_file.read_text())
+                planned_cycles = plan_data.get("cycles", [])
+                if planned_cycles:
+                    console.print(f"[dim]Planned cycles: {', '.join(planned_cycles)}[/dim]")
+                    # Note: We don't enforce completion check yet, just inform
+            except Exception as e:
+                logger.warning(f"Could not read plan status: {e}")
+
+        from .services.git_ops import GitManager
+        git = GitManager()
+
+        # Create final PR
+        title = f"Session {session_id_to_use}: Complete Implementation"
+        body = (
+            f"This PR contains all work from development session {session_id_to_use}.\\n\\n"
+            "Includes:\\n"
+            "- System architecture and specifications\\n"
+            "- All cycle implementations\\n"
+            "- Full audit and test coverage\\n\\n"
+            "Please review and merge to main."
+        )
+
+        try:
+            pr_url = await git.create_final_pr(integration_branch, title, body)
+            
+            # Clear session file after successful PR creation
+            SessionManager.clear_session()
+            console.print("[dim]Session file cleared. Start a new session with 'gen-cycles'.[/dim]")
+
+            from ac_cdd_core.messages import SuccessMessages
+            SuccessMessages.show_panel(
+                SuccessMessages.session_finalized(pr_url),
+                title="Session Finalized"
+            )
+        except Exception as e:
+            console.print(f"[red]Error creating final PR:[/red] {e}")
+            logger.exception("Failed to create final PR")
+            sys.exit(1)
+
+    asyncio.run(_run())

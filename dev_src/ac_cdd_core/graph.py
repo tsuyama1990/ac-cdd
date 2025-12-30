@@ -75,20 +75,71 @@ class GraphBuilder:
         return self.sandbox_runner
 
     async def cleanup(self) -> None:
-        """Explicitly close the sandbox runner."""
+        """Explicitly close the sandbox runner with retry logic."""
         if self.sandbox_runner:
             logger.info("Cleaning up shared sandbox...")
-            await self.sandbox_runner.close()
+            
+            # Retry logic with exponential backoff
+            max_retries = 3
+            retry_delay = 1  # seconds
+            
+            for attempt in range(max_retries):
+                try:
+                    # Add timeout to prevent hanging
+                    import asyncio
+                    await asyncio.wait_for(
+                        self.sandbox_runner.close(),
+                        timeout=30.0  # 30 second timeout
+                    )
+                    logger.info("Sandbox cleanup successful.")
+                    self.sandbox_runner = None
+                    return
+                except TimeoutError:
+                    logger.warning(f"Sandbox cleanup timed out (attempt {attempt + 1}/{max_retries})")
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(retry_delay)
+                        retry_delay *= 2  # Exponential backoff
+                except Exception as e:
+                    logger.warning(f"Sandbox cleanup failed (attempt {attempt + 1}/{max_retries}): {e}")
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(retry_delay)
+                        retry_delay *= 2
+            
+            # If all retries failed, log error but don't crash
+            logger.error(
+                "Failed to cleanup sandbox after multiple retries. "
+                "The sandbox may still be running. Check your E2B dashboard."
+            )
             self.sandbox_runner = None
 
     # --- Architect Graph Nodes ---
 
     async def init_branch_node(self, state: CycleState) -> dict[str, Any]:
-        """Setup Git Branch for Architecture."""
-        logger.info("Phase: Init Branch (Architect)")
-        await self.git.ensure_clean_state()
-        branch = await self.git.create_working_branch("design", "architecture")
-        return {"current_phase": "branch_ready", "active_branch": branch}
+        """Setup Integration Branch and Architecture Branch for Session."""
+        logger.info("Phase: Init Session & Branch (Architect)")
+
+        # Generate or use existing session ID
+        session_id = state.session_id or settings.current_session_id
+
+        # Create integration branch from main
+        integration_branch = await self.git.create_integration_branch(
+            session_id=session_id, prefix=settings.session.integration_branch_prefix
+        )
+
+        # Create architecture branch from integration
+        arch_branch = await self.git.create_session_branch(
+            session_id=session_id,
+            branch_type="arch",
+            branch_id="",  # Just "arch"
+            integration_branch=integration_branch,
+        )
+
+        return {
+            "current_phase": "branch_ready",
+            "active_branch": arch_branch,
+            "session_id": session_id,
+            "integration_branch": integration_branch,
+        }
 
     async def architect_session_node(self, state: CycleState) -> dict[str, Any]:
         """Architect Session: Generates all specs and plans."""
@@ -126,6 +177,7 @@ class GraphBuilder:
                 files=files,
                 completion_signal_file=signal_file,
                 runner=runner,
+                target_branch=state.integration_branch,  # NEW: Target integration branch
             )
 
             # Since Jules now returns a PR URL (or status dict) instead of file content directly,
@@ -137,12 +189,13 @@ class GraphBuilder:
             if pr_url:
                 logger.info(f"Architect PR created: {pr_url}")
 
-                # --- Auto-Merge Logic ---
+                # --- Auto-Merge Logic to Integration Branch ---
                 try:
-                    logger.info("Attempting to auto-merge PR...")
-                    await self.git.merge_pr(pr_url)
-                    await self.git.pull_changes()
-                    logger.info("PR merged and changes pulled successfully.")
+                    logger.info(
+                        f"Attempting to auto-merge PR to integration branch: {state.integration_branch}..."
+                    )
+                    await self.git.merge_to_integration(pr_url, state.integration_branch)
+                    logger.info("PR merged to integration branch successfully.")
 
                     # Reload plan status from the now-synced local file
                     if signal_file.exists():
@@ -153,10 +206,12 @@ class GraphBuilder:
                         except Exception as e:
                             logger.warning(f"Failed to parse plan_status.json after merge: {e}")
 
-                except Exception as e:
-                    logger.warning(
-                        f"Auto-merge failed. Please merge manually via the URL above. Error: {e}"
-                    )
+                except Exception:
+                    # CRITICAL: Merge failure should stop the workflow
+                    from ac_cdd_core.error_messages import RecoveryMessages
+                    error_msg = RecoveryMessages.architect_merge_failed(pr_url)
+                    logger.error(error_msg)
+                    return {"error": error_msg, "current_phase": "architect_merge_failed"}
                 # ------------------------
 
             else:
@@ -188,20 +243,30 @@ class GraphBuilder:
     # --- Coder Graph Nodes ---
 
     async def checkout_branch_node(self, state: CycleState) -> dict[str, Any]:
-        """Checkout or Create Branch for Cycle."""
-        cycle_id = state["cycle_id"]
+        """Checkout or Create Branch for Cycle from Integration Branch."""
+        cycle_id = state.cycle_id
         logger.info(f"Phase: Checkout Branch (Cycle {cycle_id})")
 
-        await self.git.ensure_clean_state()
-        branch = await self.git.create_working_branch("feat", f"cycle{cycle_id}")
+        # Ensure we have session context
+        if not state.session_id or not state.integration_branch:
+            raise ValueError(
+                "Session not initialized. Run gen-cycles first to create a session."
+            )
 
-        # Initialize iteration count (default to 0 if not provided in start state)
-        current_iter = state.get("iteration_count", 0)
+        # Create cycle branch from integration branch
+        cycle_branch = await self.git.create_session_branch(
+            session_id=state.session_id,
+            branch_type="cycle",
+            branch_id=cycle_id,
+            integration_branch=state.integration_branch,
+        )
 
         return {
             "current_phase": "branch_ready",
-            "active_branch": branch,
-            "iteration_count": current_iter,
+            "active_branch": cycle_branch,
+            "iteration_count": state.iteration_count,
+            "current_auditor_index": 1,
+            "current_auditor_review_count": 1,
         }
 
     async def coder_session_node(self, state: CycleState) -> dict[str, Any]:
@@ -254,9 +319,12 @@ class GraphBuilder:
                 "coder_report": {"pr_url": pr_url, "status": "resumed"},
                 "current_phase": "coder_complete_resumed",
                 "iteration_count": iteration_count,
-                "jules_session_name": state.get("jules_session_name"),
+                "jules_session_name": state.jules_session_name,
                 "pr_url": pr_url,
-                "resume_mode": False,  # Consume the resume flag so subsequent iterations don't loop
+                "resume_mode": False,
+                # FIX: Preserve committee state
+                "current_auditor_index": state.current_auditor_index,
+                "current_auditor_review_count": state.current_auditor_review_count,
             }
 
         # Determine if this is Initial Creation (Jules) or Fix Loop (Aider)
@@ -266,7 +334,7 @@ class GraphBuilder:
                 f"Mode: Jules Fixer (Refinement/Repair) - "
                 f"Resuming Session {state['jules_session_name']}"
             )
-            audit_feedback = state.get("audit_feedback", [])
+            audit_feedback = state.audit_feedback
 
             # Get Shared Sandbox (Persistent)
             runner = await self._get_shared_sandbox()
@@ -301,6 +369,15 @@ class GraphBuilder:
                     # Switch to the PR branch to test the changes
                     await self.git.checkout_pr(pr_url)
 
+                    # Advance committee state after fix
+                    next_review_count = state.current_auditor_review_count + 1
+                    next_auditor_idx = state.current_auditor_index
+
+                    # If current auditor finished all reviews, move to next auditor
+                    if next_review_count > settings.REVIEWS_PER_AUDITOR:
+                        next_review_count = 1
+                        next_auditor_idx += 1
+
                     return {
                         "coder_report": result,
                         "current_phase": "coder_complete",
@@ -308,15 +385,29 @@ class GraphBuilder:
                         # maintain session info
                         "jules_session_name": state["jules_session_name"],
                         "pr_url": pr_url,
+                        # advance committee state
+                        "current_auditor_index": next_auditor_idx,
+                        "current_auditor_review_count": next_review_count,
                     }
                 else:
                     return {
                         "error": "Jules finished but lost track of PR.",
                         "current_phase": "coder_failed",
+                        # FIX: Preserve committee state for potential resume
+                        "current_auditor_index": state.current_auditor_index,
+                        "current_auditor_review_count": state.current_auditor_review_count,
+                        "jules_session_name": state.jules_session_name,
                     }
 
             except Exception as e:
-                return {"error": str(e), "current_phase": "coder_failed"}
+                return {
+                    "error": str(e),
+                    "current_phase": "coder_failed",
+                    # FIX: Preserve committee state
+                    "current_auditor_index": state.current_auditor_index,
+                    "current_auditor_review_count": state.current_auditor_review_count,
+                    "jules_session_name": state.jules_session_name,
+                }
 
         else:
             # --- INITIAL CREATION (Jules New Session) ---
@@ -344,6 +435,7 @@ class GraphBuilder:
                     files=files,
                     completion_signal_file=signal_file,
                     runner=runner,
+                    target_branch=state.integration_branch,  # NEW: Target integration branch
                 )
 
                 pr_url = result.get("pr_url")
@@ -362,6 +454,9 @@ class GraphBuilder:
                         "iteration_count": iteration_count,
                         "jules_session_name": session_name,
                         "pr_url": pr_url,
+                        # FIX: Preserve committee state
+                        "current_auditor_index": state.current_auditor_index,
+                        "current_auditor_review_count": state.current_auditor_review_count,
                     }
                 else:
                     msg = (
@@ -372,9 +467,21 @@ class GraphBuilder:
                         "Check the GCP Console for the session logs."
                     )
                     logger.error(msg)
-                    return {"error": "No PR created by Jules", "current_phase": "coder_failed"}
+                    return {
+                        "error": "No PR created by Jules",
+                        "current_phase": "coder_failed",
+                        # FIX: Preserve committee state
+                        "current_auditor_index": state.current_auditor_index,
+                        "current_auditor_review_count": state.current_auditor_review_count,
+                    }
             except Exception as e:
-                return {"error": str(e), "current_phase": "coder_failed"}
+                return {
+                    "error": str(e),
+                    "current_phase": "coder_failed",
+                    # FIX: Preserve committee state
+                    "current_auditor_index": state.current_auditor_index,
+                    "current_auditor_review_count": state.current_auditor_review_count,
+                }
 
     async def syntax_check_node(self, state: CycleState) -> dict[str, Any]:
         """Run syntax check and linting (Static Analysis) instead of heavy tests."""
@@ -425,9 +532,16 @@ class GraphBuilder:
 
     async def auditor_node(self, state: CycleState) -> dict[str, Any]:
         """Strict Auditor Node (Direct LLM Review)."""
-        logger.info("Phase: Strict Auditor (Direct LLM)")
-
-        iteration_count = state.get("iteration_count", 1)
+        
+        # Get committee state (Pydantic provides defaults)
+        auditor_idx = state.current_auditor_index
+        review_count = state.current_auditor_review_count
+        iteration_count = state.iteration_count
+        
+        logger.info(
+            f"Phase: Auditor #{auditor_idx} - Review {review_count}/{settings.REVIEWS_PER_AUDITOR} "
+            f"(Iteration {iteration_count})"
+        )
 
         # Get Shared Sandbox (Persistent)
         _ = await self._get_shared_sandbox()
@@ -516,7 +630,10 @@ class GraphBuilder:
         else:
             instruction = "Review the code strictly."
 
-        instruction += f"\n\n(Iteration {iteration_count})"
+        instruction += (
+            f"\n\n(Auditor #{auditor_idx}, Review {review_count}/{settings.REVIEWS_PER_AUDITOR}, "
+            f"Iteration {iteration_count})"
+        )
 
         # 4. Run Audit via LLMReviewer (Direct API)
         # Use FAST_MODEL by default for reading/audit as per config
@@ -527,7 +644,9 @@ class GraphBuilder:
         )
         logger.info(f"LLM Response received (Length: {len(output)})")
 
-        logger.info(f"Audit Round {iteration_count} Complete.")
+        logger.info(
+            f"Auditor #{auditor_idx} Review {review_count}/{settings.REVIEWS_PER_AUDITOR} Complete."
+        )
 
         # Check for System Error
         if output.startswith("SYSTEM_ERROR"):
@@ -574,21 +693,32 @@ class GraphBuilder:
             "audit_result": dummy_result,
             "current_phase": "audit_complete",
             "audit_feedback": feedback_lines,
+            "current_auditor_index": auditor_idx,
+            "current_auditor_review_count": review_count,
         }
 
     async def commit_coder_node(self, state: CycleState) -> dict[str, Any]:
-        """Commit implementation."""
-        cycle_id = state["cycle_id"]
-        pr_url = state.get("pr_url")
+        """Commit implementation and merge to integration branch."""
+        cycle_id = state.cycle_id
+        pr_url = state.pr_url
 
         if pr_url:
-            # Now we merge the PR to finalize the cycle
-            logger.info("Audit Passed. Merging PR to main branch...")
-            await self.git.merge_pr(pr_url)
-            # Pull to ensure local is up to date with the merge
-            await self.git.pull_changes()
+            # Merge to INTEGRATION branch (not main)
+            logger.info(
+                f"Audit passed. Merging PR to integration branch: {state.integration_branch}"
+            )
+            try:
+                await self.git.merge_to_integration(pr_url, state.integration_branch)
+                logger.info(f"Successfully merged cycle {cycle_id} to integration branch.")
+            except Exception:
+                # CRITICAL: Merge failure should stop the workflow
+                from ac_cdd_core.error_messages import RecoveryMessages
+                error_msg = RecoveryMessages.cycle_merge_failed(pr_url)
+                logger.error(error_msg)
+                return {"error": error_msg, "current_phase": "merge_failed"}
 
-        await self.git.commit_changes(f"feat(cycle{cycle_id}): implement and verify features")
+        # No additional commit needed - PR merge handles it
+        # We're now on integration branch, ready for next cycle
         return {"current_phase": "complete"}
 
     # --- Graph Construction ---
@@ -639,14 +769,34 @@ class GraphBuilder:
         workflow.add_edge("syntax_check", "auditor")
 
         def check_audit(state: CycleState) -> Literal["commit", "coder_session"]:
-            current_iter = state.get("iteration_count", 0)
-            max_iter = settings.MAX_ITERATIONS  # default: 3
+            # Pydantic provides defaults, use direct access
+            auditor_idx = state.current_auditor_index
+            review_count = state.current_auditor_review_count
 
-            if current_iter < max_iter:
-                logger.info(f"Iteration {current_iter}/{max_iter}: Proceeding to refinement loop.")
+            # Check if current auditor has more reviews to do
+            if review_count < settings.REVIEWS_PER_AUDITOR:
+                # Same auditor, next review
+                logger.info(
+                    f"Auditor #{auditor_idx}: Review {review_count}/{settings.REVIEWS_PER_AUDITOR} complete. "
+                    f"Proceeding to fix and next review."
+                )
                 return "coder_session"
 
-            logger.info("Max iterations reached. Proceeding to commit.")
+            # Current auditor finished all reviews, check if more auditors
+            if auditor_idx < settings.NUM_AUDITORS:
+                # Move to next auditor
+                logger.info(
+                    f"Auditor #{auditor_idx} complete ({settings.REVIEWS_PER_AUDITOR} reviews). "
+                    f"Moving to Auditor #{auditor_idx + 1}."
+                )
+                return "coder_session"
+
+            # All auditors finished all reviews
+            logger.info(
+                f"All {settings.NUM_AUDITORS} auditors completed {settings.REVIEWS_PER_AUDITOR} reviews each. "
+                f"Total: {settings.NUM_AUDITORS * settings.REVIEWS_PER_AUDITOR} audit-fix cycles. "
+                f"Proceeding to commit."
+            )
             return "commit"
 
         workflow.add_conditional_edges(

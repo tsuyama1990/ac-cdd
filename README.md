@@ -12,8 +12,9 @@ An AI-Native Cycle-Based Contract-Driven Development Environment.
 
 *   **🛡️ Committee of Code Auditors**
     *   No more "LGTM" based on loose checks.
-    *   An automated **Committee of Auditors** (powered by Aider/Fast Model) performs strict, multi-pass code reviews.
-    *   The system iteratively fixes issues (using Aider/Smart Model) until the code passes strict quality gates.
+    *   An automated **Committee of Auditors** (3 independent auditors, each reviewing 2 times) performs strict, multi-pass code reviews.
+    *   The system iteratively fixes issues (using Jules via session resumption) until the code passes all auditors' quality gates.
+    *   **Total: 6 audit-fix cycles** per development cycle for maximum code quality.
 
 *   **🔒 Secure Sandboxed Execution**
     *   **Fully Remote Architecture**: All code execution, testing, and AI-based fixing happens inside a secure, ephemeral **E2B Sandbox**.
@@ -26,8 +27,8 @@ An AI-Native Cycle-Based Contract-Driven Development Environment.
 
 *   **🤖 Hybrid Agent Orchestration**
     *   Combines the best of breed:
-        *   **Google Jules**: For long-context architectural planning and initial implementation.
-        *   **Aider**: For precise, SOTA code editing and repository-aware auditing (Running remotely).
+        *   **Google Jules**: For long-context architectural planning, initial implementation, and iterative refinement (fixing).
+        *   **LLMReviewer**: For fast, direct API-based code auditing using various LLM providers.
         *   **LangGraph**: For robust state management and supervisor loops.
 
 This repository is a template for creating AI-powered software development projects. It separates the agent orchestration logic from the user's product code.
@@ -47,7 +48,7 @@ This repository is a template for creating AI-powered software development proje
 *   `uv` (Universal Python Package Manager)
 *   `git`
 *   `gh` (GitHub CLI)
-*   *Note: `aider` and `jules` CLI tools are NO LONGER required locally. They are managed within the remote sandbox.*
+*   *Note: All AI agents (Jules, LLMReviewer) operate remotely or via API. No local AI CLI tools required.*
 
 ### Installation
 
@@ -76,11 +77,11 @@ The system is configured via `.env` and `ac_cdd_config.py`.
 
 You must provide the following keys in your `.env` file:
 
-*   `JULES_API_KEY`: Required for the Jules autonomous agent interface.
+*   `JULES_API_KEY`: Required for the Jules autonomous agent (Architect, Coder, Fixer).
 *   `E2B_API_KEY`: Required for the secure sandbox environment.
-*   `GEMINI_API_KEY` or `GOOGLE_API_KEY`: Required for Gemini models (Auditor, QA Analyst).
-*   `ANTHROPIC_API_KEY`: Required for Claude models (Aider Fixer).
-*   `OPENROUTER_API_KEY`: (Optional) Required if you use OpenRouter models.
+*   `GEMINI_API_KEY` or `GOOGLE_API_KEY`: Required for Gemini models (LLMReviewer Auditor, QA Analyst).
+*   `ANTHROPIC_API_KEY`: Optional. Required if using Claude models directly (can use OpenRouter instead).
+*   `OPENROUTER_API_KEY`: Optional. Recommended for unified access to multiple model providers.
 
 #### Multi-Model Configuration
 
@@ -89,51 +90,74 @@ You can configure different models for different agents to optimize for cost and
 **Example `.env` configuration (Hybrid):**
 
 ```env
-# Smart model for fixing (Claude 3.5 Sonnet)
+# Smart model for Jules (fixing/refinement) - High capability required
 SMART_MODEL=claude-3-5-sonnet-20241022
 
-# Fast model for auditing & QA (Gemini Flash)
+# Fast model for LLMReviewer (auditing) & QA Analyst - Speed & context required
 FAST_MODEL=gemini-2.0-flash-exp
 
-# Sandbox
+# API Keys
+JULES_API_KEY=your_jules_key
 E2B_API_KEY=e2b_...
+OPENROUTER_API_KEY=sk-or-...
 ```
 
-## Usage
+## 🚀 Usage
 
-### Architecture Phase
+### 1. Initialize Project
 
-Generate the system architecture and specifications from your `ARCHITECT_INSTRUCTION.md` template.
+```bash
+uv run manage.py init
+```
+
+Edit `dev_documents/ALL_SPEC.md` with your project requirements.
+
+### 2. Generate Architecture & Start Session
 
 ```bash
 uv run manage.py gen-cycles
 ```
 
-This will:
-1.  Create a `design/architecture` branch.
-2.  Run the Architect Session using Jules.
-3.  Generate `ALL_SPEC.md` and `SYSTEM_ARCHITECTURE.md`.
+This creates a **development session** with:
+- Integration branch: `dev/session-{timestamp}`
+- Architecture branch: `dev/session-{timestamp}/arch`
+- System architecture and cycle plans
 
-### Development Cycles
+**Session is saved** to `.ac_cdd_session.json` for automatic resumption.
 
-Run a development cycle to implement features.
+### 3. Run Development Cycles
 
 ```bash
-# Run Cycle 01
+# Run individual cycles (session auto-loaded)
 uv run manage.py run-cycle --id 01
+uv run manage.py run-cycle --id 02
 
-# Run automatically (no manual confirmation)
-uv run manage.py run-cycle --id 01 --auto
+# Or run all cycles sequentially
+uv run manage.py run-cycle --id all --auto
 ```
 
-This will:
-1.  Checkout `feat/cycle01`.
-2.  Run the Coder Session (Implementation).
-3.  **Run Tests**: Executes in the secure E2B Sandbox.
-4.  **UAT Evaluation**: QA Analyst checks results.
-5.  **Strict Auditing**: Aider runs in the sandbox to audit code.
-6.  **Fixing**: If needed, Aider fixes code in the sandbox and syncs changes back to your local machine.
-7.  Commit if successful.
+Each cycle:
+- Creates branch: `dev/session-{timestamp}/cycle{id}`
+- Implements features via Jules
+- Runs **6 audit-fix cycles** (3 auditors × 2 reviews each)
+- Auto-merges to **integration branch** (not main)
+
+### 4. Finalize Session
+
+```bash
+uv run manage.py finalize-session
+```
+
+Creates a **final Pull Request** from integration branch to `main`:
+- Contains all architecture + cycle implementations
+- Enables batch review of entire session
+- Merge to deploy to production
+
+**Session-Based Workflow Benefits:**
+- ✅ Isolated development - work doesn't pollute `main`
+- ✅ Batch review - review entire session at once
+- ✅ Easy rollback - delete integration branch to abandon session
+- ✅ Clean history - squash merge to `main`
 
 ## Development (of this tool)
 
