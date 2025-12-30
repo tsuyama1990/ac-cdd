@@ -155,7 +155,9 @@ class PromptsConfig(BaseSettings):
         default_factory=lambda: _read_prompt("property_test_template.md", "DEFAULT_TEST_PROMPT")
     )
     # Explicit file path reference as requested
-    structurer: str = "ac_cdd_core/prompts/structurer.md"
+    structurer: str = Field(
+        default_factory=lambda: _read_prompt("structurer.md", "DEFAULT_STRUCTURER_PROMPT")
+    )
 
 
 class Settings(BaseSettings):
