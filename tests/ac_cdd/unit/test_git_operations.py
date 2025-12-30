@@ -51,7 +51,7 @@ async def test_create_integration_branch(git_manager):
 
         branch = await git_manager.create_integration_branch(session_id)
 
-        assert branch == "dev/session-20251230-120000"
+        assert branch == "dev/session-20251230-120000/integration"
         assert mock_run.called
 
 
@@ -59,7 +59,7 @@ async def test_create_integration_branch(git_manager):
 async def test_create_session_branch_arch(git_manager):
     """Test creating architecture branch."""
     session_id = "session-20251230-120000"
-    integration_branch = "dev/session-20251230-120000"
+    integration_branch = "dev/session-20251230-120000/integration"
 
     with patch.object(git_manager.runner, "run_command", new_callable=AsyncMock) as mock_run:
         mock_run.return_value = ("", "", 0)
@@ -74,7 +74,7 @@ async def test_create_session_branch_arch(git_manager):
 async def test_create_session_branch_cycle(git_manager):
     """Test creating cycle branch."""
     session_id = "session-20251230-120000"
-    integration_branch = "dev/session-20251230-120000"
+    integration_branch = "dev/session-20251230-120000/integration"
 
     with patch.object(git_manager.runner, "run_command", new_callable=AsyncMock) as mock_run:
         mock_run.return_value = ("", "", 0)
@@ -90,7 +90,7 @@ async def test_create_session_branch_cycle(git_manager):
 async def test_merge_to_integration(git_manager):
     """Test merging PR to integration branch."""
     pr_url = "https://github.com/user/repo/pull/123"
-    integration_branch = "dev/session-20251230-120000"
+    integration_branch = "dev/session-20251230-120000/integration"
 
     with patch.object(git_manager.runner, "run_command", new_callable=AsyncMock) as mock_run:
         # Mock gh pr view to return source branch
@@ -123,7 +123,7 @@ async def test_merge_to_integration(git_manager):
 @pytest.mark.asyncio
 async def test_create_final_pr_new(git_manager):
     """Test creating new final PR to main."""
-    integration_branch = "dev/session-20251230-120000"
+    integration_branch = "dev/session-20251230-120000/integration"
     title = "Session: Complete Implementation"
     body = "Final PR for session"
 
@@ -148,7 +148,7 @@ async def test_create_final_pr_new(git_manager):
 @pytest.mark.asyncio
 async def test_create_final_pr_existing(git_manager):
     """Test returning existing final PR."""
-    integration_branch = "dev/session-20251230-120000"
+    integration_branch = "dev/session-20251230-120000/integration"
 
     with patch.object(git_manager.runner, "run_command", new_callable=AsyncMock) as mock_run:
         # Mock gh pr list to return existing PR

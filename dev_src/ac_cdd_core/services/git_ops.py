@@ -247,7 +247,7 @@ class GitManager:
         Creates integration branch from main for the session.
         Returns: integration branch name
         """
-        integration_branch = f"{prefix}/{session_id}"
+        integration_branch = f"{prefix}/{session_id}/integration"
         logger.info(f"Creating integration branch: {integration_branch}")
 
         # Ensure we're on main and up to date

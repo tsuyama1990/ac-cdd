@@ -191,7 +191,7 @@ class Settings(BaseSettings):
     @property
     def integration_branch(self) -> str:
         """Get integration branch name for current session."""
-        return f"{self.session.integration_branch_prefix}/{self.current_session_id}"
+        return f"{self.session.integration_branch_prefix}/{self.current_session_id}/integration"
 
     # Model Config
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="allow")
