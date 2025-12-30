@@ -103,12 +103,14 @@ async def test_merge_to_integration(git_manager):
         ]
 
         # Note: merge_to_integration logic:
-        # 1. run_command (gh pr merge)
-        # 2. _run_git (checkout)
-        # 3. _run_git (pull)
+        # 1. run_command (gh pr ready)
+        # 2. run_command (gh pr merge)
+        # 3. _run_git (checkout)
+        # 4. _run_git (pull)
 
         # We need enough side effects for all calls
         mock_run.side_effect = [
+            ("", "", 0),  # pr ready
             ("", "", 0),  # merge
             ("", "", 0),  # checkout
             ("", "", 0),  # pull
