@@ -224,7 +224,7 @@ class JulesClient:
         files: list[str],
         completion_signal_file: Path,
         runner: Any = None,
-        target_branch: str = "main",
+        # target_branch: str = "main",  # REMOVED
         require_plan_approval: bool = False,  # NEW
     ) -> dict[str, Any]:
         """
@@ -300,7 +300,7 @@ class JulesClient:
                 "source": f"sources/github/{owner}/{repo_name}",
                 "githubRepoContext": {
                     "startingBranch": branch,
-                    "targetBranch": target_branch,  # NEW: Specify PR target
+                    # "targetBranch": target_branch,  # REMOVED: Not supported by API
                 },
             },
             "automationMode": "AUTO_CREATE_PR",

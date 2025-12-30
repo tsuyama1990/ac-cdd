@@ -45,7 +45,8 @@ async def test_architect_graph_execution(mock_services):
     # Setup Builder with Mocks
     builder.jules_client = mock_jules_instance
     builder.git.create_integration_branch = AsyncMock(return_value="dev/session-test")
-    builder.git.create_session_branch = AsyncMock(return_value="dev/session-test/arch")
+    # builder.git.create_session_branch = AsyncMock(return_value="dev/session-test/arch") # REMOVED
+    builder.git.checkout_branch = AsyncMock()  # NEW
     builder.git.merge_to_integration = AsyncMock()
     builder.git.commit_changes = AsyncMock()
 

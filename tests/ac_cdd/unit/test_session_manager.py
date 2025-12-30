@@ -20,7 +20,7 @@ def temp_session_file(tmp_path):
 def test_save_and_load_session(temp_session_file):
     """Test saving and loading session data."""
     session_id = "session-20251230-120000"
-    integration_branch = "dev/session-20251230-120000"
+    integration_branch = "dev/session-20251230-120000/integration"
 
     # Save session
     SessionManager.save_session(session_id, integration_branch)
@@ -55,7 +55,7 @@ def test_clear_session(temp_session_file):
 def test_validate_session_success():
     """Test session validation with valid state."""
     session_id = "session-20251230-120000"
-    integration_branch = "dev/session-20251230-120000"
+    integration_branch = "dev/session-20251230-120000/integration"
 
     with patch("subprocess.run") as mock_run:
         # Mock git branch --list to return the integration branch
@@ -69,7 +69,7 @@ def test_validate_session_success():
 def test_validate_session_branch_mismatch():
     """Test session validation when branch doesn't exist."""
     session_id = "session-20251230-120000"
-    integration_branch = "dev/session-20251230-120000"
+    integration_branch = "dev/session-20251230-120000/integration"
 
     with patch("subprocess.run") as mock_run:
         # Mock git branch --list to return empty (branch doesn't exist)
@@ -85,14 +85,17 @@ def test_reconcile_session_from_git():
     with patch("subprocess.run") as mock_run:
         # Mock git branch --list to return integration branches
         mock_run.return_value = MagicMock(
-            stdout="  dev/session-20251230-120000\n  dev/session-20251230-120001\n", returncode=0
+            stdout=(
+                "  dev/session-20251230-120000/integration\n"
+                "  dev/session-20251230-120001/integration\n"
+            ),
+            returncode=0,
         )
 
         result = SessionManager.reconcile_session()
         assert result is not None
-        assert "session_id" in result
-        assert "integration_branch" in result
-        assert result["integration_branch"].startswith("dev/session-")
+        assert result["session_id"] == "session-20251230-120001"
+        assert result["integration_branch"] == "dev/session-20251230-120001/integration"
 
 
 def test_reconcile_session_no_branches():
@@ -109,7 +112,7 @@ def test_get_integration_branch_format():
     """Test integration branch name format."""
     session_id = "session-20251230-120000"
     branch = SessionManager.get_integration_branch(session_id)
-    assert branch == "dev/session-20251230-120000"
+    assert branch == "dev/session-20251230-120000/integration"
 
 
 def test_load_or_reconcile_with_explicit_id(temp_session_file):

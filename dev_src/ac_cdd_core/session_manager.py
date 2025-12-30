@@ -107,8 +107,9 @@ class SessionManager:
         logger.info("Attempting to reconcile session from Git state...")
 
         # List all dev/* branches
+        # We target the specific integration branches pattern
         result = subprocess.run(  # noqa: S603
-            ["git", "branch", "--list", "dev/session-*"],  # noqa: S607
+            ["git", "branch", "--list", "dev/session-*/integration"],  # noqa: S607
             capture_output=True,
             text=True,
             check=False,
@@ -126,7 +127,9 @@ class SessionManager:
 
         # Use the most recent branch (lexicographically last, which works for our timestamp format)
         latest_branch = sorted(branches)[-1]
-        session_id = latest_branch.replace("dev/", "")
+        # Format: dev/session-{timestamp}/integration
+        # Remove prefix "dev/" and suffix "/integration"
+        session_id = latest_branch.replace("dev/", "").replace("/integration", "")
 
         logger.info(f"Reconciled session from branch: {latest_branch}")
 
@@ -155,7 +158,7 @@ class SessionManager:
         """
         from ac_cdd_core.config import settings
 
-        return f"{settings.session.integration_branch_prefix}/{session_id}"
+        return f"{settings.session.integration_branch_prefix}/{session_id}/integration"
 
     @classmethod
     async def resume_jules_session(cls, session_name: str) -> dict:

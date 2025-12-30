@@ -175,8 +175,8 @@ def gen_cycles(
                 console.print(f"[red]Architect Phase Failed:[/red] {final_state['error']}")
                 sys.exit(1)
             else:
-                session_id_final = final_state.session_id
-                integration_branch = final_state.integration_branch
+                session_id_final = final_state["session_id"]
+                integration_branch = final_state["integration_branch"]
 
                 # Save session for future use
                 from ac_cdd_core.messages import SuccessMessages

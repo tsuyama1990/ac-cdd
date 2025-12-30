@@ -22,10 +22,33 @@ def _detect_package_dir() -> str:
     return "dev_src/ac_cdd_core"
 
 
+PROMPT_FILENAME_MAP = {
+    "auditor.md": "AUDITOR_INSTRUCTION.md",
+    "coder.md": "CODER_INSTRUCTION.md",
+    "architect.md": "ARCHITECT_INSTRUCTION.md",
+    "planner.md": "CYCLE_PLANNING_PROMPT.md",
+}
+
+
 def _read_prompt(filename: str, default: str) -> str:
-    p = Path("dev_src/ac_cdd_core/prompts") / filename
-    if p.exists():
-        return p.read_text(encoding="utf-8").strip()
+    # 1. Map legacy filenames to new template names
+    target_filename = PROMPT_FILENAME_MAP.get(filename, filename)
+
+    # 2. Check User Templates (Priority 1: Mapped Name)
+    user_template_mapped = Path("dev_documents/templates") / target_filename
+    if user_template_mapped.exists():
+        return user_template_mapped.read_text(encoding="utf-8").strip()
+
+    # 3. Check User Templates (Priority 2: Direct Name)
+    user_template_direct = Path("dev_documents/templates") / filename
+    if user_template_direct.exists():
+        return user_template_direct.read_text(encoding="utf-8").strip()
+
+    # 4. Check System Defaults (Fallback)
+    system_prompt = Path("dev_src/ac_cdd_core/prompts") / filename
+    if system_prompt.exists():
+        return system_prompt.read_text(encoding="utf-8").strip()
+
     return default
 
 
@@ -132,7 +155,9 @@ class PromptsConfig(BaseSettings):
         default_factory=lambda: _read_prompt("property_test_template.md", "DEFAULT_TEST_PROMPT")
     )
     # Explicit file path reference as requested
-    structurer: str = "ac_cdd_core/prompts/structurer.md"
+    structurer: str = Field(
+        default_factory=lambda: _read_prompt("structurer.md", "DEFAULT_STRUCTURER_PROMPT")
+    )
 
 
 class Settings(BaseSettings):
@@ -191,7 +216,7 @@ class Settings(BaseSettings):
     @property
     def integration_branch(self) -> str:
         """Get integration branch name for current session."""
-        return f"{self.session.integration_branch_prefix}/{self.current_session_id}"
+        return f"{self.session.integration_branch_prefix}/{self.current_session_id}/integration"
 
     # Model Config
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="allow")

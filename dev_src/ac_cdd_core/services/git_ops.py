@@ -183,6 +183,13 @@ class GitManager:
             raise RuntimeError(f"Failed to checkout PR {pr_url}")
         logger.info(f"Checked out PR {pr_url} successfully.")
 
+    async def checkout_branch(self, branch_name: str) -> None:
+        """
+        Checks out an existing branch.
+        """
+        logger.info(f"Checking out branch: {branch_name}...")
+        await self._run_git(["checkout", branch_name])
+
     async def pull_changes(self) -> None:
         """
         Pulls changes from the remote repository.
@@ -247,7 +254,7 @@ class GitManager:
         Creates integration branch from main for the session.
         Returns: integration branch name
         """
-        integration_branch = f"{prefix}/{session_id}"
+        integration_branch = f"{prefix}/{session_id}/integration"
         logger.info(f"Creating integration branch: {integration_branch}")
 
         # Ensure we're on main and up to date
@@ -311,10 +318,18 @@ class GitManager:
         """
         logger.info(f"Merging PR to integration branch: {integration_branch}")
 
-        # Merge PR (this merges to the PR's target branch, which should be integration)
+        # Try to mark as ready just in case it's a draft
         await self.runner.run_command(
+            [self.gh_cmd, "pr", "ready", pr_url], check=False
+        )
+
+        # Merge PR (this merges to the PR's target branch, which should be integration)
+        _, stderr, code = await self.runner.run_command(
             [self.gh_cmd, "pr", "merge", pr_url, "--merge", "--delete-branch"], check=True
         )
+
+        if code != 0:
+            raise RuntimeError(f"Failed to merge PR {pr_url}: {stderr}")
 
         # Checkout integration branch and pull
         await self._run_git(["checkout", integration_branch])
@@ -357,7 +372,7 @@ class GitManager:
         await self._run_git(["push"])
 
         # Create PR
-        stdout, _, _ = await self.runner.run_command(
+        stdout, _, code = await self.runner.run_command(
             [
                 self.gh_cmd,
                 "pr",
@@ -370,9 +385,14 @@ class GitManager:
                 title,
                 "--body",
                 body,
+                body,
             ],
             check=True,
         )
+
+        if code != 0:
+             # Try to get error message from stdout or infer
+             raise RuntimeError(f"Failed to create PR: {stdout if stdout else 'Unknown error'}")
 
         pr_url = stdout.strip()
         logger.info(f"Final PR created: {pr_url}")
