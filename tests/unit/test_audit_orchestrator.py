@@ -1,13 +1,17 @@
+from unittest.mock import AsyncMock, patch
+
 import pytest
-from unittest.mock import MagicMock, AsyncMock, patch, call
-from ac_cdd_core.services.audit_orchestrator import AuditOrchestrator
 from ac_cdd_core.domain_models import PlanAuditResult
+from ac_cdd_core.services.audit_orchestrator import AuditOrchestrator
+
 
 @pytest.fixture
 def mock_jules():
     with patch("ac_cdd_core.services.audit_orchestrator.JulesClient") as MockJules:
         instance = MockJules.return_value
-        instance.run_session = AsyncMock(return_value={"session_name": "sess-1", "status": "running"})
+        instance.run_session = AsyncMock(
+            return_value={"session_name": "sess-1", "status": "running"}
+        )
         instance.wait_for_activity_type = AsyncMock()
         instance.approve_plan = AsyncMock()
         instance._send_message = AsyncMock()
@@ -16,6 +20,7 @@ def mock_jules():
         instance.get_latest_plan = AsyncMock()
         yield instance
 
+
 @pytest.fixture
 def mock_auditor():
     with patch("ac_cdd_core.services.audit_orchestrator.PlanAuditor") as MockAuditor:
@@ -23,9 +28,11 @@ def mock_auditor():
         instance.audit_plan = AsyncMock()
         yield instance
 
+
 @pytest.fixture
 def orchestrator(mock_jules, mock_auditor):
     return AuditOrchestrator()
+
 
 @pytest.mark.asyncio
 async def test_run_session_approved_first_try(orchestrator, mock_jules, mock_auditor):
@@ -43,6 +50,7 @@ async def test_run_session_approved_first_try(orchestrator, mock_jules, mock_aud
     mock_jules.approve_plan.assert_called_with("sess-1", "plan-1")
     mock_jules.send_message.assert_not_called()
 
+
 @pytest.mark.asyncio
 async def test_run_session_rejected_then_approved(orchestrator, mock_jules, mock_auditor):
     # First plan: Rejected
@@ -55,14 +63,14 @@ async def test_run_session_rejected_then_approved(orchestrator, mock_jules, mock
 
     # 2. get_latest_plan returns the NEW plan when polled after rejection
     mock_jules.get_latest_plan.side_effect = [
-        {"planId": "plan-1"}, # First poll, still old
-        {"planId": "plan-2", "steps": []} # Second poll, new plan!
+        {"planId": "plan-1"},  # First poll, still old
+        {"planId": "plan-2", "steps": []},  # Second poll, new plan!
     ]
 
     # 3. audit_plan responses
     mock_auditor.audit_plan.side_effect = [
         PlanAuditResult(status="REJECTED", reason="Bad", feedback="Fix X"),
-        PlanAuditResult(status="APPROVED", reason="Good", feedback="")
+        PlanAuditResult(status="APPROVED", reason="Good", feedback=""),
     ]
 
     # Note: wait_for_activity_type is called in loop start.
@@ -70,10 +78,10 @@ async def test_run_session_rejected_then_approved(orchestrator, mock_jules, mock
     # We need to ensure it returns plan-2 details then.
     mock_jules.wait_for_activity_type.side_effect = [
         {"planGenerated": {"planId": "plan-1", "steps": []}},
-        {"planGenerated": {"planId": "plan-2", "steps": []}}
+        {"planGenerated": {"planId": "plan-2", "steps": []}},
     ]
 
-    result = await orchestrator.run_interactive_session("prompt", "source", {"spec": "data"})
+    await orchestrator.run_interactive_session("prompt", "source", {"spec": "data"})
 
     # Check that we sent feedback
     mock_jules.send_message.assert_called_once()
@@ -82,12 +90,13 @@ async def test_run_session_rejected_then_approved(orchestrator, mock_jules, mock
     # Check that we eventually approved plan-2
     mock_jules.approve_plan.assert_called_with("sess-1", "plan-2")
 
+
 @pytest.mark.asyncio
 async def test_max_retries_exceeded(orchestrator, mock_jules, mock_auditor):
     mock_jules.wait_for_activity_type.return_value = {
         "planGenerated": {"planId": "plan-1", "steps": []}
     }
-    mock_jules.get_latest_plan.return_value = {"planId": "plan-new"} # Always find new plan quickly
+    mock_jules.get_latest_plan.return_value = {"planId": "plan-new"}  # Always find new plan quickly
 
     # Always reject
     mock_auditor.audit_plan.return_value = PlanAuditResult(
