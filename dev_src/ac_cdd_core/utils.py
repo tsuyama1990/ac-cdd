@@ -95,3 +95,55 @@ def check_api_key() -> None:
         #     "API Key not found! Please set GOOGLE_API_KEY (or OPENROUTER_API_KEY) "
         #     "in your .env file."
         # )
+class KeepAwake:
+    """
+    Context manager to prevent system sleep/suspension during long operations.
+    Uses 'systemd-inhibit' on Linux.
+    """
+
+    def __init__(self, reason: str = "AC-CDD Long Running Task"):
+        self.reason = reason
+        self.process = None
+
+    def __enter__(self):
+        """Start the inhibitor process."""
+        # Check if systemd-inhibit exists
+        import shutil
+
+        if not shutil.which("systemd-inhibit"):
+            logger.warning("systemd-inhibit not found. Sleep inhibition disabled.")
+            return self
+
+        try:
+            # We start a subprocess that holds the lock forever (sleep infinity)
+            # When this python process exits or we kill the subprocess, the lock is released.
+            # --what=idle:sleep:handle-suspend-key:handle-hibernate-key:handle-lid-switch
+            # We strictly want to prevent sleep/suspend.
+            cmd = [
+                "systemd-inhibit",
+                "--what=idle:sleep",
+                "--who=AC-CDD",
+                f"--why={self.reason}",
+                "--mode=block",
+                "sleep",
+                "infinity",
+            ]
+            self.process = subprocess.Popen(  # noqa: S603
+                cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            )
+            logger.info("💤 System sleep inhibited (AC-CDD is running).")
+        except Exception as e:
+            logger.warning(f"Failed to start sleep inhibitor: {e}")
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Stop the inhibitor process."""
+        if self.process:
+            try:
+                self.process.terminate()
+                self.process.wait(timeout=1)
+            except Exception:
+                # If it refuses to die, kill it
+                if self.process.poll() is None:
+                    self.process.kill()
+            logger.info("💤 System sleep inhibition released.")

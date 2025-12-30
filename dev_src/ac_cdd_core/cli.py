@@ -11,7 +11,7 @@ from .config import settings
 # from .graph import build_architect_graph, build_coder_graph
 from .service_container import ServiceContainer
 from .state import CycleState
-from .utils import logger
+from .utils import KeepAwake, logger
 
 app = typer.Typer(help="AC-CDD: AI-Native Cycle-Based Contract-Driven Development Environment")
 console = Console()
@@ -149,7 +149,8 @@ def gen_cycles(
     import asyncio
 
     async def _run() -> None:
-        console.rule("[bold blue]Architect Phase: Generating Cycles[/bold blue]")
+        with KeepAwake(reason="Generating Architecture and Cycles"):
+            console.rule("[bold blue]Architect Phase: Generating Cycles[/bold blue]")
 
         # Check API availability first
         from ac_cdd_core.messages import ensure_api_key
@@ -223,9 +224,10 @@ def run_cycle(
     import asyncio
 
     async def execute_single_cycle(target_cycle: str) -> None:
-        console.rule(
-            f"[bold green]Running Cycle {target_cycle} (Start Iter: {start_iter})[/bold green]"
-        )
+        with KeepAwake(reason=f"Running Cycle {target_cycle}"):
+            console.rule(
+                f"[bold green]Running Cycle {target_cycle} (Start Iter: {start_iter})[/bold green]"
+            )
 
         # Check API availability
         from ac_cdd_core.messages import ensure_api_key
