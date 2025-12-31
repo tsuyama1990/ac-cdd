@@ -146,14 +146,9 @@ class GraphBuilder:
         # Get Shared Sandbox (Persistent)
         runner = await self._get_shared_sandbox()
 
-        # Prioritize custom instruction in dev_documents
-        custom_instruction_path = Path(settings.paths.documents_dir) / "ARCHITECT_INSTRUCTION.md"
-        if custom_instruction_path.exists():
-            instruction_path = custom_instruction_path
-            logger.info(f"Using custom Architect instruction from: {instruction_path}")
-        else:
-            instruction_path = Path(settings.paths.templates) / "ARCHITECT_INSTRUCTION.md"
-            logger.info(f"Using default Architect instruction from: {instruction_path}")
+        # Load Architect Instruction from system_prompts
+        instruction_path = Path(settings.paths.templates) / "ARCHITECT_INSTRUCTION.md"
+        logger.info(f"Using Architect instruction from: {instruction_path}")
 
         spec_path = Path(settings.paths.documents_dir) / "ALL_SPEC.md"
         signal_file = Path(settings.paths.documents_dir) / "plan_status.json"
@@ -627,24 +622,13 @@ class GraphBuilder:
                 logger.warning(f"Failed to read {f_path}: {e}")
 
         # 3. Load Instruction
-        # Prioritize custom instruction in dev_documents
-        custom_instruction_path = (
-            Path(settings.paths.documents_dir) / "templates" / "AUDITOR_INSTRUCTION.md"
-        )
-        # Support both locations (root of docs or templates subdir of docs)
-        if not custom_instruction_path.exists():
-             custom_instruction_path = Path(settings.paths.documents_dir) / "AUDITOR_INSTRUCTION.md"
-
-        if custom_instruction_path.exists():
-            instruction = custom_instruction_path.read_text(encoding="utf-8")
-            logger.info(f"Using custom Auditor instruction from: {custom_instruction_path}")
+        # Load Auditor Instruction from system_prompts
+        template_path = Path(settings.paths.templates) / "AUDITOR_INSTRUCTION.md"
+        if template_path.exists():
+            logger.info(f"Using Auditor instruction from: {template_path}")
+            instruction = template_path.read_text(encoding="utf-8")
         else:
-            template_path = Path(settings.paths.templates) / "AUDITOR_INSTRUCTION.md"
-            if template_path.exists():
-                logger.info(f"Using default Auditor instruction from: {template_path}")
-                instruction = template_path.read_text(encoding="utf-8")
-            else:
-                instruction = "Review the code strictly."
+            instruction = "Review the code strictly."
 
         instruction += (
             f"\n\n(Auditor #{auditor_idx}, Review {review_count}/{settings.REVIEWS_PER_AUDITOR}, "

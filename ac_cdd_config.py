@@ -22,11 +22,11 @@ def _detect_package_dir() -> str:
     return "dev_src/ac_cdd_core"
 
 
+# New mapping for system prompts
 PROMPT_FILENAME_MAP = {
     "auditor.md": "AUDITOR_INSTRUCTION.md",
     "coder.md": "CODER_INSTRUCTION.md",
     "architect.md": "ARCHITECT_INSTRUCTION.md",
-    "planner.md": "CYCLE_PLANNING_PROMPT.md",
 }
 
 
@@ -34,15 +34,15 @@ def _read_prompt(filename: str, default: str) -> str:
     # 1. Map legacy filenames to new template names
     target_filename = PROMPT_FILENAME_MAP.get(filename, filename)
 
-    # 2. Check User Templates (Priority 1: Mapped Name)
-    user_template_mapped = Path("dev_documents/templates") / target_filename
-    if user_template_mapped.exists():
-        return user_template_mapped.read_text(encoding="utf-8").strip()
+    # 2. Check User System Prompts (Priority 1: Mapped Name)
+    user_prompt_mapped = Path("dev_documents/system_prompts") / target_filename
+    if user_prompt_mapped.exists():
+        return user_prompt_mapped.read_text(encoding="utf-8").strip()
 
-    # 3. Check User Templates (Priority 2: Direct Name)
-    user_template_direct = Path("dev_documents/templates") / filename
-    if user_template_direct.exists():
-        return user_template_direct.read_text(encoding="utf-8").strip()
+    # 3. Check User System Prompts (Priority 2: Direct Name)
+    user_prompt_direct = Path("dev_documents/system_prompts") / filename
+    if user_prompt_direct.exists():
+        return user_prompt_direct.read_text(encoding="utf-8").strip()
 
     # 4. Check System Defaults (Fallback)
     system_prompt = Path("dev_src/ac_cdd_core/prompts") / filename
@@ -60,7 +60,7 @@ class PathsConfig(BaseSettings):
     sessions_dir: str = ".jules/sessions"
     src: str = "src"
     tests: str = "tests"
-    templates: str = "dev_documents/templates"
+    templates: str = "dev_documents/system_prompts"
     property_tests: str = "tests/property"
     unit_tests: str = "tests/unit"
     e2e_tests: str = "tests/e2e"
@@ -145,19 +145,10 @@ class ReviewerConfig(BaseSettings):
         default_factory=lambda: _read_prompt("auditor.md", "DEFAULT_AUDITOR_PROMPT")
     )
     qa_analyst: str = Field(
-        default_factory=lambda: _read_prompt("qa_analyst.md", "DEFAULT_QA_ANALYST_PROMPT")
+        default_factory=lambda: _read_prompt("UAT_DESIGN.md", "DEFAULT_QA_ANALYST_PROMPT")
     )
 
 
-class PromptsConfig(BaseSettings):
-    model_config = SettingsConfigDict(extra="ignore")
-    property_test_template: str = Field(
-        default_factory=lambda: _read_prompt("property_test_template.md", "DEFAULT_TEST_PROMPT")
-    )
-    # Explicit file path reference as requested
-    structurer: str = Field(
-        default_factory=lambda: _read_prompt("structurer.md", "DEFAULT_STRUCTURER_PROMPT")
-    )
 
 
 class Settings(BaseSettings):
@@ -199,7 +190,6 @@ class Settings(BaseSettings):
     sandbox: SandboxConfig = SandboxConfig()
     agents: AgentsConfig = AgentsConfig()
     reviewer: ReviewerConfig = ReviewerConfig()
-    prompts: PromptsConfig = PromptsConfig()
 
     # Computed Properties
     @property
