@@ -203,6 +203,7 @@ def gen_cycles(
 
 
 @app.command(name="run-cycle")
+@app.command(name="run-cycle")
 def run_cycle(
     cycle_id: Annotated[str, typer.Option("--id", help="Cycle ID (e.g., '01') or 'all'")] = "01",
     session_id: Annotated[str, typer.Option("--session", help="Session ID")] = None,
@@ -213,8 +214,11 @@ def run_cycle(
             "--start-iter", help="Force start at specific iteration (0=Creator, 1=Refiner)"
         ),
     ] = 0,
-    resume_session: Annotated[
-        str, typer.Option("--resume", help="Resume from existing Jules Session ID")
+    resume: Annotated[
+        bool, typer.Option("--resume", help="Resume from saved Jules Session")
+    ] = False,
+    resume_id: Annotated[
+        str, typer.Option("--resume-id", help="Resume from specific Jules Session ID")
     ] = None,
 ) -> None:
     """
@@ -223,7 +227,13 @@ def run_cycle(
     """
     import asyncio
 
-    async def execute_single_cycle(target_cycle: str) -> None:
+    async def execute_single_cycle(
+        target_cycle: str, override_resume: bool | None = None
+    ) -> None:
+        # Determine strict resume mode for this specific cycle execution
+        # If override is provided (from _run_all), use it. Else use CLI flag.
+        should_resume = override_resume if override_resume is not None else resume
+
         with KeepAwake(reason=f"Running Cycle {target_cycle}"):
             console.rule(
                 f"[bold green]Running Cycle {target_cycle} (Start Iter: {start_iter})[/bold green]"
@@ -248,10 +258,12 @@ def run_cycle(
             try:
                 # Resume session first if requested (Async)
                 resume_info = None
-                if resume_session:
-                    resume_info = await SessionManager.resume_jules_session(resume_session)
+                if should_resume or resume_id:
+                    # Priority to explicit ID if provided, else None (auto-load)
+                    target_resume_id = resume_id if resume_id else None
+                    resume_info = await SessionManager.resume_jules_session(target_resume_id)
                     console.print(
-                        f"[green]✓ Resumed Jules session with PR: {resume_info['pr_url']}[/green]"
+                        f"[green]✓ Resumed Jules session with PR: {resume_info.get('pr_url', 'None')}[/green]"
                     )
 
                 # Load session (Sync)
@@ -262,8 +274,29 @@ def run_cycle(
                 )
                 session_id_to_use = session_data["session_id"]
                 integration_branch = session_data["integration_branch"]
+                saved_active_cycle = session_data.get("active_cycle_id")
 
-                if not resume_session and not session_id:
+                # AUTO-DETECT CYCLE ID if Resuming and using default "01" (Single Cycle Mode)
+                # Only apply switching if NOT triggered by _run_all iteration (cycle_id != 'all')
+                
+                # actually execute_single_cycle arg matches.
+                # If we are in 'all' mode, we handled switch in _run_all.
+                if (
+                    (should_resume or resume_id)
+                    and target_cycle == "01"
+                    and saved_active_cycle
+                    and cycle_id.lower() != "all"
+                ):
+                    if saved_active_cycle != "01":
+                        console.print(
+                            f"[yellow]Auto-Switching to saved Active Cycle: {saved_active_cycle}[/yellow]"
+                        )
+                        target_cycle = saved_active_cycle
+
+                # Update Active Cycle in Session File
+                SessionManager.update_session(active_cycle_id=target_cycle)
+
+                if not should_resume and not resume_id and not session_id:
                     if session_data.get("reconciled"):
                         console.print(f"[green]✓ Reconciled session: {session_id_to_use}[/green]")
                     else:
@@ -275,8 +308,8 @@ def run_cycle(
             # Validate session using validator class
             try:
                 validator = SessionValidator(
-                session_id_to_use, integration_branch, check_remote=True
-            )
+                    session_id_to_use, integration_branch, check_remote=True
+                )
                 is_valid, error_msg = await validator.validate()
                 if not is_valid:
                     console.print(f"[red]{error_msg}[/red]")
@@ -296,8 +329,8 @@ def run_cycle(
             # Apply resume info if present
             if resume_info:
                 initial_state.resume_mode = True
-                initial_state.pr_url = resume_info["pr_url"]
-                initial_state.jules_session_name = resume_info["jules_session_name"]
+                initial_state.pr_url = resume_info.get("pr_url")
+                initial_state.jules_session_name = resume_info.get("jules_session_name")
 
             try:
                 # We iterate through events to show progress if needed, or just invoke
@@ -342,10 +375,31 @@ def run_cycle(
                 await builder.cleanup()
 
     async def _run_all() -> None:
-        cycles_to_run = ["01", "02", "03", "04", "05"] if cycle_id.lower() == "all" else [cycle_id]
+        # Default full list
+        raw_list = ["01", "02", "03", "04", "05"]
+        cycles_to_run = raw_list if cycle_id.lower() == "all" else [cycle_id]
 
-        for c_id in cycles_to_run:
-            await execute_single_cycle(c_id)
+        # SMART RESUME for 'all' mode
+        start_index = 0
+        if resume and cycle_id.lower() == "all":
+            from .session_manager import SessionManager
+
+            # Peek at saved session
+            data = SessionManager.load_session()
+            if data and data.get("active_cycle_id"):
+                active = data["active_cycle_id"]
+                if active in raw_list:
+                    start_index = raw_list.index(active)
+                    console.print(
+                        f"[yellow]Taking up from saved active cycle: {active} (Skipping 01-{raw_list[start_index - 1] if start_index > 0 else 'None'})[/yellow]"
+                    )
+                    cycles_to_run = raw_list[start_index:]
+
+        for i, c_id in enumerate(cycles_to_run):
+            # Only resume the VERY FIRST cycle in the (potentially sliced) list
+            # Subsequent cycles should start fresh.
+            do_resume = resume and (i == 0)
+            await execute_single_cycle(c_id, override_resume=do_resume)
 
         if cycle_id.lower() == "all":
             from ac_cdd_core.messages import SuccessMessages

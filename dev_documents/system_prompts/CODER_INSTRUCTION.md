@@ -16,21 +16,29 @@ Your goal is to implement and **VERIFY** the features for **CYCLE {{cycle_id}}**
 ## Constraints & Environment
 - **EXISTING PROJECT**: You are working within an EXISTING project.
 - **CONFIGURATION**:
-    - DO NOT overwrite `pyproject.toml`, `uv.lock`, `README.md` with templates.
-    - If you need dependencies, add them to `pyproject.toml` (do not remove existing ones).
+    - **DO NOT** overwrite `pyproject.toml`, `uv.lock`, `README.md` with templates (e.g. do not reset the file).
+    - **DO** append or add new dependencies/settings to `pyproject.toml` if necessary for the feature.
 - **SOURCE CODE**: Place your code in `src/` (or `dev_src/` if instructed).
 
 ## Tasks
 
 ### 1. Test Driven Development (TDD) - STRICT ENFORCEMENT
 You MUST write tests *before* or *alongside* the implementation.
-- **Unit Tests**: Create fast, isolated tests in `tests/unit/`. Mock ALL external dependencies (APIs, DBs, File System).
-- **E2E/Integration Tests**: Create tests in `tests/e2e/` that verify the flows defined in `UAT.md`.
+- **Unit Tests**: Create fast, isolated tests in `tests/unit/` for complex logic. Mock dependencies.
+- **Integration (E2E) Tests (MANDATORY)**: You MUST create comprehensive integration tests in `tests/e2e/`.
+    - These must cover the technical integration of components.
+- **UAT Verification (MANDATORY)**: Create simple, user-friendly verification scripts in `tests/uat/`.
+    - These must directly map to `UAT.md` scenarios.
+    - Format: Python scripts or Jupyter Notebooks (`.ipynb`) that allow the user to easily verify requirements.
+    - Focus on simplicity and reproducibility for the end-user.
+    - A few files are better than too many files for simplicity.
 - **Requirement**: A Pull Request WITHOUT comprehensive tests will be **REJECTED** by the Auditor.
 
 ### 2. Implementation
 - Implement the requirements defined in `SPEC.md`.
 - Follow the patterns in `SYSTEM_ARCHITECTURE.md`.
+- Design and implement the unit, integration, and UAT tests in `tests/unit/`, `tests/e2e/`, and `tests/uat/`, 
+  following by the tests in `SPEC.md`, `SYSTEM_ARCHITECTURE.md`, and `UAT.md`.
 - Ensure code is clean, typed, and documented.
 
 ### 3. Verification & Proof of Work

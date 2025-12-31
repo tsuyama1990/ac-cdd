@@ -18,6 +18,9 @@ class SessionValidationError(Exception):
 class SessionInfo(TypedDict):
     session_id: str
     integration_branch: str
+    integration_branch: str
+    jules_session_id: str | None
+    active_cycle_id: str | None
     resume_info: dict | None
 
 
@@ -37,6 +40,25 @@ class SessionManager:
         }
         cls.SESSION_FILE.write_text(json.dumps(session_data, indent=2))
         logger.info(f"Session saved: {session_id}")
+
+    @classmethod
+    def update_session(cls, **kwargs) -> None:
+        """
+        Update existing session file with new data.
+        Preserves existing keys not in kwargs.
+        """
+        if not cls.SESSION_FILE.exists():
+            logger.warning("Cannot update session: File does not exist.")
+            return
+
+        try:
+            data = json.loads(cls.SESSION_FILE.read_text())
+            data.update(kwargs)
+            data["last_updated"] = datetime.now().isoformat()
+            cls.SESSION_FILE.write_text(json.dumps(data, indent=2))
+            logger.info(f"Session updated with keys: {list(kwargs.keys())}")
+        except Exception as e:
+            logger.error(f"Failed to update session: {e}")
 
     @classmethod
     def load_session(cls) -> dict | None:
@@ -161,12 +183,22 @@ class SessionManager:
         return f"{settings.session.integration_branch_prefix}/{session_id}/integration"
 
     @classmethod
-    async def resume_jules_session(cls, session_name: str) -> dict:
+    async def resume_jules_session(cls, session_name: str | None = None) -> dict:
         """
         Resumes a Jules session and waits for completion.
+        If session_name is None, attempts to load it from the session file.
         Returns resume_info dict if successful.
         """
         from ac_cdd_core.services.jules_client import JulesClient
+
+        if not session_name:
+            # Try to load from persisted session
+            session_data = cls.load_session()
+            if session_data:
+                session_name = session_data.get("jules_session_id")
+
+        if not session_name:
+            raise SessionValidationError("Cannot resume: No Jules Session ID provided or found in file.")
 
         # Normalize session name
         name = session_name if session_name.startswith("sessions/") else f"sessions/{session_name}"
@@ -177,16 +209,20 @@ class SessionManager:
         try:
             result = await jules.wait_for_completion(name)
 
-            if result.get("status") == "success" and result.get("pr_url"):
+            # We accept success OR just completion if we simply want to resume control context
+            if result.get("status") == "success":
                 resume_info = {
-                    "pr_url": result["pr_url"],
+                    "pr_url": result.get("pr_url"),  # Might be None if manually completed without PR
                     "jules_session_name": name,
                 }
-                logger.info(f"Successfully resumed Jules session with PR: {result['pr_url']}")
+                if result.get("pr_url"):
+                    logger.info(f"Successfully resumed Jules session with PR: {result['pr_url']}")
+                else:
+                    logger.info("Resumed Jules session completed successfully (No PR URL potentially).")
                 return resume_info
             else:
                 raise SessionValidationError(
-                    "Cannot resume: Jules session not successful or no PR found."
+                    f"Cannot resume: Jules session ended with status: {result.get('status')}"
                 )
         except Exception as e:
             if isinstance(e, SessionValidationError):
@@ -244,6 +280,8 @@ class SessionManager:
             return {
                 "session_id": saved_session["session_id"],
                 "integration_branch": saved_session["integration_branch"],
+                "jules_session_id": saved_session.get("jules_session_id"),
+                "active_cycle_id": saved_session.get("active_cycle_id"),
                 "resume_info": resume_info,
             }
 

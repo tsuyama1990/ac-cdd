@@ -79,6 +79,7 @@ User Acceptance Testing plan.
 **Sections:**
 1. **Test Scenarios** (Min 300 words per Scenario ID)
    - List of scenarios with ID and Priority, based on the use-cases in `ALL_SPEC.md`.
+   - UAT is kind of user experiences. Design the UAT to amaze the users.
 2. **Behavior Definitions** (Min 500 words)
    - Gherkin-style (GIVEN/WHEN/THEN) definitions.
 

@@ -333,6 +333,14 @@ class JulesClient:
             except httpx.RequestError as e:
                 raise JulesSessionError(f"Network error creating session: {e}") from e
 
+        # 3. SAVE SESSION ID for RESUME
+        try:
+            from ac_cdd_core.session_manager import SessionManager
+
+            SessionManager.update_session(jules_session_id=session_name)
+        except Exception as e:
+            logger.warning(f"Failed to persist Jules Session ID: {e}")
+
         # 3. Return session name if audit mode, else wait for completion
         if require_plan_approval:
             return {"session_name": session_name, "status": "running"}
@@ -389,11 +397,24 @@ class JulesClient:
                 # We want the *latest* message provided by the agent.
                 for act in activities:
                     msg = None
+                    # 1. Standard "agentMessaged"
                     if "agentMessaged" in act:
                         msg = act["agentMessaged"].get("agentMessage")
-                    # Fallback for flat structure in tests
+                    
+                    # 2. "userActionRequired" (Check for key, not "type" field)
+                    elif "userActionRequired" in act:
+                        # Sometimes content is in detailed description or reason
+                        # Check the nested dict
+                        details = act["userActionRequired"]
+                        msg = details.get("reason", "User action required (check console).")
+
+                    # 3. Fallback for flat/test structure
                     if not msg:
                         msg = act.get("message")
+                        
+                    # 4. Filter out generic status messages
+                    if msg and "Jules is working" in msg:
+                        continue
 
                     if msg:
                         # Activity name is unique ID usually "sessions/.../activities/..."
@@ -464,7 +485,7 @@ class JulesClient:
                         # --- 1. INTERACTIVE HANDLING CHECK ---
                         # Check for inquiries first. Even if state is COMPLETED/SUCCEEDED,
                         # the agent might have sent a message requiring response.
-                        if state in ["AWAITING_USER_FEEDBACK", "COMPLETED", "SUCCEEDED"]:
+                        if state in ["AWAITING_USER_FEEDBACK", "COMPLETED", "SUCCEEDED", "NEEDS_MORE_INFORMATION", "RUNNING"]:
                             inquiry_result = await self._check_for_inquiry(client, session_url)
 
                             if inquiry_result:
@@ -662,7 +683,7 @@ class JulesClient:
         activities = self.list_activities(session_id_path)
         # Search in reverse (newest first)
         for activity in activities:
-            if activity.get("type") == "planGenerated":
+            if "planGenerated" in activity:
                 return activity.get("planGenerated")
         return None
 
@@ -683,7 +704,7 @@ class JulesClient:
         while asyncio.get_event_loop().time() - start_time < timeout:
             activities = self.list_activities(session_id_path)
             for activity in activities:
-                if activity.get("type") == target_type:
+                if target_type in activity:
                     return activity
 
             await self._sleep(interval)
