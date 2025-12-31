@@ -223,119 +223,120 @@ def run_cycle(
     import asyncio
 
     async def execute_single_cycle(target_cycle: str) -> None:
-        console.rule(
-            f"[bold green]Running Cycle {target_cycle} (Start Iter: {start_iter})[/bold green]"
-        )
-
-        # Check API availability
-        from ac_cdd_core.messages import ensure_api_key
-
-        ensure_api_key()
-
-        services = ServiceContainer.default()
-        from .graph import GraphBuilder
-
-        # Instantiate builder to manage resources
-        builder = GraphBuilder(services)
-        graph = builder.build_coder_graph()
-
-        # Load session using consolidated helper (with optional resume)
-        from .session_manager import SessionManager, SessionValidationError
-        from .validators import SessionValidator, ValidationError
-
-        try:
-            # Resume session first if requested (Async)
-            resume_info = None
-            if resume_session:
-                resume_info = await SessionManager.resume_jules_session(resume_session)
-                console.print(
-                    f"[green]✓ Resumed Jules session with PR: {resume_info['pr_url']}[/green]"
-                )
-
-            # Load session (Sync)
-            session_data = SessionManager.load_or_reconcile_session(
-                session_id=session_id,
-                auto_reconcile=True,
-                resume_info=resume_info,
+        with KeepAwake(reason=f"Running Cycle {target_cycle}"):
+            console.rule(
+                f"[bold green]Running Cycle {target_cycle} (Start Iter: {start_iter})[/bold green]"
             )
-            session_id_to_use = session_data["session_id"]
-            integration_branch = session_data["integration_branch"]
 
-            if not resume_session and not session_id:
-                if session_data.get("reconciled"):
-                    console.print(f"[green]✓ Reconciled session: {session_id_to_use}[/green]")
-                else:
-                    console.print(f"[dim]Using saved session: {session_id_to_use}[/dim]")
-        except SessionValidationError as e:
-            console.print(f"[red]{e}[/red]")
-            sys.exit(1)
+            # Check API availability
+            from ac_cdd_core.messages import ensure_api_key
 
-        # Validate session using validator class
-        try:
-            validator = SessionValidator(session_id_to_use, integration_branch, check_remote=True)
-            is_valid, error_msg = await validator.validate()
-            if not is_valid:
-                console.print(f"[red]{error_msg}[/red]")
-                sys.exit(1)
-        except ValidationError as e:
-            console.print(f"[red]{e}[/red]")
-            sys.exit(1)
+            ensure_api_key()
 
-        # Initialize state
-        initial_state = CycleState(
-            cycle_id=target_cycle,
-            iteration_count=start_iter,
-            session_id=session_id_to_use,
-            integration_branch=integration_branch,
-        )
+            services = ServiceContainer.default()
+            from .graph import GraphBuilder
 
-        # Apply resume info if present
-        if resume_info:
-            initial_state.resume_mode = True
-            initial_state.pr_url = resume_info["pr_url"]
-            initial_state.jules_session_name = resume_info["jules_session_name"]
+            # Instantiate builder to manage resources
+            builder = GraphBuilder(services)
+            graph = builder.build_coder_graph()
 
-        try:
-            # We iterate through events to show progress if needed, or just invoke
-            # invoke returns the final state
-            final_state = await graph.ainvoke(initial_state, {"recursion_limit": 50})
+            # Load session using consolidated helper (with optional resume)
+            from .session_manager import SessionManager, SessionValidationError
+            from .validators import SessionValidator, ValidationError
 
-            if final_state.get("error"):
-                console.print(f"[red]Cycle {target_cycle} Failed:[/red] {final_state['error']}")
-                # Check specific phase failures
-                phase = final_state.get("current_phase")
-                console.print(f"Failed at phase: [bold]{phase}[/bold]")
-                sys.exit(1)
-            else:
-                if auto and cycle_id.lower() == "all":
+            try:
+                # Resume session first if requested (Async)
+                resume_info = None
+                if resume_session:
+                    resume_info = await SessionManager.resume_jules_session(resume_session)
                     console.print(
-                        f"[bold green]Cycle {target_cycle} Completed Successfully![/bold green]"
+                        f"[green]✓ Resumed Jules session with PR: {resume_info['pr_url']}[/green]"
                     )
-                elif auto:
-                    from ac_cdd_core.messages import SuccessMessages
 
-                    SuccessMessages.show_panel(SuccessMessages.all_cycles_complete())
+                # Load session (Sync)
+                session_data = SessionManager.load_or_reconcile_session(
+                    session_id=session_id,
+                    auto_reconcile=True,
+                    resume_info=resume_info,
+                )
+                session_id_to_use = session_data["session_id"]
+                integration_branch = session_data["integration_branch"]
+
+                if not resume_session and not session_id:
+                    if session_data.get("reconciled"):
+                        console.print(f"[green]✓ Reconciled session: {session_id_to_use}[/green]")
+                    else:
+                        console.print(f"[dim]Using saved session: {session_id_to_use}[/dim]")
+            except SessionValidationError as e:
+                console.print(f"[red]{e}[/red]")
+                sys.exit(1)
+
+            # Validate session using validator class
+            try:
+                validator = SessionValidator(session_id_to_use, integration_branch, check_remote=True)
+                is_valid, error_msg = await validator.validate()
+                if not is_valid:
+                    console.print(f"[red]{error_msg}[/red]")
+                    sys.exit(1)
+            except ValidationError as e:
+                console.print(f"[red]{e}[/red]")
+                sys.exit(1)
+
+            # Initialize state
+            initial_state = CycleState(
+                cycle_id=target_cycle,
+                iteration_count=start_iter,
+                session_id=session_id_to_use,
+                integration_branch=integration_branch,
+            )
+
+            # Apply resume info if present
+            if resume_info:
+                initial_state.resume_mode = True
+                initial_state.pr_url = resume_info["pr_url"]
+                initial_state.jules_session_name = resume_info["jules_session_name"]
+
+            try:
+                # We iterate through events to show progress if needed, or just invoke
+                # invoke returns the final state
+                final_state = await graph.ainvoke(initial_state, {"recursion_limit": 50})
+
+                if final_state.get("error"):
+                    console.print(f"[red]Cycle {target_cycle} Failed:[/red] {final_state['error']}")
+                    # Check specific phase failures
+                    phase = final_state.get("current_phase")
+                    console.print(f"Failed at phase: [bold]{phase}[/bold]")
+                    sys.exit(1)
                 else:
-                    # Calculate next cycle ID
-                    try:
-                        next_id_int = int(target_cycle) + 1
-                        next_cycle_id = f"{next_id_int:02d}"
-                    except ValueError:
-                        next_cycle_id = "XX"
+                    if auto and cycle_id.lower() == "all":
+                        console.print(
+                            f"[bold green]Cycle {target_cycle} Completed Successfully![/bold green]"
+                        )
+                    elif auto:
+                        from ac_cdd_core.messages import SuccessMessages
 
-                    from ac_cdd_core.messages import SuccessMessages
+                        SuccessMessages.show_panel(SuccessMessages.all_cycles_complete())
+                    else:
+                        # Calculate next cycle ID
+                        try:
+                            next_id_int = int(target_cycle) + 1
+                            next_cycle_id = f"{next_id_int:02d}"
+                        except ValueError:
+                            next_cycle_id = "XX"
 
-                    SuccessMessages.show_panel(
-                        SuccessMessages.cycle_complete(target_cycle, next_cycle_id)
-                    )
+                        from ac_cdd_core.messages import SuccessMessages
 
-        except Exception as e:
-            console.print(f"[red]Error during execution:[/red] {e}")
-            logger.exception("Graph execution failed")
-            sys.exit(1)
-        finally:
-            # Graceful cleanup
-            await builder.cleanup()
+                        SuccessMessages.show_panel(
+                            SuccessMessages.cycle_complete(target_cycle, next_cycle_id)
+                        )
+
+            except Exception as e:
+                console.print(f"[red]Error during execution:[/red] {e}")
+                logger.exception("Graph execution failed")
+                sys.exit(1)
+            finally:
+                # Graceful cleanup
+                await builder.cleanup()
 
     async def _run_all() -> None:
         cycles_to_run = ["01", "02", "03", "04", "05"] if cycle_id.lower() == "all" else [cycle_id]
