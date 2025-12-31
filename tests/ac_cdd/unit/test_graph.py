@@ -172,6 +172,54 @@ async def test_audit_node_execution(mock_services):
 
 
 @pytest.mark.asyncio
+async def test_audit_node_file_selection(mock_services):
+    """Test audit node strictly respects changed_files."""
+    builder = GraphBuilder(mock_services)
+    
+    # 1. Test Smart Mode (Changed Files Present)
+    # Return a changed file that exists on disk
+    builder.git.get_changed_files = AsyncMock(return_value=["changed_file.py"])
+    
+    # Mock LLM and Sandbox
+    builder.llm_reviewer = AsyncMock()
+    builder.llm_reviewer.review_code.return_value = "APPROVED"
+    mock_runner = AsyncMock()
+    
+    with patch.object(builder, "_get_shared_sandbox", return_value=mock_runner):
+        # Allow Path.exists to check our file logic
+        # We need specific return values for Path.exists calls
+        # 1. changed_file.py -> True
+        # 2. ac_cdd_config.py -> True (but should NOT be included)
+        # 3. pyproject.toml -> True (but should NOT be included)
+        # 4. Docs -> False (simplify test)
+        
+        def exists_side_effect(self):
+            path_str = str(self)
+            if "changed_file.py" in path_str:
+                return True
+            if "ac_cdd_config.py" in path_str or "pyproject.toml" in path_str:
+                return True
+            return False
+            
+        with patch("pathlib.Path.exists", side_effect=exists_side_effect, autospec=True):
+             with patch("pathlib.Path.read_text", return_value="content"):
+                state = CycleState(cycle_id="01", active_branch="feat", current_auditor_index=1, current_auditor_review_count=1)
+                
+                # Run node
+                await builder.auditor_node(state)
+                
+                # Check what was passed to review_code
+                call_args = builder.llm_reviewer.review_code.call_args
+                files_content = call_args.kwargs.get("files")
+                
+                # ASSERTION: Only changed_file.py should be in there.
+                # ac_cdd_config.py and pyproject.toml should NOT be there.
+                assert "changed_file.py" in files_content
+                assert "ac_cdd_config.py" not in files_content
+                assert "pyproject.toml" not in files_content
+
+
+@pytest.mark.asyncio
 async def test_fix_node_execution(mock_services):
     """Test fix node execution with Jules."""
     # Note: There is no 'fix_node' in GraphBuilder, it's 'coder_session_node'

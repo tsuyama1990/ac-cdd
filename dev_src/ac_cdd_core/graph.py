@@ -563,20 +563,21 @@ class GraphBuilder:
 
         files_to_audit = set()
 
-        # Always include root Configs
         root_configs = ["ac_cdd_config.py", "pyproject.toml"]
-        for rc in root_configs:
-            if Path(rc).exists():
-                files_to_audit.add(rc)
 
         if changed_files:
-            # Smart Mode: Only changed files + Configs
+            # Smart Mode: Only changed files
+            # We strictly only include what changed to prioritize updated implementation.
             for f in changed_files:
-                if is_py(f) or f in root_configs:
-                    if Path(f).exists():
-                        files_to_audit.add(f)
+                if (is_py(f) or f in root_configs) and Path(f).exists():
+                    files_to_audit.add(f)
         else:
             # Fallback Mode: Full Scan
+            # Only in fallback do we add root configs explicitly if not covered
+            for rc in root_configs:
+                if Path(rc).exists():
+                    files_to_audit.add(rc)
+
             logger.info("No changes detected (or fallback). Performing FULL SCAN.")
             src_files = list(Path(settings.paths.src).rglob("*.py"))
             test_files = list(Path(settings.paths.tests).rglob("*.py"))

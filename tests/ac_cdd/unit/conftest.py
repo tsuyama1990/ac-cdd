@@ -55,7 +55,6 @@ def mock_services(
         file_patcher=mock_file_patcher,
         contract_manager=mock_contract_manager,
         artifact_manager=mock_artifact_manager,
-        presenter=mock_presenter,
         jules=mock_jules,
         reviewer=mock_reviewer,
         git=mock_git,
