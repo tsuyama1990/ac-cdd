@@ -628,7 +628,9 @@ class GraphBuilder:
 
         # 3. Load Instruction
         # Prioritize custom instruction in dev_documents
-        custom_instruction_path = Path(settings.paths.documents_dir) / "templates" / "AUDITOR_INSTRUCTION.md"
+        custom_instruction_path = (
+            Path(settings.paths.documents_dir) / "templates" / "AUDITOR_INSTRUCTION.md"
+        )
         # Support both locations (root of docs or templates subdir of docs)
         if not custom_instruction_path.exists():
              custom_instruction_path = Path(settings.paths.documents_dir) / "AUDITOR_INSTRUCTION.md"
