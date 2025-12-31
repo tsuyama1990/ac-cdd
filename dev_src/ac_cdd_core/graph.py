@@ -598,6 +598,15 @@ class GraphBuilder:
             if d.exists():
                 files_to_audit.append(_to_relative_path(d))
 
+        # Add Test Execution Log (Critical Evidence)
+        test_log_path = cycle_dir / "test_execution_log.txt"
+        test_log_missing = False
+        if test_log_path.exists():
+            files_to_audit.append(_to_relative_path(test_log_path))
+        else:
+            test_log_missing = True
+            logger.warning(f"Test Execution Log not found at {test_log_path}")
+
         files_to_audit = sorted(list(set(files_to_audit)))
 
         # 2. Read File Contents
@@ -634,6 +643,13 @@ class GraphBuilder:
             f"\n\n(Auditor #{auditor_idx}, Review {review_count}/{settings.REVIEWS_PER_AUDITOR}, "
             f"Iteration {iteration_count})"
         )
+
+        if test_log_missing:
+            instruction += (
+                "\n\nCRITICAL WARNING: The 'test_execution_log.txt' file is MISSING. "
+                "The Coder failed to provide proof of testing. "
+                "You MUST REJECT this PR and demand strictly that tests be run and logs provided."
+            )
 
         # 4. Run Audit via LLMReviewer (Direct API)
         # Use FAST_MODEL by default for reading/audit as per config
