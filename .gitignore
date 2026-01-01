@@ -17,3 +17,4 @@ build/
 *.db
 .lancedb/*
 .jules/
+.ac_cdd_session.json
