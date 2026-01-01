@@ -530,7 +530,15 @@ class JulesClient:
                                         logger.error(f"Manager Agent failed: {e}")
                                         # Fallthrough if manager fails (maybe retry or just wait)
 
-                                # If duplicate, we effectively fall through to check for PR below.
+
+                                # If duplicate (already handled), we MUST WAIT.
+                                # If we fall through, we might erroneously check for PR and exit
+                                # while Jules is still processing the answer (Status=SUCCEEDED).
+                                else:
+                                    # Jules hasn't updated status/activity yet.
+                                    # We wait and loop to avoid "Success without PR" or "Old PR" false positive.
+                                    await self._sleep(5)
+                                    continue
 
                         # --- 2. SUCCESS/COMPLETION CHECK ---
                         # If COMPLETED/SUCCEEDED and no pending inquiry, check for PR.
