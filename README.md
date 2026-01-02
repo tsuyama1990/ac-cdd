@@ -10,9 +10,9 @@ An AI-Native Cycle-Based Contract-Driven Development Environment.
 
 *   **🛡️ Committee of Code Auditors**
     *   No more "LGTM" based on loose checks.
-    *   An automated **Committee of Auditors** (3 independent auditors, each reviewing 2 times) performs strict, multi-pass code reviews.
-    *   The system iteratively fixes issues (using Jules via session resumption) until the code passes all auditors' quality gates.
-    *   **Total: 6 audit-fix cycles** per development cycle for maximum code quality.
+    *   An automated **Committee of Auditors** (3 independent audit passes) performs strict, multi-pass code reviews.
+    *   The system iteratively fixes issues until the code passes ALL auditors' quality gates.
+    *   **Total: Up to 6 audit-fix cycles** (3 auditors × 2 reviews each) per development cycle for maximum code quality.
 
 *   **🔒 Secure Sandboxed Execution**
     *   **Fully Remote Architecture**: All code execution, testing, and AI-based fixing happens inside a secure, ephemeral **E2B Sandbox**.
@@ -168,7 +168,7 @@ ac-cdd run-cycle --id all --auto
 Each cycle:
 - Creates branch: `dev/session-{timestamp}/cycle{id}`
 - Implements features via Jules
-- Runs **6 audit-fix cycles** (3 auditors × 2 reviews each)
+- Runs **Committee of Auditors** (sequential strict reviews)
 - Auto-merges to **integration branch** (not main)
 
 ### 4. Finalize Session

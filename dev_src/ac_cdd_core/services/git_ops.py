@@ -170,9 +170,7 @@ class GitManager:
         except Exception as e:
             logger.warning(f"Failed to auto-merge PR. Please merge manually. Error: {e}")
 
-    async def smart_checkout(
-        self, target: str, is_pr: bool = False, force: bool = False
-    ) -> None:
+    async def smart_checkout(self, target: str, is_pr: bool = False, force: bool = False) -> None:
         """
         Robust checkout that handles local changes (e.g., .ac_cdd_session.json).
 
@@ -210,8 +208,7 @@ class GitManager:
 
             # Log specific advice
             logger.error(
-                f"Failed to checkout '{target}'. "
-                "Please stash/commit your changes or use --force."
+                f"Failed to checkout '{target}'. Please stash/commit your changes or use --force."
             )
             raise e
 

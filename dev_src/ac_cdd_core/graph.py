@@ -41,6 +41,7 @@ class GraphBuilder:
 
         workflow.add_node("coder_session", self.nodes.coder_session_node)
         workflow.add_node("auditor", self.nodes.auditor_node)
+        workflow.add_node("committee_manager", self.nodes.committee_manager_node)
         workflow.add_node("uat_evaluate", self.nodes.uat_evaluate_node)
 
         workflow.add_edge(START, "coder_session")
@@ -52,18 +53,22 @@ class GraphBuilder:
             {
                 "ready_for_audit": "auditor",
                 "failed": END,
-                "completed": "uat_evaluate",  # Direct to UAT if audit skipped (e.g. iteration 0)
+                "completed": "uat_evaluate",  # Direct to UAT if audit skipped
             },
         )
 
-        # Conditional edge from auditor
+        # Auditor -> Committee Manager
+        workflow.add_edge("auditor", "committee_manager")
+
+        # Conditional edge from committee_manager
         workflow.add_conditional_edges(
-            "auditor",
-            self.nodes.check_audit_outcome,
+            "committee_manager",
+            self.nodes.route_committee,
             {
                 "approved": "uat_evaluate",
-                "rejected_retry": "coder_session",
-                "rejected_max_retries": END,
+                "auditor": "auditor",  # Loop back for next auditor
+                "coder_session": "coder_session",  # Loop back for fix
+                "failed": END,
             },
         )
 

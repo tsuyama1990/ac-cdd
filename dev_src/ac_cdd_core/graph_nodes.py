@@ -134,6 +134,54 @@ class CycleNodes:
 
         return {"audit_result": result, "status": status}
 
+    async def committee_manager_node(self, state: CycleState) -> dict[str, Any]:
+        """Node for Managing the Committee of Auditors."""
+        audit_res = state.get("audit_result")
+
+        current_idx = state.get("current_auditor_index", 1)
+        current_rev = state.get("current_auditor_review_count", 1)
+
+        if audit_res and audit_res.is_approved:
+            # Audit Passed
+            if current_idx < settings.NUM_AUDITORS:
+                # Move to next auditor
+                next_idx = current_idx + 1
+                console.print(
+                    f"[bold green]Auditor #{current_idx} Approved. "
+                    f"Moving to Auditor #{next_idx}.[/bold green]"
+                )
+                return {
+                    "current_auditor_index": next_idx,
+                    "current_auditor_review_count": 1,
+                    "status": "next_auditor",
+                }
+            else:
+                # All auditors approved
+                console.print("[bold green]All Auditors Approved![/bold green]")
+                return {"status": "cycle_approved"}
+
+        else:
+            # Audit Rejected or Missing
+            if current_rev < settings.REVIEWS_PER_AUDITOR:
+                # Retry allowed
+                next_rev = current_rev + 1
+                console.print(
+                    f"[bold yellow]Auditor #{current_idx} Rejected. "
+                    f"Retry {next_rev}/{settings.REVIEWS_PER_AUDITOR}.[/bold yellow]"
+                )
+                return {
+                    "current_auditor_review_count": next_rev,
+                    "iteration_count": state["iteration_count"] + 1,
+                    "status": "retry_fix",
+                }
+            else:
+                # Max retries reached
+                console.print(
+                    f"[bold red]Auditor #{current_idx} Max Retries Reached "
+                    f"({settings.REVIEWS_PER_AUDITOR}). Failed.[/bold red]"
+                )
+                return {"status": "failed"}
+
     async def uat_evaluate_node(self, state: CycleState) -> dict[str, Any]:
         """Node for UAT Evaluation."""
         console.print("[bold cyan]Running UAT Evaluation...[/bold cyan]")
@@ -148,15 +196,18 @@ class CycleNodes:
         return "completed"
 
     def check_audit_outcome(self, state: CycleState) -> str:
-        audit_res = state.get("audit_result")
-        if not audit_res:
-            return "rejected_retry"
-
-        if audit_res.is_approved:
-            return "approved"
-
-        if state["iteration_count"] >= settings.max_audit_retries:
-            console.print("[bold red]Max audit retries reached. Stopping.[/bold red]")
-            return "rejected_max_retries"
-
+        # Legacy/Unused
         return "rejected_retry"
+
+    def route_committee(self, state: CycleState) -> str:
+        """Router from committee_manager_node."""
+        status = state.get("status")
+        if status == "next_auditor":
+            return "auditor"
+        elif status == "cycle_approved":
+            return "approved"
+        elif status == "retry_fix":
+            return "coder_session"
+        elif status == "failed":
+            return "failed"
+        return "failed"  # Default fallback
