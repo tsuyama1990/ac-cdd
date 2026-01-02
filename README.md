@@ -62,26 +62,41 @@ AC-CDD is designed as a **containerized CLI tool**. You do not clone the tool's 
 
 ### Installation
 
-1.  **Pull the Docker Image (or build it):**
-    ```bash
-    docker build -t ac-cdd .
+1.  **Setup `docker-compose.yml`:**
+    Download the distribution `docker-compose.yml` to your project root, or create one:
+
+    ```yaml
+    version: '3.8'
+    services:
+      ac-cdd:
+        image: tsuyama1990/ac-cdd-agent:latest
+        container_name: ac-cdd-agent
+        volumes:
+          - .:/app
+          - ${HOME}/.ac_cdd/.env:/root/.ac_cdd/.env
+        env_file:
+          - .env
+        environment:
+          - HOST_UID=${UID:-1000}
+          - HOST_GID=${GID:-1000}
+        command: ["ac-cdd"]
+        stdin_open: true
+        tty: true
     ```
-    *(Assuming you have the Dockerfile locally, or pull from a registry if published)*
 
 2.  **Create an Alias (Recommended):**
     Add this to your shell profile (`.zshrc` or `.bashrc`) for easy access:
     ```bash
-    alias ac-cdd='docker run -it --rm -v $(pwd):/app -v $HOME/.config/gh:/root/.config/gh --env-file .env ac-cdd'
+    alias ac-cdd='docker-compose run --rm ac-cdd'
     ```
-    *Note: We mount `~/.config/gh` to share GitHub credentials.*
 
 ### Configuration
 
-The system is configured via `.env`.
+The system is configured via environment variables. You can place them in a `.env` file in your project root, or in a global configuration file at `~/.ac_cdd/.env`.
 
 #### API Keys
 
-Create a `.env` file in your project root:
+Create a `.env` file:
 
 ```env
 # Jules API (Architect/Coder)
@@ -89,6 +104,9 @@ JULES_API_KEY=your_jules_key
 
 # Sandbox (Execution)
 E2B_API_KEY=e2b_...
+
+# GitHub Authentication (Required)
+GH_TOKEN=ghp_...
 
 # Models (Auditor/QA)
 OPENROUTER_API_KEY=sk-or-...
