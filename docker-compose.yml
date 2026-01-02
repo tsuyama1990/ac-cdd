@@ -2,6 +2,7 @@ version: '3.8'
 
 services:
   ac-cdd:
+    build: .
     image: tsuyama1990/ac-cdd-agent:latest
     container_name: ac-cdd-agent
 

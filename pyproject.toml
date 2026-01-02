@@ -9,30 +9,17 @@ description = "AI-Native Cycle-Based Contract-Driven Development Environment"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "fastapi",
-    "uvicorn",
     "pydantic~=2.11.0",
     "python-dotenv",
     "pydantic-settings",
     "pydantic-ai>=0.0.18",
-    "logfire>=2.0.0",
-    "devtools",
     "langgraph>=1.0.5",
     "e2b-code-interpreter>=2.4.1",
-    "textual>=6.10.0",
-    "lancedb>=0.25.3",
-    "sentence-transformers>=5.2.0",
-    "tree-sitter==0.21.3",
-    "tree-sitter-languages==1.10.2",
-    "langgraph-checkpoint-sqlite>=3.0.1",
-    "requests>=2.32.5",
     "httpx>=0.28.1",
     "google-auth>=2.43.0",
-    "ase",
-    "pyyaml",
-    "mace-torch",
-    "click",
     "litellm>=1.80.11",
+    "typer",
+    "rich",
 ]
 
 [tool.uv]
@@ -43,8 +30,6 @@ ac-cdd = "ac_cdd_core.cli:app"
 
 [dependency-groups]
 dev = [
-    "typer",
-    "rich",
     "shellingham",
     "pytest",
     "pytest-cov",

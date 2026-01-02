@@ -23,6 +23,7 @@ WORKDIR /opt/ac_cdd/ac_cdd_core
 
 # Copy project files for the tool
 COPY pyproject.toml .
+COPY README.md .
 COPY dev_src/ ./dev_src/
 
 # Install the tool and its dependencies into the system python environment
