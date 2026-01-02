@@ -1,7 +1,7 @@
+from typing import TypedDict
 from pydantic import BaseModel, Field, field_validator
 
 from .domain_models import AuditResult, CyclePlan, FileOperation, UatAnalysis
-
 
 class CycleState(BaseModel):
     """LangGraph state for the development cycle."""
@@ -39,6 +39,8 @@ class CycleState(BaseModel):
     # Phase Tracking
     current_phase: str = "init"
     error: str | None = None
+    # Add status explicitely to allow safe access
+    status: str | None = None
 
     # Legacy/Optional Fields
     sandbox_id: str | None = None
@@ -65,9 +67,7 @@ class CycleState(BaseModel):
     @field_validator("current_auditor_index")
     @classmethod
     def validate_auditor_index(cls, v: int) -> int:
-        # Import here to avoid circular dependency
         from .config import settings
-
         if v > settings.NUM_AUDITORS:
             raise ValueError(f"Auditor index {v} exceeds NUM_AUDITORS={settings.NUM_AUDITORS}")
         return v
@@ -75,17 +75,19 @@ class CycleState(BaseModel):
     @field_validator("current_auditor_review_count")
     @classmethod
     def validate_review_count(cls, v: int) -> int:
-        # Import here to avoid circular dependency
         from .config import settings
-
         if v > settings.REVIEWS_PER_AUDITOR:
             raise ValueError(
                 f"Review count {v} exceeds REVIEWS_PER_AUDITOR={settings.REVIEWS_PER_AUDITOR}"
             )
         return v
 
+    def __getitem__(self, item):
+        return getattr(self, item)
+
+    def get(self, item, default=None):
+        return getattr(self, item, default)
+
     class Config:
-        # Allow extra fields for flexibility during migration
         extra = "allow"
-        # Enable validation on assignment
         validate_assignment = True

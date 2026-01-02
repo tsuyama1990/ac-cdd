@@ -12,7 +12,8 @@ def reviewer():
 @pytest.mark.asyncio
 async def test_review_code_success(reviewer):
     """Test successful code review call."""
-    files = {"main.py": "print('hello')", "utils.py": "def foo(): pass"}
+    target_files = {"main.py": "print('hello')"}
+    context_files = {"spec.md": "# Spec"}
     instruction = "Review this code."
     model = "test-model"
 
@@ -23,7 +24,8 @@ async def test_review_code_success(reviewer):
     ]
 
     with patch("litellm.acompletion", return_value=mock_response) as mock_completion:
-        result = await reviewer.review_code(files, instruction, model)
+        # UPDATED SIGNATURE: target_files, context_docs, instruction, model
+        result = await reviewer.review_code(target_files, context_files, instruction, model)
 
         assert result == "Refactored code"
         mock_completion.assert_called_once()
@@ -33,18 +35,21 @@ async def test_review_code_success(reviewer):
         messages = call_kwargs["messages"]
         prompt = messages[1]["content"]
 
-        assert "<instruction>\nReview this code.\n</instruction>" in prompt
-        assert "<file path=\"main.py\">\nprint('hello')\n</file>" in prompt
-        assert '<file path="utils.py">\ndef foo(): pass\n</file>' in prompt
+        # Verify strict separation markers
+        assert "🚫 READ-ONLY CONTEXT" in prompt
+        assert "🎯 AUDIT TARGET" in prompt
+        assert "File: spec.md (READ-ONLY SPECIFICATION)" in prompt
+        assert "File: main.py (AUDIT TARGET)" in prompt
 
 
 @pytest.mark.asyncio
 async def test_review_code_api_failure(reviewer):
     """Test error handling when API fails."""
-    files = {"main.py": "content"}
+    target_files = {"main.py": "content"}
+    context_files = {}
 
     with patch("litellm.acompletion", side_effect=Exception("API Error")):
-        result = await reviewer.review_code(files, "inst", "model")
+        result = await reviewer.review_code(target_files, context_files, "inst", "model")
 
         assert result.startswith("SYSTEM_ERROR")
         assert "API call failed" in result

@@ -83,9 +83,16 @@ def get_model(model_name: str) -> Any:
 # Auditor Agent is deprecated/removed in favor of LLMReviewer.
 
 # QA Analyst Agent
+# Updated to use dynamic prompt loading via factory function or string injection
+# Since pydantic-ai Agent accepts system_prompt as string or function,
+# we can call the loader function immediately if we assume static loading,
+# OR we can wrap it in a function.
+# However, settings.reviewer.qa_analyst used to contain the STRING content.
+# We must replicate that behavior.
+
 qa_analyst_agent: Agent[Any, UatAnalysis] = Agent(
     model=get_model(settings.agents.qa_analyst_model),
-    system_prompt=settings.reviewer.qa_analyst,
+    system_prompt=settings.get_prompt_content("UAT_DESIGN.md", default="You are a QA Analyst."),
 )
 
 

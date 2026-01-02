@@ -26,7 +26,11 @@ class AuditResult(BaseModel):
     """監査結果"""
 
     model_config = ConfigDict(extra="forbid")
-    is_approved: bool
+    # Mapping 'approved' status to boolean is_approved
+    status: str | None = None # Added to support mapping from LLMReviewer status string
+    is_approved: bool = False
+    reason: str | None = None
+    feedback: str | None = None
     critical_issues: list[str] = Field(default_factory=list)
     suggestions: list[str] = Field(default_factory=list)
 

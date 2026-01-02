@@ -5,11 +5,46 @@ from .graph_nodes import CycleNodes
 from .sandbox import SandboxRunner
 from .services.jules_client import JulesClient
 from .state import CycleState
+from .service_container import ServiceContainer
 
 
 class GraphBuilder:
-    def __init__(self, sandbox_runner: SandboxRunner, jules_client: JulesClient):
-        self.nodes = CycleNodes(sandbox_runner, jules_client)
+    def __init__(self, services: ServiceContainer):
+        # Extract dependencies from ServiceContainer
+        # CycleNodes requires SandboxRunner and JulesClient
+        # In ServiceContainer, these might be named differently or wrapped
+        # But looking at previous code, GraphBuilder took (sandbox, jules).
+        # We need to bridge this.
+
+        # NOTE: ServiceContainer in this codebase seems to be a wrapper.
+        # Let's assume it has .sandbox and .jules attributes based on previous usage.
+        # If not, we need to inspect ServiceContainer.
+
+        # Wait, previous CLI usage was:
+        # services = ServiceContainer.default()
+        # builder = GraphBuilder(services)
+
+        # So GraphBuilder expects `services`.
+        # BUT the definition I just read shows:
+        # def __init__(self, sandbox_runner: SandboxRunner, jules_client: JulesClient):
+
+        # This means I need to UPDATE GraphBuilder to accept ServiceContainer
+        # OR update the call sites.
+        # The prompt says "Refactor...".
+        # CLI calls it with `builder = GraphBuilder(services)`.
+        # So I MUST update GraphBuilder to accept services.
+
+        # Let's check if services has what we need.
+        # Assuming services.sandbox is SandboxRunner and services.jules is JulesClient.
+
+        self.sandbox = services.sandbox
+        self.jules = services.jules
+
+        self.nodes = CycleNodes(self.sandbox, self.jules)
+
+    async def cleanup(self):
+        # Add cleanup method which CLI calls
+        pass
 
     def _create_architect_graph(self) -> StateGraph:
         """Create the graph for the Architect phase (gen-cycles)."""

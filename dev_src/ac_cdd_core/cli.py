@@ -1,5 +1,7 @@
 import os
 import sys
+import subprocess
+from pathlib import Path
 from typing import Annotated
 
 import typer
@@ -110,16 +112,41 @@ def check_environment() -> None:
 @app.command()
 def init() -> None:
     """
-    Initialize the AC-CDD environment.
-    Checks environment and creates necessary directories and files.
+    Initialize the AC-CDD environment (Docker Optimized).
+    Creates /app/src, /app/dev_documents and runs 'uv init' if needed.
     """
-    check_environment()
+    # Create directories
+    settings.paths.src.mkdir(parents=True, exist_ok=True)
+    settings.paths.documents_dir.mkdir(parents=True, exist_ok=True)
+
+    # Initialize uv project if pyproject.toml is missing
+    # We check in the root of the workspace (/app)
+    pyproject_path = settings.paths.workspace_root / "pyproject.toml" if hasattr(settings.paths, "workspace_root") else Path("/app/pyproject.toml")
+
+    if not pyproject_path.exists():
+        console.print("[yellow]pyproject.toml not found. Initializing uv project...[/yellow]")
+        try:
+             # Run uv init in the workspace root
+             subprocess.run(["uv", "init"], cwd=str(pyproject_path.parent), check=True)
+        except subprocess.CalledProcessError as e:
+             console.print(f"[red]Failed to run uv init:[/red] {e}")
+             raise typer.Exit(code=1) from e
+        except FileNotFoundError:
+             console.print("[red]uv executable not found.[/red]")
+             raise typer.Exit(code=1)
+    else:
+        console.print("[dim]pyproject.toml already exists. Skipping initialization.[/dim]")
 
     from .services.project import ProjectManager
 
     manager = ProjectManager()
     try:
+        # Initialize templates (copy system prompts if needed)
+        # Note: In Docker mode, we might not want to copy ALL system prompts to user space
+        # to keep them immutable. But ProjectManager.initialize_project copies SPEC.md
+        # which is good.
         manager.initialize_project(settings.paths.templates)
+
         msg = (
             "✅ Initialization Complete!\n\n"
             "Next Steps:\n"
@@ -127,7 +154,7 @@ def init() -> None:
             f"   {settings.paths.documents_dir}/ALL_SPEC.md\n"
             "   (This file was copied from templates. Please define your project goals here.)\n\n"
             "2. Generate architecture and cycle plans:\n"
-            "   uv run manage.py gen-cycles"
+            "   docker-compose run ac-cdd gen-cycles"
         )
         console.print(Panel(msg, title="Next Action Guide", style="bold green", expand=False))
     except Exception as e:
@@ -204,7 +231,6 @@ def gen_cycles(
     asyncio.run(_run())
 
 
-@app.command(name="run-cycle")
 @app.command(name="run-cycle")
 def run_cycle(
     cycle_id: Annotated[str, typer.Option("--id", help="Cycle ID (e.g., '01') or 'all'")] = "01",

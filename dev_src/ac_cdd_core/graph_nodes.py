@@ -4,6 +4,7 @@ from typing import Any
 from rich.console import Console
 
 from .config import settings
+from .domain_models import AuditResult
 from .sandbox import SandboxRunner
 from .services.audit_orchestrator import AuditOrchestrator
 from .services.jules_client import JulesClient
@@ -50,12 +51,6 @@ class CycleNodes:
 
         session_id = f"architect-cycle-{state['cycle_id']}"
 
-        # For Architect, context files are the target to be managed (Specs)
-        # But we pass them as context/target?
-        # Since Architect CREATES/EDITS Specs, they are logically "Target Files".
-        # But `context_files` helper points to docs.
-        # So we pass them as target_files here to indicate editability.
-
         result = await self.jules.run_session(
             session_id=session_id,
             prompt=instruction,
@@ -66,7 +61,7 @@ class CycleNodes:
         )
 
         if result.get("status") == "success" or result.get("status") == "running":
-            return {"status": "architect_completed"}
+            return {"status": "architect_completed", "current_phase": "architect_done"}
         else:
             return {"status": "architect_failed", "error": result.get("error")}
 
@@ -129,15 +124,15 @@ class CycleNodes:
 
         status = "approved" if "NO ISSUES FOUND" in audit_feedback.upper() else "rejected"
 
-        class SimpleAuditResult:
-            def __init__(self, status, reason, feedback):
-                self.status = status
-                self.reason = reason
-                self.feedback = feedback
+        # Use the Domain Model AuditResult instead of SimpleAuditResult
+        result = AuditResult(
+            status=status.upper(), # 'APPROVED' or 'REJECTED'
+            is_approved=(status == "approved"),
+            reason="AI Audit Complete",
+            feedback=audit_feedback
+        )
 
-        result = SimpleAuditResult(status, "AI Audit Complete", audit_feedback)
-
-        return {"audit_result": result, "status": result.status}
+        return {"audit_result": result, "status": status}
 
     async def uat_evaluate_node(self, state: CycleState) -> dict[str, Any]:
         """Node for UAT Evaluation."""
@@ -157,7 +152,7 @@ class CycleNodes:
         if not audit_res:
             return "rejected_retry"
 
-        if audit_res.status == "approved":
+        if audit_res.is_approved:
             return "approved"
 
         if state["iteration_count"] >= settings.max_audit_retries:

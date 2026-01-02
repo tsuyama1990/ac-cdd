@@ -17,38 +17,32 @@ RUN apt-get update && apt-get install -y \
 # Install uv
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 
-# Set working directory
-WORKDIR /app
+# Set working directory for the tool installation
+# We install the tool into /opt/ac_cdd/ac_cdd_core
+WORKDIR /opt/ac_cdd/ac_cdd_core
 
-# Create directory for internal templates
-RUN mkdir -p /opt/ac-cdd/templates
-
-# Copy project files
-# We assume the build context is the repository root
+# Copy project files for the tool
 COPY pyproject.toml .
 COPY dev_src/ ./dev_src/
 
-# Install dependencies
-# We install the package in editable mode or just dependencies
-# Assuming we want to install the tool globally in the container
+# Install the tool and its dependencies into the system python environment
 RUN uv pip install --system .
 
 # Copy system prompts to internal template directory
-# We assume they are in dev_documents/system_prompts based on previous findings
-# Note: The prompt mentioned /opt/ac_cdd/templates (underscore vs hyphen).
-# I used hyphen in config (/opt/ac-cdd/templates). I will stick to hyphen or check what I wrote.
-# I wrote /opt/ac-cdd/templates in config.py default.
-COPY dev_documents/system_prompts/*.md /opt/ac-cdd/templates/
+RUN mkdir -p /opt/ac_cdd/templates
+COPY dev_documents/system_prompts/*.md /opt/ac_cdd/templates/
 
-# Entrypoint script
+# Create /app for user mount
+WORKDIR /app
+
+# Copy entrypoint
 COPY entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
 # Environment variables
 ENV PYTHONUNBUFFERED=1
-ENV AC_CDD_TEMPLATE_PATH=/opt/ac-cdd/templates
-# Ensure ac_cdd_config.py is looked for in CWD (/app)
-# AC_CDD_CONFIG_PATH can be set by user if needed, but default is CWD.
+ENV AC_CDD_TEMPLATE_PATH=/opt/ac_cdd/templates
+# AC_CDD_CONFIG_PATH is no longer needed
 
-ENTRYPOINT ["entrypoint.sh"]
-CMD ["ac-cdd", "--help"]
+ENTRYPOINT ["ac-cdd"]
+CMD ["--help"]
