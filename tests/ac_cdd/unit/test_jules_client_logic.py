@@ -22,7 +22,7 @@ class TestJulesClientLogic(unittest.IsolatedAsyncioTestCase):
             self.client.credentials = MagicMock()
             self.client._get_headers = MagicMock(return_value={})
             self.client.credentials.token = "mock_token"  # noqa: S105
-            
+
             # FIX: Add api_client mock which is now used by wait_for_completion
             self.client.api_client = MagicMock()
             self.client.api_client.api_key = "mock_key"

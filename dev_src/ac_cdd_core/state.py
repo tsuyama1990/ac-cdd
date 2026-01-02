@@ -1,7 +1,7 @@
-from typing import TypedDict
 from pydantic import BaseModel, Field, field_validator
 
 from .domain_models import AuditResult, CyclePlan, FileOperation, UatAnalysis
+
 
 class CycleState(BaseModel):
     """LangGraph state for the development cycle."""
@@ -68,6 +68,7 @@ class CycleState(BaseModel):
     @classmethod
     def validate_auditor_index(cls, v: int) -> int:
         from .config import settings
+
         if v > settings.NUM_AUDITORS:
             raise ValueError(f"Auditor index {v} exceeds NUM_AUDITORS={settings.NUM_AUDITORS}")
         return v
@@ -76,6 +77,7 @@ class CycleState(BaseModel):
     @classmethod
     def validate_review_count(cls, v: int) -> int:
         from .config import settings
+
         if v > settings.REVIEWS_PER_AUDITOR:
             raise ValueError(
                 f"Review count {v} exceeds REVIEWS_PER_AUDITOR={settings.REVIEWS_PER_AUDITOR}"

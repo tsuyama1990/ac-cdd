@@ -126,10 +126,10 @@ class CycleNodes:
 
         # Use the Domain Model AuditResult instead of SimpleAuditResult
         result = AuditResult(
-            status=status.upper(), # 'APPROVED' or 'REJECTED'
+            status=status.upper(),  # 'APPROVED' or 'REJECTED'
             is_approved=(status == "approved"),
             reason="AI Audit Complete",
-            feedback=audit_feedback
+            feedback=audit_feedback,
         )
 
         return {"audit_result": result, "status": status}

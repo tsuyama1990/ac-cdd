@@ -27,7 +27,7 @@ class AuditResult(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
     # Mapping 'approved' status to boolean is_approved
-    status: str | None = None # Added to support mapping from LLMReviewer status string
+    status: str | None = None  # Added to support mapping from LLMReviewer status string
     is_approved: bool = False
     reason: str | None = None
     feedback: str | None = None

@@ -1,17 +1,23 @@
 import os
-from unittest.mock import patch, MagicMock
 from pathlib import Path
+from unittest.mock import MagicMock, patch
+
 import pytest
-from ac_cdd_core.config import Settings, PROMPT_FILENAME_MAP
+from ac_cdd_core.config import Settings
+
 
 @pytest.fixture
 def mock_env():
-    with patch.dict(os.environ, {
-        "AC_CDD_REVIEWER__SMART_MODEL": "test-smart-model",
-        "AC_CDD_PATHS__DOCUMENTS_DIR": "/tmp/docs",
-        "AC_CDD_JULES__TIMEOUT_SECONDS": "999"
-    }):
+    with patch.dict(
+        os.environ,
+        {
+            "AC_CDD_REVIEWER__SMART_MODEL": "test-smart-model",
+            "AC_CDD_PATHS__DOCUMENTS_DIR": "/tmp/docs",  # noqa: S108
+            "AC_CDD_JULES__TIMEOUT_SECONDS": "999",
+        },
+    ):
         yield
+
 
 def test_config_env_vars_loaded(mock_env):
     """Test that environment variables override defaults."""
@@ -20,8 +26,9 @@ def test_config_env_vars_loaded(mock_env):
     local_settings = Settings()
 
     assert local_settings.reviewer.smart_model == "test-smart-model"
-    assert str(local_settings.paths.documents_dir) == "/tmp/docs"
+    assert str(local_settings.paths.documents_dir) == "/tmp/docs"  # noqa: S108
     assert local_settings.jules.timeout_seconds == 999
+
 
 def test_config_defaults():
     """Test default values without env overrides."""
@@ -31,6 +38,7 @@ def test_config_defaults():
         assert local_settings.reviewer.smart_model == "claude-3-5-sonnet"
         assert str(local_settings.paths.src) == "/app/src"
         assert str(local_settings.paths.templates) == "/opt/ac_cdd/templates"
+
 
 def test_get_template_logic():
     """Test the template resolution logic priority."""
@@ -46,9 +54,9 @@ def test_get_template_logic():
     def side_effect(self):
         s = str(self)
         if s.startswith("/user/docs/system_prompts/foo.md"):
-             return True
+            return True
         if s.startswith("/system/templates/bar.md"):
-             return True
+            return True
         return False
 
     with patch("pathlib.Path.exists", side_effect=side_effect, autospec=True):
@@ -59,6 +67,7 @@ def test_get_template_logic():
         # Case 2: System default
         result2 = local_settings.get_template("bar.md")
         assert str(result2) == "/system/templates/bar.md"
+
 
 def test_get_prompt_content():
     """Test that prompt content is read correctly."""
@@ -77,6 +86,7 @@ def test_get_prompt_content():
         mock_get_template.assert_called_with("AUDITOR_INSTRUCTION.md")
         assert content == "MOCKED PROMPT CONTENT"
 
+
 def test_path_separation():
     """
     Test that Context (Specs) and Target (Code) paths are strictly separated.
@@ -89,10 +99,11 @@ def test_path_separation():
     # Setup mock file system
     # We mock Path.glob, rglob, and exists
 
-    with patch("pathlib.Path.glob") as mock_glob, \
-         patch("pathlib.Path.rglob") as mock_rglob, \
-         patch("pathlib.Path.exists", return_value=True):
-
+    with (
+        patch("pathlib.Path.glob") as mock_glob,
+        patch("pathlib.Path.rglob") as mock_rglob,
+        patch("pathlib.Path.exists", return_value=True),
+    ):
         # Mock glob for docs
         # We need to ensure it only returns for the right directory, but since
         # the methods are called on specific paths, we can check the path instance in side_effect?
@@ -104,8 +115,8 @@ def test_path_separation():
         # Mock rglob for src/tests
         # get_target_files calls rglob twice: once on src, once on tests
         mock_rglob.side_effect = [
-            [Path("/app/src/main.py")], # src rglob
-            [Path("/app/tests/test_main.py")] # tests rglob
+            [Path("/app/src/main.py")],  # src rglob
+            [Path("/app/tests/test_main.py")],  # tests rglob
         ]
 
         context_files = local_settings.get_context_files()

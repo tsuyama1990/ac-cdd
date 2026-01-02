@@ -1,9 +1,8 @@
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
-from unittest.mock import patch
-from ac_cdd_core.service_container import ServiceContainer
 from ac_cdd_core.config import Settings
+from ac_cdd_core.service_container import ServiceContainer
 
 
 @pytest.fixture(autouse=True)

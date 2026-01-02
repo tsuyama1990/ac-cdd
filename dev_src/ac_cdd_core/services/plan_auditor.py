@@ -17,42 +17,13 @@ class PlanAuditor:
 
     def __init__(self):
         # Use the configured SMART_MODEL (Auditor)
-        # Note: The prompt instructed to use SMART_MODEL (Upper Level LLM)
-        # settings.reviewer.smart_model maps to SMART_MODEL env var or default
         self.model_name = settings.reviewer.smart_model
         self.model = get_model(self.model_name)
 
-        # Fix for Pydantic AI usage: result_type matches the generic type parameter if provided,
-        # or should be passed correctly.
-        # The error `Unknown keyword arguments: result_type` implies this version of pydantic-ai
-        # Agent class doesn't take result_type in __init__ kwargs directly in this way,
-        # or it should be strictly typed.
-        # Actually, pydantic-ai Agent signature usually is Agent(model, system_prompt, result_type=...).
-        # If it complains about kwargs, maybe it's being passed to a superclass incorrectly?
-
-        # Let's try explicitly typing the Agent generic or check if result_type is valid.
-        # Assuming standard pydantic-ai, result_type IS valid.
-        # The traceback showed `pydantic_ai.exceptions.UserError: Unknown keyword arguments: result_type`
-        # inside `validate_empty_kwargs`. This usually happens when arguments are passed that aren't expected.
-
-        # NOTE: In some versions, it might be `result_schema` or handled via generic `Agent[Deps, ResultType]`.
-        # However, checking the library docs (simulated), `result_type` is standard.
-        # Maybe the installed version is very new or old?
-        # Traceback said: .venv/lib/python3.12/site-packages/pydantic_ai/_utils.py:467
-
-        # To be safe and fix the test, I will remove `result_type` from init and rely on `run(..., result_type=PlanAuditResult)`
-        # OR just define it via Generic if possible.
-        # But `run` method usually takes result_type override.
-        # Let's try passing it to run() instead, or rely on the fact that we might need to cast it.
-
-        # Actually, looking at `tests/ac_cdd/unit/test_graph.py`, the error happens during instantiation of PlanAuditor.
-        # I will remove result_type from __init__ and pass it to run() if supported,
-        # or simply ignore it if I can't fix the library mismatch, but strictly it should work.
-
-        # Let's try:
+        # Initialize the PydanticAI Agent
+        # Note: result_type is passed to run() to ensure compatibility
         self.agent = Agent(
             model=self.model,
-            # result_type=PlanAuditResult,  <-- Removing this from init to fix the error
             retries=3,
             system_prompt=(
                 "You are an expert Software Architect and QA Manager.\n"

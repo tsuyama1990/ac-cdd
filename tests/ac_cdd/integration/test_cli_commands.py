@@ -138,7 +138,7 @@ def test_gen_cycles_command(runner, mock_graph_builder, mock_session_manager):
 
         assert result.exit_code == 0
         assert "Architect Phase: Generating Cycles" in result.stdout
-        
+
         # Verify CycleState was initialized with planned_cycle_count=3
         MockCycleState.assert_called_once()
         _, kwargs = MockCycleState.call_args

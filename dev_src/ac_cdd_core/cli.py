@@ -466,7 +466,7 @@ def run_cycle(
                 active = data["active_cycle_id"]
                 if active in raw_list:
                     start_index = raw_list.index(active)
-                    skipped = raw_list[start_index - 1] if start_index > 0 else 'None'
+                    skipped = raw_list[start_index - 1] if start_index > 0 else "None"
                     console.print(
                         f"[yellow]Taking up from saved active cycle: {active} "
                         f"(Skipping 01-{skipped})[/yellow]"
