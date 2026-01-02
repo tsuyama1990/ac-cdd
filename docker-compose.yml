@@ -9,12 +9,11 @@ services:
     volumes:
       - .:/app
       # Optional: Mount global config if exists
-      - ${HOME}/.ac_cdd/.env:/root/.ac_cdd/.env
+      # - ${HOME}/.ac_cdd/.env:/root/.ac_cdd/.env
 
     # Load environment variables
     env_file:
       - .env
-      - ${HOME}/.ac_cdd/.env
 
     environment:
       # Pass Host UID/GID to fix permission issues
