@@ -8,7 +8,7 @@ class LLMReviewer:
     Uses litellm to communicate with various LLM providers (OpenRouter, Gemini, etc.).
     """
 
-    def __init__(self, sandbox_runner=None) -> None:
+    def __init__(self, sandbox_runner: object | None = None) -> None:
         # sandbox_runner is accepted for dependency injection compatibility
         # even if not strictly used by this class (files are passed as content)
         self.sandbox = sandbox_runner
@@ -61,7 +61,7 @@ class LLMReviewer:
 
             # Extract content from response
             content = response.choices[0].message.content
-            return content
+            return str(content)
 
         except Exception as e:
             logger.error(f"LLMReviewer failed: {e}")

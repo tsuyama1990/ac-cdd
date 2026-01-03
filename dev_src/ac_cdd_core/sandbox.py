@@ -116,8 +116,8 @@ class SandboxRunner:
                     if self.sandbox:
                         try:
                             self.sandbox.kill()
-                        except Exception as e:
-                            logger.debug(f"Failed to kill sandbox: {e}")
+                        except Exception as sandbox_kill_err:
+                            logger.debug(f"Failed to kill sandbox: {sandbox_kill_err}")
                         self.sandbox = None
                         self._last_sync_hash = None  # Force re-sync on new sandbox definition
 

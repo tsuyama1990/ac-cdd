@@ -163,8 +163,10 @@ class Settings(BaseSettings):
     jules: JulesConfig = Field(default_factory=JulesConfig)
     tools: ToolsConfig = Field(default_factory=ToolsConfig)
     sandbox: SandboxConfig = Field(default_factory=SandboxConfig)
-    agents: AgentsConfig = Field(default_factory=AgentsConfig)
-    reviewer: ReviewerConfig = Field(default_factory=ReviewerConfig)
+    # AgentsConfig/ReviewerConfig have required fields, so no default_factory unless we mock it or allow empty.
+    # Pydantic Settings will populate from env vars.
+    agents: AgentsConfig
+    reviewer: ReviewerConfig
 
     model_config = SettingsConfigDict(
         env_prefix="AC_CDD_",
@@ -311,4 +313,4 @@ class Settings(BaseSettings):
 
 
 # Global settings object
-settings = Settings()
+settings = Settings()  # type: ignore[call-arg]

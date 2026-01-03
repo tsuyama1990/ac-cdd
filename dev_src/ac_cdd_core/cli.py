@@ -150,7 +150,7 @@ def init() -> None:
         # Note: In Docker mode, we might not want to copy ALL system prompts to user space
         # to keep them immutable. But ProjectManager.initialize_project copies SPEC.md
         # which is good.
-        manager.initialize_project(settings.paths.templates)
+        manager.initialize_project(str(settings.paths.templates))
 
         msg = (
             "✅ Initialization Complete!\n\n"
@@ -173,10 +173,10 @@ def init() -> None:
 def gen_cycles(
     cycles: Annotated[int, typer.Option(help="Max number of cycles to plan")] = 5,
     session_id: Annotated[
-        str, typer.Option(help="Session ID (auto-generated if not provided)")
+        str | None, typer.Option(help="Session ID (auto-generated if not provided)")
     ] = None,
     count: Annotated[
-        int, typer.Option("--count", "-c", help="Target number of development cycles")
+        int | None, typer.Option("--count", "-c", help="Target number of development cycles")
     ] = None,
 ) -> None:
     """
@@ -265,7 +265,7 @@ def gen_cycles(
 @app.command(name="run-cycle")
 def run_cycle(
     cycle_id: Annotated[str, typer.Option("--id", help="Cycle ID (e.g., '01') or 'all'")] = "01",
-    project_session_id: Annotated[str, typer.Option("--session", help="Session ID")] = None,
+    project_session_id: Annotated[str | None, typer.Option("--session", help="Session ID")] = None,
     auto: Annotated[bool, typer.Option(help="Run without manual confirmation")] = False,
     auto_merge: Annotated[
         bool, typer.Option("--auto-merge/--no-auto-merge", help="Auto-merge PR to integration branch")
@@ -277,10 +277,10 @@ def run_cycle(
         ),
     ] = 0,
     resume_id: Annotated[
-        str, typer.Option("--resume-id", help="Resume from specific Agent Session ID")
+        str | None, typer.Option("--resume-id", help="Resume from specific Agent Session ID")
     ] = None,
     branch: Annotated[
-        str, typer.Option("--branch", help="Override integration branch (Restart from specific git state)")
+        str | None, typer.Option("--branch", help="Override integration branch (Restart from specific git state)")
     ] = None,
 ) -> None:
     """
@@ -554,7 +554,7 @@ def info() -> None:
 
 @app.command(name="finalize-session")
 def finalize_session(
-    project_session_id: Annotated[str, typer.Option("--session", help="Session ID")] = None,
+    project_session_id: Annotated[str | None, typer.Option("--session", help="Session ID")] = None,
 ) -> None:
     """
     Finalize a development session by creating a PR to main.

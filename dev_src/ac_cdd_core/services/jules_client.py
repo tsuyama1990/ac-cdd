@@ -75,7 +75,7 @@ class JulesApiClient:
 
         self.headers = {"x-goog-api-key": self.api_key, "Content-Type": "application/json"}
 
-    def _request(self, method: str, endpoint: str, data: dict | None = None) -> dict[str, Any]:
+    def _request(self, method: str, endpoint: str, data: dict[str, Any] | None = None) -> dict[str, Any]:
         # DETOUR: Check for dummy key to avoid network calls
         if self.api_key == "dummy_jules_key":
             logger.info(f"Test Mode: Returning dummy response for {method} {endpoint}")
@@ -103,7 +103,7 @@ class JulesApiClient:
                 resp_body = response.read().decode("utf-8")
                 if not resp_body:
                     return {}
-                return json.loads(resp_body)
+                return dict(json.loads(resp_body))
         except urllib.error.HTTPError as e:
             if e.code == 404:
                 raise JulesApiError(f"404 Not Found: {url}") from e
@@ -116,13 +116,13 @@ class JulesApiClient:
 
     def list_sources(self) -> list[dict[str, Any]]:
         data = self._request("GET", "sources")
-        return data.get("sources", [])
+        return list(data.get("sources", []))
 
     def find_source_by_repo(self, repo_name: str) -> str | None:
         sources = self.list_sources()
         for src in sources:
-            if repo_name in src.get("name", ""):
-                return src["name"]
+            if repo_name in str(src.get("name", "")):
+                return str(src["name"])
         return None
 
     def create_session(
@@ -145,7 +145,7 @@ class JulesApiClient:
     def list_activities(self, session_id_path: str) -> list[dict[str, Any]]:
         try:
             resp = self._request("GET", f"{session_id_path}/activities?pageSize=50")
-            return resp.get("activities", [])
+            return list(resp.get("activities", []))
         except JulesApiError as e:
             if "404" in str(e):
                 return []
@@ -170,7 +170,7 @@ class JulesClient:
 
         # Initialize Authentication (Prefer ADC)
         try:
-            self.credentials, self.project_id_from_auth = google.auth.default()
+            self.credentials, self.project_id_from_auth = google.auth.default()  # type: ignore[no-untyped-call]
             if not self.project_id:
                 self.project_id = self.project_id_from_auth
         except Exception as e:
@@ -214,7 +214,7 @@ class JulesClient:
         # But for Jules Alpha with API Key access, Key is primary.
         if self.credentials:
             if not self.credentials.valid:
-                self.credentials.refresh(GoogleAuthRequest())
+                self.credentials.refresh(GoogleAuthRequest())  # type: ignore[no-untyped-call]
             headers["Authorization"] = f"Bearer {self.credentials.token}"
 
         return headers
@@ -689,15 +689,15 @@ class JulesClient:
 
                 await self._sleep(self.poll_interval)
 
-    async def send_message(self, session_url: str, content: str):
+    async def send_message(self, session_url: str, content: str) -> None:
         """
         Sends a message to the active session.
         Endpoint: POST /{session_name}:sendMessage
         Payload: { "prompt": "..." }
         """
-        return await self._send_message(session_url, content)
+        await self._send_message(session_url, content)
 
-    async def _send_message(self, session_url: str, content: str):
+    async def _send_message(self, session_url: str, content: str) -> None:
         """
         Internal implementation for sending messages.
         """

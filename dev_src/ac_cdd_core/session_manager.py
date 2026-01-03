@@ -4,7 +4,7 @@ import json
 import subprocess
 from datetime import datetime
 from pathlib import Path
-from typing import TypedDict
+from typing import Any, TypedDict
 
 from ac_cdd_core.utils import logger
 
@@ -14,13 +14,12 @@ class SessionValidationError(Exception):
 
 
 
-class SessionInfo(TypedDict):
-    session_id: str
+class SessionInfo(TypedDict, total=False):
+    project_session_id: str
     integration_branch: str
-    integration_branch: str
-    jules_session_id: str | None
+    agent_session_id: str | None
     active_cycle_id: str | None
-    resume_info: dict | None
+    resume_info: dict[str, Any] | None
 
 
 class SessionManager:
@@ -41,7 +40,7 @@ class SessionManager:
         logger.info(f"Session saved: {project_session_id}")
 
     @classmethod
-    def update_session(cls, **kwargs) -> None:
+    def update_session(cls, **kwargs: Any) -> None:
         """
         Update existing session file with new data.
         Preserves existing keys not in kwargs.
@@ -60,11 +59,11 @@ class SessionManager:
             logger.error(f"Failed to update session: {e}")
 
     @classmethod
-    def load_session(cls) -> dict | None:
+    def load_session(cls) -> dict[str, Any] | None:
         """Load session information from file."""
         if cls.SESSION_FILE.exists():
             try:
-                data = json.loads(cls.SESSION_FILE.read_text())
+                data: dict[str, Any] = json.loads(cls.SESSION_FILE.read_text())
                 logger.info(f"Session loaded: {data.get('project_session_id')}")
                 return data
             except Exception as e:
@@ -142,7 +141,7 @@ class SessionManager:
         return True, None
 
     @classmethod
-    def reconcile_session(cls) -> dict | None:
+    def reconcile_session(cls) -> dict[str, Any] | None:
         """
         Attempt to reconcile session state from Git branches if session file is missing.
 
@@ -206,7 +205,7 @@ class SessionManager:
         return f"{settings.session.integration_branch_prefix}/{project_session_id}/integration"
 
     @classmethod
-    async def resume_jules_session(cls, session_name: str | None = None) -> dict:
+    async def resume_jules_session(cls, session_name: str | None = None) -> dict[str, Any]:
         """
         Resumes a Jules session and waits for completion.
         If session_name is None, attempts to load it from the session file.
@@ -339,8 +338,8 @@ class SessionManager:
             reconciled = cls.reconcile_session()
             if reconciled:
                 return {
-                    "project_session_id": reconciled["project_session_id"],
-                    "integration_branch": reconciled["integration_branch"],
+                    "project_session_id": str(reconciled["project_session_id"]),
+                    "integration_branch": str(reconciled["integration_branch"]),
                     "resume_info": resume_info,
                 }
 

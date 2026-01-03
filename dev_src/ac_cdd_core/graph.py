@@ -1,3 +1,5 @@
+from typing import Any
+
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 
@@ -19,12 +21,12 @@ class GraphBuilder:
 
         self.nodes = CycleNodes(self.sandbox, self.jules)
 
-    async def cleanup(self):
+    async def cleanup(self) -> None:
         """Cleanup resources, specifically the sandbox."""
         if self.sandbox:
             await self.sandbox.cleanup()
 
-    def _create_architect_graph(self) -> StateGraph:
+    def _create_architect_graph(self) -> StateGraph[CycleState, Any, Any]:
         """Create the graph for the Architect phase (gen-cycles)."""
         workflow = StateGraph(CycleState)
 
@@ -35,7 +37,7 @@ class GraphBuilder:
 
         return workflow
 
-    def _create_coder_graph(self) -> StateGraph:
+    def _create_coder_graph(self) -> StateGraph[CycleState, Any, Any]:
         """Create the graph for the Coder/Auditor phase (run-cycle)."""
         workflow = StateGraph(CycleState)
 
@@ -76,8 +78,8 @@ class GraphBuilder:
 
         return workflow
 
-    def build_architect_graph(self):
+    def build_architect_graph(self) -> Any:
         return self._create_architect_graph().compile(checkpointer=MemorySaver())
 
-    def build_coder_graph(self):
+    def build_coder_graph(self) -> Any:
         return self._create_coder_graph().compile(checkpointer=MemorySaver())

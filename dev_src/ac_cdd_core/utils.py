@@ -18,7 +18,7 @@ logging.basicConfig(
 logger = logging.getLogger("AC-CDD")
 
 
-def run_command(command: list[str], cwd=None, env=None):
+def run_command(command: list[str], cwd: str | None = None, env: dict[str, str] | None = None) -> None:
     """
     コマンドを実行し、出力をリアルタイムで表示する。
     エラー時は CalledProcessError を送出する。
@@ -37,8 +37,9 @@ def run_command(command: list[str], cwd=None, env=None):
             bufsize=1,
         )
 
-        for line in process.stdout:
-            print(line, end="")  # RichHandler経由でなく直接出力して生ログを見せる
+        if process.stdout:
+            for line in process.stdout:
+                print(line, end="")  # RichHandler経由でなく直接出力して生ログを見せる
 
         process.wait()
 
@@ -97,17 +98,20 @@ def check_api_key() -> None:
         # )
 
 
+from typing import Any
+
+
 class KeepAwake:
     """
     Context manager to prevent system sleep/suspension during long operations.
     Uses 'systemd-inhibit' on Linux.
     """
 
-    def __init__(self, reason: str = "AC-CDD Long Running Task"):
+    def __init__(self, reason: str = "AC-CDD Long Running Task") -> None:
         self.reason = reason
-        self.process = None
+        self.process: subprocess.Popen[bytes] | None = None
 
-    def __enter__(self):
+    def __enter__(self) -> "KeepAwake":
         """Start the inhibitor process."""
         # Check if systemd-inhibit exists
         import shutil
@@ -138,7 +142,7 @@ class KeepAwake:
             logger.warning(f"Failed to start sleep inhibitor: {e}")
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Stop the inhibitor process."""
         if self.process:
             try:

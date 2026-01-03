@@ -51,7 +51,7 @@ class CycleNodes:
 
         # Inject cycle count constraint if specified by user
         if state.get("requested_cycle_count"):
-            n = state["requested_cycle_count"]
+            n = state.get("requested_cycle_count")
             instruction += (
                 f"\n\nIMPORTANT CONSTRAINT: The development plan MUST be divided into "
                 f"exactly {n} implementation cycles."
@@ -89,8 +89,8 @@ class CycleNodes:
 
     async def coder_session_node(self, state: CycleState) -> dict[str, Any]:
         """Node for Coder Agent (Jules)."""
-        cycle_id = state["cycle_id"]
-        iteration = state["iteration_count"]
+        cycle_id = state.get("cycle_id")
+        iteration = state.get("iteration_count")
 
         console.print(
             f"[bold green]Starting Coder Session for Cycle {cycle_id} "
@@ -164,8 +164,9 @@ class CycleNodes:
     async def committee_manager_node(self, state: CycleState) -> dict[str, Any]:
         """Node for Managing the Committee of Auditors."""
         audit_res = state.get("audit_result")
-        i = state.get("current_auditor_index", 1)
-        j = state.get("current_auditor_review_count", 1)
+        i: int = state.get("current_auditor_index", 1)
+        j: int = state.get("current_auditor_review_count", 1)
+        current_iter: int = state.get("iteration_count", 0)
 
         if audit_res and audit_res.is_approved:
             # ✅ APPROVED
@@ -195,7 +196,7 @@ class CycleNodes:
             )
             return {
                 "current_auditor_review_count": next_rev,
-                "iteration_count": state["iteration_count"] + 1,
+                "iteration_count": current_iter + 1,
                 "status": "retry_fix",
             }
         # Review limit reached - Pipeline Handover
@@ -209,7 +210,7 @@ class CycleNodes:
             return {
                 "current_auditor_index": next_idx,
                 "current_auditor_review_count": 1,
-                "iteration_count": state["iteration_count"] + 1,
+                "iteration_count": current_iter + 1,
                 "status": "retry_fix",
             }
         # Last auditor, last review - Final fix then merge
@@ -219,7 +220,7 @@ class CycleNodes:
         )
         return {
             "final_fix": True,
-            "iteration_count": state["iteration_count"] + 1,
+            "iteration_count": current_iter + 1,
             "status": "retry_fix",
         }
 

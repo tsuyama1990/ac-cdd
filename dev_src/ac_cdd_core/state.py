@@ -1,3 +1,5 @@
+from typing import Any
+
 from pydantic import BaseModel, Field, field_validator
 
 from .domain_models import AuditResult, CyclePlan, FileOperation, UatAnalysis
@@ -52,7 +54,7 @@ class CycleState(BaseModel):
     interactive: bool = False
     goal: str | None = None
     approved: bool | None = None
-    coder_report: dict | None = None
+    coder_report: dict[str, Any] | None = None
     planned_cycles: list[str] = Field(default_factory=list)
 
     # Session tracking
@@ -89,10 +91,10 @@ class CycleState(BaseModel):
             )
         return v
 
-    def __getitem__(self, item):
+    def __getitem__(self, item: str) -> Any:
         return getattr(self, item)
 
-    def get(self, item, default=None):
+    def get(self, item: str, default: Any = None) -> Any:
         return getattr(self, item, default)
 
     class Config:

@@ -114,6 +114,7 @@ packages = ["dev_src/ac_cdd_core", "src/mlip_autopipec"]
 
 [tool.mypy]
 strict = true
+ignore_missing_imports = true
 
 [tool.bandit]
 exclude_dirs = ["tests", ".venv"]
