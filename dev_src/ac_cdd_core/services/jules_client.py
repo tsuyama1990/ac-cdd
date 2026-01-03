@@ -206,8 +206,9 @@ class JulesClient:
         }
 
         # Quickstart: "To authenticate your requests, pass the API key in the X-Goog-Api-Key header"
-        if settings.JULES_API_KEY:
-            headers["X-Goog-Api-Key"] = settings.JULES_API_KEY
+        # Use the resolved key from the API client (handles env/settings fallback)
+        if self.api_client.api_key:
+            headers["X-Goog-Api-Key"] = self.api_client.api_key
 
         # If credentials exist, use them too (standard GCP behavior allows both)
         # But for Jules Alpha with API Key access, Key is primary.
