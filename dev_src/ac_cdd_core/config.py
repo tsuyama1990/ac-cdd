@@ -1,5 +1,6 @@
 from pathlib import Path
-from typing import Literal
+import os
+from typing import Any, Literal
 
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field, model_validator
@@ -94,24 +95,16 @@ class SandboxConfig(BaseModel):
 
 class AgentsConfig(BaseModel):
     # Models
-    auditor_model: str = Field(
-        default="openrouter/google/gemini-pro-1.5", validation_alias="SMART_MODEL"
-    )
-    qa_analyst_model: str = Field(
-        default="openrouter/google/gemini-flash-1.5", validation_alias="FAST_MODEL"
-    )
+    auditor_model: str
+    qa_analyst_model: str
 
 
 class ReviewerConfig(BaseModel):
     smart_model: str = Field(
-        default="openrouter/anthropic/claude-3-5-sonnet",
         description="Model for editing code (Fixer)",
-        validation_alias="SMART_MODEL",
     )
     fast_model: str = Field(
-        default="openrouter/google/gemini-flash-1.5",
         description="Model for reading/auditing code",
-        validation_alias="FAST_MODEL",
     )
 
     # Prompts are now loaded dynamically via methods on Settings,
@@ -180,6 +173,44 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def load_legacy_env_vars(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            # Check for legacy/global env vars and inject if missing from structured data
+            smart = os.getenv("SMART_MODEL")
+            fast = os.getenv("FAST_MODEL")
+            
+            # Load API Keys from unprefixed env vars
+            for key in ["JULES_API_KEY", "OPENROUTER_API_KEY", "E2B_API_KEY"]:
+                if key not in data or data[key] is None:
+                    val = os.getenv(key)
+                    if val:
+                        data[key] = val
+
+            if smart or fast:
+                # Update Agents Config (default construct if missing)
+                agents = data.get("agents", {})
+                if not isinstance(agents, dict): agents = {}
+                
+                if smart and "auditor_model" not in agents:
+                    agents["auditor_model"] = smart
+                if fast and "qa_analyst_model" not in agents:
+                    agents["qa_analyst_model"] = fast
+                data["agents"] = agents
+
+                # Update Reviewer Config
+                reviewer = data.get("reviewer", {})
+                if not isinstance(reviewer, dict): reviewer = {}
+
+                if smart and "smart_model" not in reviewer:
+                    reviewer["smart_model"] = smart
+                if fast and "fast_model" not in reviewer:
+                    reviewer["fast_model"] = fast
+                data["reviewer"] = reviewer
+            
+        return data
 
     @property
     def current_session_id(self) -> str:
