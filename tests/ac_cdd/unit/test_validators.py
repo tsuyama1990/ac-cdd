@@ -11,7 +11,7 @@ from ac_cdd_core.validators import (
 
 
 @pytest.mark.asyncio
-async def test_session_validator_valid():
+async def test_session_validator_valid() -> None:
     """Test SessionValidator with valid session state."""
     validator = SessionValidator("session-test", "dev/session-test")
 
@@ -25,7 +25,7 @@ async def test_session_validator_valid():
 
 
 @pytest.mark.asyncio
-async def test_session_validator_invalid():
+async def test_session_validator_invalid() -> None:
     """Test SessionValidator with invalid session state."""
     validator = SessionValidator("session-test", "dev/session-test")
 
@@ -39,7 +39,7 @@ async def test_session_validator_invalid():
 
 
 @pytest.mark.asyncio
-async def test_session_validator_raise_if_invalid():
+async def test_session_validator_raise_if_invalid() -> None:
     """Test SessionValidator raises ValidationError when invalid."""
     validator = SessionValidator("session-test", "dev/session-test")
 
@@ -51,7 +51,7 @@ async def test_session_validator_raise_if_invalid():
 
 
 @pytest.mark.asyncio
-async def test_session_validator_with_remote_check():
+async def test_session_validator_with_remote_check() -> None:
     """Test SessionValidator with remote branch validation."""
     validator = SessionValidator("session-test", "dev/session-test", check_remote=True)
 
@@ -65,13 +65,13 @@ async def test_session_validator_with_remote_check():
         mock_git.return_value = mock_git_instance
         mock_git_instance.validate_remote_branch = AsyncMock(return_value=(True, None))
 
-        is_valid, error = await validator.validate()
+        is_valid, _error = await validator.validate()
 
         assert is_valid
 
 
 @pytest.mark.asyncio
-async def test_composite_validator_all_pass():
+async def test_composite_validator_all_pass() -> None:
     """Test CompositeValidator when all validators pass."""
     validator1 = MagicMock()
     validator1.validate = AsyncMock(return_value=(True, ""))
@@ -88,7 +88,7 @@ async def test_composite_validator_all_pass():
 
 
 @pytest.mark.asyncio
-async def test_composite_validator_first_fails():
+async def test_composite_validator_first_fails() -> None:
     """Test CompositeValidator stops at first failure."""
     validator1 = MagicMock()
     validator1.validate = AsyncMock(return_value=(False, "First validator failed"))

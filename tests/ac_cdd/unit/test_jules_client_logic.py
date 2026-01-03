@@ -1,11 +1,12 @@
 import unittest
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from ac_cdd_core.services.jules_client import JulesClient
 
 
 class TestJulesClientLogic(unittest.IsolatedAsyncioTestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         # Patch dependencies to avoid real API calls or Auth
         self.auth_patcher = patch("google.auth.default", return_value=(MagicMock(), "test-project"))
         self.auth_patcher.start()
@@ -27,12 +28,14 @@ class TestJulesClientLogic(unittest.IsolatedAsyncioTestCase):
             self.client.api_client = MagicMock()
             self.client.api_client.api_key = "mock_key"
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         self.auth_patcher.stop()
 
     @patch("asyncio.sleep", return_value=None)
     @patch("httpx.AsyncClient")
-    async def test_prioritize_inquiry_over_completed_state(self, mock_httpx_cls, mock_sleep):
+    async def test_prioritize_inquiry_over_completed_state(
+        self, mock_httpx_cls: Any, _mock_sleep: Any
+    ) -> None:
         """
         Verify that if state is COMPLETED but there is a NEW inquiry,
         we prioritize answering the inquiry over returning "Success/No PR".
@@ -89,12 +92,13 @@ class TestJulesClientLogic(unittest.IsolatedAsyncioTestCase):
         result = await self.client.wait_for_completion(session_id)
 
         self.client._send_message.assert_called_once()
-        self.assertEqual(result["pr_url"], "http://github.com/pr/1")
-        print("\\n[TEST PASS] Successfully caught inquiry in COMPLETED state and replied.")
+        assert result["pr_url"] == "http://github.com/pr/1"
 
     @patch("asyncio.sleep", return_value=None)
     @patch("httpx.AsyncClient")
-    async def test_deduplication_of_existing_activities(self, mock_httpx_cls, mock_sleep):
+    async def test_deduplication_of_existing_activities(
+        self, mock_httpx_cls: Any, _mock_sleep: Any
+    ) -> None:
         """
         Verify that existing activities are IGNORED and do not trigger a reply.
         """
@@ -144,17 +148,15 @@ class TestJulesClientLogic(unittest.IsolatedAsyncioTestCase):
         # Iteration 1:
         # 1. get(session) -> COMPLETED
         # 2. get(activities) (Check Inquiry) -> Old Activity (Ignored)
-        #    -> Falls through to Success Check (No PR)
-        # 3. get(activities) (Logging Check at bottom of loop) -> Empty/Old
+        #    -> Logic: if duplicate, continue (skip rest of loop)
         # Iteration 2:
-        # 4. get(session) -> SUCCEEDED
-        # 5. get(activities) (Check Inquiry) -> Empty
+        # 3. get(session) -> SUCCEEDED
+        # 4. get(activities) (Check Inquiry) -> Empty
         #    -> Success Check -> Returns PR
 
         mock_client.get.side_effect = [
             r_session_completed,
             r_acts_old,
-            r_acts_logging,
             r_session_success,
             r_acts_empty,
         ]
@@ -162,7 +164,6 @@ class TestJulesClientLogic(unittest.IsolatedAsyncioTestCase):
         await self.client.wait_for_completion(session_id)
 
         self.client._send_message.assert_not_called()
-        print("\\n[TEST PASS] Ignored pre-existing inquiry.")
 
 
 if __name__ == "__main__":

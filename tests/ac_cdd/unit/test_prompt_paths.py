@@ -3,7 +3,7 @@ from pathlib import Path
 from ac_cdd_core.config import settings
 
 
-def test_system_prompt_structure():
+def test_system_prompt_structure() -> None:
     """Verify that system prompts are reachable via the new structure."""
 
     # 1. Verify Directory
@@ -17,7 +17,7 @@ def test_system_prompt_structure():
     prompts_dir = Path(settings.paths.templates)
 
     # Allow 'templates' as the name (since we changed it to /opt/ac_cdd/templates)
-    assert prompts_dir.name == "templates" or prompts_dir.name == "system_prompts"
+    assert prompts_dir.name in ["templates", "system_prompts"]
 
     # 2. Verify Key Files Logic (using get_template)
     # Since /opt might not exist in this test environment, we mock existence check

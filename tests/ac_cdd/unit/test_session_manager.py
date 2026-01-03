@@ -1,5 +1,7 @@
 """Tests for SessionManager class."""
 
+from collections.abc import Generator
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -7,7 +9,7 @@ from ac_cdd_core.session_manager import SessionManager
 
 
 @pytest.fixture
-def temp_session_file(tmp_path):
+def temp_session_file(tmp_path: Path) -> Generator[Path, None, None]:
     """Create a temporary session file path."""
     session_file = tmp_path / ".ac_cdd_session.json"
     # Temporarily override the SESSION_FILE constant
@@ -17,7 +19,8 @@ def temp_session_file(tmp_path):
     SessionManager.SESSION_FILE = original_file
 
 
-def test_save_and_load_session(temp_session_file):
+@pytest.mark.usefixtures("temp_session_file")
+def test_save_and_load_session(temp_session_file: Path) -> None:
     """Test saving and loading session data."""
     project_session_id = "session-20251230-120000"
     integration_branch = "dev/session-20251230-120000/integration"
@@ -35,13 +38,15 @@ def test_save_and_load_session(temp_session_file):
     assert loaded["integration_branch"] == integration_branch
 
 
-def test_load_session_file_not_found(temp_session_file):
+@pytest.mark.usefixtures("temp_session_file")
+def test_load_session_file_not_found() -> None:
     """Test loading session when file doesn't exist."""
     result = SessionManager.load_session()
     assert result is None
 
 
-def test_clear_session(temp_session_file):
+@pytest.mark.usefixtures("temp_session_file")
+def test_clear_session(temp_session_file: Path) -> None:
     """Test clearing session file."""
     # Create a session first
     SessionManager.save_session("test-session", "dev/test")
@@ -52,7 +57,7 @@ def test_clear_session(temp_session_file):
     assert not temp_session_file.exists()
 
 
-def test_validate_session_success():
+def test_validate_session_success() -> None:
     """Test session validation with valid state."""
     project_session_id = "session-20251230-120000"
     integration_branch = "dev/session-20251230-120000/integration"
@@ -66,7 +71,7 @@ def test_validate_session_success():
         assert error is None
 
 
-def test_validate_session_branch_mismatch():
+def test_validate_session_branch_mismatch() -> None:
     """Test session validation when branch doesn't exist."""
     project_session_id = "session-20251230-120000"
     integration_branch = "dev/session-20251230-120000/integration"
@@ -77,10 +82,10 @@ def test_validate_session_branch_mismatch():
 
         is_valid, error = SessionManager.validate_session(project_session_id, integration_branch)
         assert not is_valid
-        assert "not found locally" in error
+        assert error and "not found locally" in error
 
 
-def test_validate_session_fetch_remote_success():
+def test_validate_session_fetch_remote_success() -> None:
     """Test session validation when local branch missing but remote exists."""
     project_session_id = "session-20251230-120000"
     integration_branch = "dev/session-20251230-120000/integration"
@@ -107,7 +112,7 @@ def test_validate_session_fetch_remote_success():
         assert f"{integration_branch}:{integration_branch}" in args[3]
 
 
-def test_reconcile_session_from_git():
+def test_reconcile_session_from_git() -> None:
     """Test reconciling session from Git branches."""
     with patch("subprocess.run") as mock_run:
         # Mock git branch --list to return integration branches
@@ -125,7 +130,7 @@ def test_reconcile_session_from_git():
         assert result["integration_branch"] == "dev/session-20251230-120001/integration"
 
 
-def test_reconcile_session_no_branches():
+def test_reconcile_session_no_branches() -> None:
     """Test reconciling session when no integration branches exist."""
     with patch("subprocess.run") as mock_run:
         # Mock git branch --list to return empty
@@ -135,14 +140,15 @@ def test_reconcile_session_no_branches():
         assert result is None
 
 
-def test_get_integration_branch_format():
+def test_get_integration_branch_format() -> None:
     """Test integration branch name format."""
     project_session_id = "session-20251230-120000"
     branch = SessionManager.get_integration_branch(project_session_id)
     assert branch == "dev/session-20251230-120000/integration"
 
 
-def test_load_or_reconcile_with_explicit_id(temp_session_file):
+@pytest.mark.usefixtures("temp_session_file")
+def test_load_or_reconcile_with_explicit_id() -> None:
     """Test loading session with explicit session ID."""
     project_session_id = "session-explicit"
 
@@ -151,7 +157,8 @@ def test_load_or_reconcile_with_explicit_id(temp_session_file):
         assert result["project_session_id"] == project_session_id
 
 
-def test_load_or_reconcile_from_file(temp_session_file):
+@pytest.mark.usefixtures("temp_session_file")
+def test_load_or_reconcile_from_file() -> None:
     """Test loading session from file when no explicit ID provided."""
     # Save a session first
     SessionManager.save_session("session-from-file", "dev/session-from-file")

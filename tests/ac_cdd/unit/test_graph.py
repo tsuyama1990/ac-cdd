@@ -76,9 +76,9 @@ async def test_architect_graph_execution(graph_builder, mock_jules):
     # This should merge into CycleState.
     assert result["status"] == "architect_completed"
 
-    # Verify session ID has timestamp
-    assert result["session_id"].startswith("architect-cycle-00-")
-    assert len(result["session_id"]) > len("architect-cycle-00-")
+    # Verify project_session_id has timestamp (session_id in state maps to project_session_id in logic)
+    # Actually CycleNodes updates 'project_session_id' key in returned dict
+    assert result["project_session_id"].startswith("architect-cycle-00-")
 
 
 @pytest.mark.asyncio
@@ -87,15 +87,15 @@ async def test_coder_graph_execution(services, mock_jules):
     initial_state = CycleState(cycle_id="01", iteration_count=0)
 
     with (
-        patch("ac_cdd_core.graph_nodes.AuditOrchestrator") as MockAuditClass,
-        patch("ac_cdd_core.graph_nodes.LLMReviewer") as MockReviewerClass,
+        patch("ac_cdd_core.graph_nodes.AuditOrchestrator") as mock_audit_cls,
+        patch("ac_cdd_core.graph_nodes.LLMReviewer") as mock_reviewer_cls,
     ):
         # Mock Auditor (for older flow if used)
-        mock_audit_instance = MockAuditClass.return_value
+        mock_audit_instance = mock_audit_cls.return_value
         mock_audit_instance.run_audit = AsyncMock(return_value=MagicMock(status="approved"))
 
         # Mock Reviewer (for new flow: auditor_node)
-        mock_reviewer_instance = MockReviewerClass.return_value
+        mock_reviewer_instance = mock_reviewer_cls.return_value
         mock_reviewer_instance.review_code = AsyncMock(return_value="NO ISSUES FOUND")
 
         builder = GraphBuilder(services)

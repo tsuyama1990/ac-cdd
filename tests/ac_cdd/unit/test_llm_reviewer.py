@@ -5,12 +5,12 @@ from ac_cdd_core.services.llm_reviewer import LLMReviewer
 
 
 @pytest.fixture
-def reviewer():
+def reviewer() -> LLMReviewer:
     return LLMReviewer()
 
 
 @pytest.mark.asyncio
-async def test_review_code_success(reviewer):
+async def test_review_code_success(reviewer: LLMReviewer) -> None:
     """Test successful code review call."""
     target_files = {"main.py": "print('hello')"}
     context_files = {"spec.md": "# Spec"}
@@ -43,7 +43,7 @@ async def test_review_code_success(reviewer):
 
 
 @pytest.mark.asyncio
-async def test_review_code_api_failure(reviewer):
+async def test_review_code_api_failure(reviewer: LLMReviewer) -> None:
     """Test error handling when API fails."""
     target_files = {"main.py": "content"}
     context_files = {}

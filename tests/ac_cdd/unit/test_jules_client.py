@@ -1,3 +1,5 @@
+from collections.abc import Generator
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -5,7 +7,7 @@ from ac_cdd_core.services.jules_client import JulesClient, JulesTimeoutError
 
 
 @pytest.fixture
-def mock_client():
+def mock_client() -> Generator[JulesClient, None, None]:
     # Use dummy key to pass init
     with patch.dict("os.environ", {"JULES_API_KEY": "dummy"}):
         client = JulesClient()
@@ -13,11 +15,11 @@ def mock_client():
         client.poll_interval = 0.1
         client.git = AsyncMock()
         client.manager_agent = AsyncMock()
-        return client
+        yield client
 
 
 @pytest.fixture
-def mock_httpx():
+def mock_httpx() -> Generator[AsyncMock, None, None]:
     with patch("httpx.AsyncClient") as mock_cls:
         mock_instance = AsyncMock()
         # Setup context manager
@@ -27,7 +29,9 @@ def mock_httpx():
 
 
 @pytest.mark.asyncio
-async def test_wait_for_completion_sucess_first_try(mock_client, mock_httpx):
+async def test_wait_for_completion_sucess_first_try(
+    mock_client: JulesClient, mock_httpx: AsyncMock
+) -> None:
     """Test finding PR immediately."""
     mock_client._sleep = AsyncMock()
 
@@ -48,20 +52,24 @@ async def test_wait_for_completion_sucess_first_try(mock_client, mock_httpx):
 
 
 @pytest.mark.asyncio
-async def test_wait_for_completion_loop_success(mock_client, mock_httpx):
+async def test_wait_for_completion_loop_success(
+    mock_client: JulesClient, mock_httpx: AsyncMock
+) -> None:
     """Test polling loop finds PR after few tries."""
     mock_client._sleep = AsyncMock()
 
     # Sequence: RUNNING -> RUNNING -> SUCCEEDED
     # NOTE: list_activities also calls GET, we need to handle that or distinguish by URL
 
-    async def get_side_effect(url, **kwargs):
+    expected_calls = 2
+
+    async def get_side_effect(url: str, **_kwargs: Any) -> MagicMock:
         if "activities" in url:
             return MagicMock(status_code=200, json=lambda: {"activities": []})
 
         # Session Status
         # We use sleep call count to decide iteration
-        if mock_client._sleep.call_count < 2:
+        if mock_client._sleep.call_count < expected_calls:
             return MagicMock(status_code=200, json=lambda: {"state": "RUNNING"})
 
         return MagicMock(
@@ -76,11 +84,13 @@ async def test_wait_for_completion_loop_success(mock_client, mock_httpx):
 
     result = await mock_client.wait_for_completion("sessions/123")
     assert result["pr_url"] == "https://pr"
-    assert mock_client._sleep.call_count >= 2
+    assert mock_client._sleep.call_count >= expected_calls
 
 
 @pytest.mark.asyncio
-async def test_wait_for_completion_timeout(mock_client, mock_httpx):
+async def test_wait_for_completion_timeout(
+    mock_client: JulesClient, mock_httpx: AsyncMock
+) -> None:
     """Test timeout behaves correctly."""
     mock_client.timeout = 0.001
     mock_client._sleep = AsyncMock()
@@ -96,12 +106,14 @@ async def test_wait_for_completion_timeout(mock_client, mock_httpx):
 
 
 @pytest.mark.asyncio
-async def test_interactive_inquiry_handling(mock_client, mock_httpx):
+async def test_interactive_inquiry_handling(
+    mock_client: JulesClient, mock_httpx: AsyncMock
+) -> None:
     """Test handling of Jules inquiry."""
     mock_client._sleep = AsyncMock()
     mock_client.manager_agent.run.return_value = MagicMock(output="My Answer")
 
-    async def get_side_effect(url, **kwargs):
+    async def get_side_effect(url: str, **_kwargs: Any) -> MagicMock:
         if "activities" in url:
             # Return question on first call (before sleep/reply)
             # We check if post has been called to determine if we answered
