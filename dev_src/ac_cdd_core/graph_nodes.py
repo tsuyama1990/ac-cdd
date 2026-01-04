@@ -91,6 +91,7 @@ class CycleNodes:
         )
 
         instruction = settings.get_template("CODER_INSTRUCTION.md").read_text()
+        instruction = instruction.replace("{{cycle_id}}", str(cycle_id))
 
         last_audit = state.get("audit_result")
         if state.get("status") == "retry_fix" and last_audit and last_audit.feedback:

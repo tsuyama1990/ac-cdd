@@ -131,6 +131,25 @@ async def _run_gen_cycles(cycles: int, session_id: str | None, count: int | None
     finally:
         await builder.cleanup()
 
+    # Initialize plan_status.json
+    try:
+        status_file = settings.paths.documents_dir / "system_prompts" / "plan_status.json"
+        status_file.parent.mkdir(parents=True, exist_ok=True)
+
+        cycle_list = []
+        # Determine number of cycles.
+        # cycles arg is used for planned_cycle_count in initial state.
+        # Use that count to generate IDs.
+        num_cycles = count if count is not None else cycles
+        for i in range(1, num_cycles + 1):
+            cycle_list.append({"id": f"{i:02}", "status": "planned"})
+
+        import json
+        status_file.write_text(json.dumps({"cycles": cycle_list}, indent=2))
+        console.print(f"[green]Initialized plan_status.json with {num_cycles} cycles.[/green]")
+    except Exception as e:
+        console.print(f"[yellow]Warning: Failed to initialize plan_status.json: {e}[/yellow]")
+
 
 @app.command()
 def run_cycle(
@@ -143,14 +162,50 @@ def run_cycle(
     """
     Coder Phase: Implement a specific development cycle.
     """
-    options = RunCycleOptions(
-        cycle_id=cycle_id,
-        resume=resume,
-        auto=auto,
-        start_iter=start_iter,
-        session=project_session_id,
-    )
-    asyncio.run(_run_run_cycle(options))
+    if cycle_id.lower() == "all":
+        # Load planned cycles from plan_status.json or defaults
+        try:
+            status_path = settings.get_template("plan_status.json")
+            if status_path.exists():
+                import json
+                data = json.loads(status_path.read_text())
+                # Handle new schema: {"cycles": [{"id": "01", "status": "planned"}, ...]}
+                raw_cycles = data.get("cycles", [])
+                cycles_to_run = []
+                if raw_cycles and isinstance(raw_cycles[0], dict):
+                     # New schema
+                     for c in raw_cycles:
+                         if c.get("status") != "completed":
+                             cycles_to_run.append(c.get("id"))
+                else:
+                    # Fallback for old schema or list of strings
+                    cycles_to_run = raw_cycles or settings.default_cycles
+            else:
+                cycles_to_run = settings.default_cycles
+        except Exception:
+            cycles_to_run = settings.default_cycles
+
+        console.print(f"[bold cyan]Running ALL Planned Cycles: {cycles_to_run}[/bold cyan]")
+        for cid in cycles_to_run:
+            sub_options = RunCycleOptions(
+                cycle_id=str(cid),
+                resume=resume,
+                auto=auto,
+                start_iter=start_iter,
+                session=project_session_id,
+            )
+            # asyncio.run is not re-entrant.
+            asyncio.run(_run_run_cycle(sub_options))
+
+    else:
+        options = RunCycleOptions(
+            cycle_id=cycle_id,
+            resume=resume,
+            auto=auto,
+            start_iter=start_iter,
+            session=project_session_id,
+        )
+        asyncio.run(_run_run_cycle(options))
 
 
 async def _run_run_cycle(options: RunCycleOptions) -> None:
@@ -187,12 +242,46 @@ async def _run_run_cycle(options: RunCycleOptions) -> None:
             SuccessMessages.cycle_complete(options.cycle_id, f"{int(options.cycle_id) + 1:02}")
         )
 
+        _update_plan_status(options.cycle_id)
+
     except Exception:
         console.print(f"[bold red]Cycle {options.cycle_id} execution failed.[/bold red]")
         logger.exception("Cycle execution failed")
         sys.exit(1)
     finally:
         await builder.cleanup()
+
+
+def _update_plan_status(cycle_id: str) -> None:
+    """Updates the plan_status.json file marking the cycle as completed."""
+    try:
+        status_path = settings.get_template("plan_status.json")
+        user_status_path = settings.paths.documents_dir / "system_prompts" / "plan_status.json"
+
+        if user_status_path.exists():
+            target_path = user_status_path
+        elif status_path.exists():
+            target_path = status_path
+        else:
+            return
+
+        import json
+
+        data = json.loads(target_path.read_text())
+        cycles_list = data.get("cycles", [])
+        updated = False
+        if cycles_list and isinstance(cycles_list[0], dict):
+            for c in cycles_list:
+                if c.get("id") == cycle_id:
+                    c["status"] = "completed"
+                    updated = True
+
+        if updated:
+            target_path.write_text(json.dumps(data, indent=2))
+            console.print(f"[green]Updated status for Cycle {cycle_id} to completed.[/green]")
+
+    except Exception as e:
+        logger.warning(f"Failed to update plan_status.json: {e}")
 
 
 @app.command()

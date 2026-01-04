@@ -1,4 +1,24 @@
 {
-  "status": "completed",
-  "cycles": ["01", "02"]
+  "cycles": [
+    {
+      "id": "01",
+      "status": "completed"
+    },
+    {
+      "id": "02",
+      "status": "planned"
+    },
+    {
+      "id": "03",
+      "status": "planned"
+    },
+    {
+      "id": "04",
+      "status": "planned"
+    },
+    {
+      "id": "05",
+      "status": "planned"
+    }
+  ]
 }
