@@ -12,7 +12,7 @@ def git_manager():
     return GitManager()
 
 
-def test_ensure_clean_state_clean(git_manager):
+def test_ensure_clean_state_clean(git_manager) -> None:
     """Test ensure_clean_state when working directory is clean."""
     with patch.object(git_manager.runner, "run_command", new_callable=AsyncMock) as mock_run:
         # Mock git status to return empty (clean state)
@@ -28,7 +28,7 @@ def test_ensure_clean_state_clean(git_manager):
 
 
 @pytest.mark.asyncio
-async def test_ensure_clean_state_dirty_auto_stash(git_manager):
+async def test_ensure_clean_state_dirty_auto_stash(git_manager) -> None:
     """Test ensure_clean_state with dirty state and auto-stash."""
     with patch.object(git_manager.runner, "run_command", new_callable=AsyncMock) as mock_run:
         # First call: git status returns changes
@@ -42,7 +42,7 @@ async def test_ensure_clean_state_dirty_auto_stash(git_manager):
 
 
 @pytest.mark.asyncio
-async def test_create_integration_branch(git_manager):
+async def test_create_integration_branch(git_manager) -> None:
     """Test creating integration branch."""
     session_id = "session-20251230-120000"
 
@@ -56,7 +56,7 @@ async def test_create_integration_branch(git_manager):
 
 
 @pytest.mark.asyncio
-async def test_create_session_branch_arch(git_manager):
+async def test_create_session_branch_arch(git_manager) -> None:
     """Test creating architecture branch."""
     session_id = "session-20251230-120000"
     integration_branch = "dev/session-20251230-120000/integration"
@@ -71,7 +71,7 @@ async def test_create_session_branch_arch(git_manager):
 
 
 @pytest.mark.asyncio
-async def test_create_session_branch_cycle(git_manager):
+async def test_create_session_branch_cycle(git_manager) -> None:
     """Test creating cycle branch."""
     session_id = "session-20251230-120000"
     integration_branch = "dev/session-20251230-120000/integration"
@@ -87,7 +87,7 @@ async def test_create_session_branch_cycle(git_manager):
 
 
 @pytest.mark.asyncio
-async def test_merge_to_integration(git_manager):
+async def test_merge_to_integration(git_manager) -> None:
     """Test merging PR to integration branch."""
     pr_url = "https://github.com/user/repo/pull/123"
     integration_branch = "dev/session-20251230-120000/integration"
@@ -123,7 +123,7 @@ async def test_merge_to_integration(git_manager):
 
 
 @pytest.mark.asyncio
-async def test_create_final_pr_new(git_manager):
+async def test_create_final_pr_new(git_manager) -> None:
     """Test creating new final PR to main."""
     integration_branch = "dev/session-20251230-120000/integration"
     title = "Session: Complete Implementation"
@@ -148,7 +148,7 @@ async def test_create_final_pr_new(git_manager):
 
 
 @pytest.mark.asyncio
-async def test_create_final_pr_existing(git_manager):
+async def test_create_final_pr_existing(git_manager) -> None:
     """Test returning existing final PR."""
     integration_branch = "dev/session-20251230-120000/integration"
 
@@ -165,7 +165,7 @@ async def test_create_final_pr_existing(git_manager):
 
 
 @pytest.mark.asyncio
-async def test_validate_remote_branch_success(git_manager):
+async def test_validate_remote_branch_success(git_manager) -> None:
     """Test validating branch that exists on remote."""
     branch = "dev/session-20251230-120000"
 
@@ -188,7 +188,7 @@ async def test_validate_remote_branch_success(git_manager):
 
 
 @pytest.mark.asyncio
-async def test_validate_remote_branch_not_found(git_manager):
+async def test_validate_remote_branch_not_found(git_manager) -> None:
     """Test validating branch that doesn't exist on remote."""
     branch = "nonexistent-branch"
 
@@ -203,7 +203,7 @@ async def test_validate_remote_branch_not_found(git_manager):
 
 
 @pytest.mark.asyncio
-async def test_get_changed_files(git_manager):
+async def test_get_changed_files(git_manager) -> None:
     """Test getting list of changed files."""
     with patch.object(git_manager.runner, "run_command", new_callable=AsyncMock) as mock_run:
         # Mock git diff to return file list

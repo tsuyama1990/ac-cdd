@@ -2,6 +2,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
+from .config import settings
 from .domain_models import AuditResult, CyclePlan, FileOperation, UatAnalysis
 
 
@@ -62,8 +63,7 @@ class CycleState(BaseModel):
     integration_branch: str | None = None
     is_session_finalized: bool = False
     final_fix: bool = Field(
-        default=False,
-        description="Flag indicating final fix before merge (bypass further audits)"
+        default=False, description="Flag indicating final fix before merge (bypass further audits)"
     )
 
     # Architect Config
@@ -74,27 +74,23 @@ class CycleState(BaseModel):
     @field_validator("current_auditor_index")
     @classmethod
     def validate_auditor_index(cls, v: int) -> int:
-        from .config import settings
-
         if v > settings.NUM_AUDITORS:
-            raise ValueError(f"Auditor index {v} exceeds NUM_AUDITORS={settings.NUM_AUDITORS}")
+            msg = f"Auditor index {v} exceeds NUM_AUDITORS={settings.NUM_AUDITORS}"
+            raise ValueError(msg)
         return v
 
     @field_validator("current_auditor_review_count")
     @classmethod
     def validate_review_count(cls, v: int) -> int:
-        from .config import settings
-
         if v > settings.REVIEWS_PER_AUDITOR:
-            raise ValueError(
-                f"Review count {v} exceeds REVIEWS_PER_AUDITOR={settings.REVIEWS_PER_AUDITOR}"
-            )
+            msg = f"Review count {v} exceeds REVIEWS_PER_AUDITOR={settings.REVIEWS_PER_AUDITOR}"
+            raise ValueError(msg)
         return v
 
-    def __getitem__(self, item: str) -> Any:
+    def __getitem__(self, item: str) -> Any:  # noqa: ANN401
         return getattr(self, item)
 
-    def get(self, item: str, default: Any = None) -> Any:
+    def get(self, item: str, default: Any = None) -> Any:  # noqa: ANN401
         return getattr(self, item, default)
 
     class Config:

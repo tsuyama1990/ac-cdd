@@ -1,11 +1,17 @@
 """Centralized error messages with recovery instructions."""
 
+import sys
+
+from ac_cdd_core.utils import check_api_key
+from rich.console import Console
+from rich.panel import Panel
+
 
 class RecoveryMessages:
     """Provides consistent error messages with actionable recovery steps."""
 
     @staticmethod
-    def session_not_found(session_file: str = ".ac_cdd_session.json") -> str:
+    def session_not_found() -> str:
         """Error message when no session can be found."""
         return (
             "No session found.\n\n"
@@ -135,23 +141,15 @@ class SuccessMessages:
     @staticmethod
     def show_panel(message: str, title: str = "Next Action Guide") -> None:
         """Display message in a styled panel."""
-        from rich.console import Console
-        from rich.panel import Panel
-
-        console = Console()
-        console.print(Panel(message, title=title, style="bold green", expand=False))
+        cons = Console()
+        cons.print(Panel(message, title=title, style="bold green", expand=False))
 
 
 def ensure_api_key() -> None:
     """Check API key availability and exit if missing."""
-    import sys
-
-    from ac_cdd_core.utils import check_api_key
-    from rich.console import Console
-
-    console = Console()
+    cons = Console()
     try:
         check_api_key()
     except ValueError as e:
-        console.print(f"[red]Configuration Error:[/red] {e}")
+        cons.print(f"[red]Configuration Error:[/red] {e}")
         sys.exit(1)

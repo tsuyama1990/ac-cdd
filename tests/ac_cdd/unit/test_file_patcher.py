@@ -10,7 +10,7 @@ def patcher():
     return FilePatcher()
 
 
-def test_apply_changes_create(patcher):
+def test_apply_changes_create(patcher) -> None:
     """Test creating a new file."""
     ops = [FileCreate(path="new_file.py", content="print('hello')")]
 
@@ -23,7 +23,7 @@ def test_apply_changes_create(patcher):
         mock_write.assert_called_with("print('hello')", encoding="utf-8")
 
 
-def test_apply_changes_patch_success(patcher):
+def test_apply_changes_patch_success(patcher) -> None:
     """Test patching an existing file."""
     ops = [FilePatch(path="existing.py", search_block="old_code", replace_block="new_code")]
 
@@ -39,7 +39,7 @@ def test_apply_changes_patch_success(patcher):
         mock_write.assert_called_with("start\nnew_code\nend", encoding="utf-8")
 
 
-def test_apply_changes_dry_run(patcher):
+def test_apply_changes_dry_run(patcher) -> None:
     """Test dry run does not write."""
     ops = [FileCreate(path="new_file.py", content="print('hello')")]
 

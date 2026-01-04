@@ -7,7 +7,7 @@ from ac_cdd_core.state import CycleState
 
 
 @pytest.mark.asyncio
-async def test_committee_logic_flow():
+async def test_committee_logic_flow() -> None:
     # Mock settings
     mock_settings = MagicMock()
     mock_settings.NUM_AUDITORS = 3
@@ -28,7 +28,9 @@ async def test_committee_logic_flow():
         # --- Scenario 1: All Approved (Happy Path) ---
         # Auditor 1: Approved
         state = CycleState(cycle_id="1", current_auditor_index=1, current_auditor_review_count=1)
-        state.audit_result = AuditResult(status="APPROVED", is_approved=True, reason="OK", feedback="LGTM")
+        state.audit_result = AuditResult(
+            status="APPROVED", is_approved=True, reason="OK", feedback="LGTM"
+        )
 
         res = await nodes.committee_manager_node(state)
         assert res["status"] == "next_auditor"
@@ -56,21 +58,32 @@ async def test_committee_logic_flow():
 
         # --- Scenario 2: Rejected & Retry (Loop Back) ---
         # Auditor 2: Rejected (Attempt 1 of 2)
-        state = CycleState(cycle_id="2", current_auditor_index=2, current_auditor_review_count=1, iteration_count=5)
-        state.audit_result = AuditResult(status="REJECTED", is_approved=False, reason="Issues found", feedback="Fix this")
+        state = CycleState(
+            cycle_id="2", current_auditor_index=2, current_auditor_review_count=1, iteration_count=5
+        )
+        state.audit_result = AuditResult(
+            status="REJECTED", is_approved=False, reason="Issues found", feedback="Fix this"
+        )
 
         res = await nodes.committee_manager_node(state)
         assert res["status"] == "retry_fix"
         assert res["current_auditor_review_count"] == 2
-        assert res["iteration_count"] == 6 # Should increment iteration
+        assert res["iteration_count"] == 6  # Should increment iteration
 
         route = nodes.route_committee({"status": "retry_fix"})
         assert route == "coder_session"
 
         # --- Scenario 3: Max Retries Exceeded (Pipeline Handover) ---
         # Auditor 2: Rejected (Attempt 2 of 2) -> Should move to Auditor 3
-        state = CycleState(cycle_id="3", current_auditor_index=2, current_auditor_review_count=2, iteration_count=10)
-        state.audit_result = AuditResult(status="REJECTED", is_approved=False, reason="Still bad", feedback="Still broken")
+        state = CycleState(
+            cycle_id="3",
+            current_auditor_index=2,
+            current_auditor_review_count=2,
+            iteration_count=10,
+        )
+        state.audit_result = AuditResult(
+            status="REJECTED", is_approved=False, reason="Still bad", feedback="Still broken"
+        )
 
         res = await nodes.committee_manager_node(state)
         # Old behavior: assert res["status"] == "failed"
@@ -85,7 +98,7 @@ async def test_committee_logic_flow():
 
 
 @pytest.mark.asyncio
-async def test_committee_pipeline_handover():
+async def test_committee_pipeline_handover() -> None:
     """Test pipeline handover: when review limit reached, move to next auditor."""
     # Mock settings: 2 Auditors × 1 Review each (small for testing)
     mock_settings = MagicMock()
@@ -104,13 +117,10 @@ async def test_committee_pipeline_handover():
             cycle_id="handover-1",
             current_auditor_index=1,
             current_auditor_review_count=1,
-            iteration_count=0
+            iteration_count=0,
         )
         state.audit_result = AuditResult(
-            status="REJECTED",
-            is_approved=False,
-            reason="Issues found",
-            feedback="Fix these issues"
+            status="REJECTED", is_approved=False, reason="Issues found", feedback="Fix these issues"
         )
 
         res = await nodes.committee_manager_node(state)
@@ -127,13 +137,13 @@ async def test_committee_pipeline_handover():
             cycle_id="handover-2",
             current_auditor_index=2,
             current_auditor_review_count=1,
-            iteration_count=1
+            iteration_count=1,
         )
         state.audit_result = AuditResult(
             status="REJECTED",
             is_approved=False,
             reason="Still issues",
-            feedback="More fixes needed"
+            feedback="More fixes needed",
         )
 
         res = await nodes.committee_manager_node(state)

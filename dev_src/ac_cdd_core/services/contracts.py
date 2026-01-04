@@ -1,7 +1,7 @@
 import shutil
 from pathlib import Path
 
-from ..config import settings
+from ac_cdd_core.config import settings
 
 
 class ContractManager:
@@ -19,7 +19,8 @@ class ContractManager:
         target_schema = contracts_dir / f"schema_cycle{cycle_id}.py"
 
         if not source_schema.exists():
-            raise FileNotFoundError(f"{source_schema} not found.")
+            msg = f"{source_schema} not found."
+            raise FileNotFoundError(msg)
 
         contracts_dir.mkdir(parents=True, exist_ok=True)
 
@@ -35,8 +36,8 @@ class ContractManager:
         if init_file.exists():
             content = init_file.read_text(encoding="utf-8")
             if import_line not in content:
-                with open(init_file, "a", encoding="utf-8") as f:
+                with init_file.open("a", encoding="utf-8") as f:
                     f.write(f"\n{import_line}\n")
         else:
-            with open(init_file, "w", encoding="utf-8") as f:
+            with init_file.open("w", encoding="utf-8") as f:
                 f.write(f"{import_line}\n")

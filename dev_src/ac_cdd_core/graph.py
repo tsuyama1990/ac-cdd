@@ -2,6 +2,7 @@ from typing import Any
 
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
+from langgraph.graph.state import CompiledStateGraph
 
 from .graph_nodes import CycleNodes
 from .sandbox import SandboxRunner
@@ -11,12 +12,11 @@ from .state import CycleState
 
 
 class GraphBuilder:
-    def __init__(self, services: ServiceContainer):
+    def __init__(self, services: ServiceContainer) -> None:
         # Initialize SandboxRunner directly as it's not part of ServiceContainer
         self.sandbox = SandboxRunner()
 
         # Use jules from services, fallback to direct instantiation if None
-        # (though it should be present)
         self.jules = services.jules if services.jules else JulesClient()
 
         self.nodes = CycleNodes(self.sandbox, self.jules)
@@ -26,7 +26,7 @@ class GraphBuilder:
         if self.sandbox:
             await self.sandbox.cleanup()
 
-    def _create_architect_graph(self) -> StateGraph[CycleState, Any, Any]:
+    def _create_architect_graph(self) -> StateGraph[CycleState]:
         """Create the graph for the Architect phase (gen-cycles)."""
         workflow = StateGraph(CycleState)
 
@@ -37,7 +37,7 @@ class GraphBuilder:
 
         return workflow
 
-    def _create_coder_graph(self) -> StateGraph[CycleState, Any, Any]:
+    def _create_coder_graph(self) -> StateGraph[CycleState]:
         """Create the graph for the Coder/Auditor phase (run-cycle)."""
         workflow = StateGraph(CycleState)
 
@@ -55,7 +55,7 @@ class GraphBuilder:
             {
                 "ready_for_audit": "auditor",
                 "failed": END,
-                "completed": "uat_evaluate",  # Direct to UAT if audit skipped
+                "completed": "uat_evaluate",
             },
         )
 
@@ -68,8 +68,8 @@ class GraphBuilder:
             self.nodes.route_committee,
             {
                 "uat_evaluate": "uat_evaluate",
-                "auditor": "auditor",  # Loop back for next auditor
-                "coder_session": "coder_session",  # Loop back for fix
+                "auditor": "auditor",
+                "coder_session": "coder_session",
                 "failed": END,
             },
         )
@@ -78,8 +78,8 @@ class GraphBuilder:
 
         return workflow
 
-    def build_architect_graph(self) -> Any:
+    def build_architect_graph(self) -> CompiledStateGraph[CycleState, Any]:
         return self._create_architect_graph().compile(checkpointer=MemorySaver())
 
-    def build_coder_graph(self) -> Any:
+    def build_coder_graph(self) -> CompiledStateGraph[CycleState, Any]:
         return self._create_coder_graph().compile(checkpointer=MemorySaver())

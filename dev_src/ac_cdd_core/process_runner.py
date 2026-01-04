@@ -18,20 +18,6 @@ class ProcessRunner:
     ) -> tuple[str, str, int]:
         """
         Executes a command asynchronously.
-
-        Args:
-            cmd: Command and arguments list.
-            cwd: Working directory.
-            check: If True, log error on non-zero exit code (but does not raise exception here,
-                   caller handles logic or we can raise).
-                   *Refinement*: Requirement says "check: bool = True" in signature.
-                   Standard behavior for 'check' in subprocess is to raise CalledProcessError.
-                   However, the prompt requirements say "handle logger.error for failures".
-                   Let's raise an exception if check is True, similar to subprocess.run.
-            env: Environment variables.
-
-        Returns:
-            stdout, stderr, returncode
         """
         cmd_str = " ".join(cmd)
         logger.debug(f"Running command: {cmd_str}")
@@ -56,15 +42,9 @@ class ProcessRunner:
                     logger.error(f"Stderr: {stderr_str}")
 
                 if check:
-                    # Note: We do not raise an exception here to strictly adhere to the
-                    # requested return signature -> tuple[str, str, int].
-                    # Callers must check returncode if they need to handle failure.
                     pass
-
-            return stdout_str, stderr_str, returncode
-
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Execution failed for '{cmd_str}': {e}")
-            # Depending on strictness, might want to re-raise or return error tuple
-            # Returning -1 for returncode if generic exception
             return "", str(e), -1
+        else:
+            return stdout_str, stderr_str, returncode
