@@ -261,7 +261,7 @@ class SessionManager:
         cls,
         project_session_id: str | None = None,
         auto_reconcile: bool = True,
-        resume_info: dict | None = None,
+        resume_info: dict[str, Any] | None = None,
         override_branch: str | None = None,
     ) -> SessionInfo:
         """Load session from parameter, file, config, or Git reconciliation.

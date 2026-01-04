@@ -115,7 +115,8 @@ class AuditOrchestrator:
 
                 # Now we wait for the final outcome (PR creation)
                 # reuse wait_for_completion from JulesClient
-                return await self.jules.wait_for_completion(session_name)
+                result = await self.jules.wait_for_completion(session_name)
+                return dict(result)
 
             # REJECTED
             retry_count += 1
@@ -134,7 +135,11 @@ class AuditOrchestrator:
             console.print(f"[magenta]Sending Feedback to Jules:[/magenta] {feedback}")
             await self.jules.send_message(session_name, feedback_prompt)
 
-    async def _wait_for_new_plan(self, session_name: str, current_plan_id: str, timeout: int = 300):
+        raise RuntimeError("Session ended unexpectedly.")
+
+    async def _wait_for_new_plan(
+        self, session_name: str, current_plan_id: str, timeout: int = 300
+    ) -> dict[str, Any]:
         """Helper to poll until a plan with a different ID appears."""
         console.print("[dim]Waiting for revised plan...[/dim]")
         start_time = asyncio.get_event_loop().time()
@@ -147,7 +152,7 @@ class AuditOrchestrator:
         while asyncio.get_event_loop().time() - start_time < timeout:
             latest = await self.jules.get_latest_plan(session_name)
             if latest and latest.get("planId") != current_plan_id:
-                return latest
+                return dict(latest)
 
             # Wait with exponential backoff
             await asyncio.sleep(current_delay)

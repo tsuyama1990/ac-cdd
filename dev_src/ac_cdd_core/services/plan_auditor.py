@@ -15,7 +15,7 @@ class PlanAuditor:
     Uses a Smart Model (Auditor) to ensure safety and alignment.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         # Use the configured SMART_MODEL (Auditor)
         self.model_name = settings.reviewer.smart_model
         self.model = get_model(self.model_name)
@@ -59,6 +59,6 @@ class PlanAuditor:
         # 2. Run the Agent
         console.print(f"[dim]Auditing plan using {self.model_name}...[/dim]")
         # Pass result_type here to enforce structure
-        result = await self.agent.run(user_prompt, result_type=PlanAuditResult)
+        result = await self.agent.run(user_prompt, result_type=PlanAuditResult)  # type: ignore[call-overload]
 
         return result.data

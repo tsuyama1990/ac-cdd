@@ -745,7 +745,8 @@ class JulesClient:
         # Search in reverse (newest first)
         for activity in activities:
             if "planGenerated" in activity:
-                return activity.get("planGenerated")
+                # Type safe cast since we checked the key exists
+                return dict(activity.get("planGenerated", {}))
         return None
 
     async def wait_for_activity_type(

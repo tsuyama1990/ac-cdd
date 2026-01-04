@@ -133,7 +133,7 @@ class SuccessMessages:
         )
 
     @staticmethod
-    def show_panel(message: str, title: str = "Next Action Guide"):
+    def show_panel(message: str, title: str = "Next Action Guide") -> None:
         """Display message in a styled panel."""
         from rich.console import Console
         from rich.panel import Panel
@@ -142,7 +142,7 @@ class SuccessMessages:
         console.print(Panel(message, title=title, style="bold green", expand=False))
 
 
-def ensure_api_key():
+def ensure_api_key() -> None:
     """Check API key availability and exit if missing."""
     import sys
 

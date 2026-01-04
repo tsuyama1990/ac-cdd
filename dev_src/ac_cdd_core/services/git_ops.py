@@ -19,7 +19,7 @@ class GitManager:
         stdout, stderr, code = await self.runner.run_command(cmd, check=check)
         if code != 0 and check:
             raise RuntimeError(f"Git command failed: {' '.join(cmd)}\nStderr: {stderr}")
-        return stdout.strip()
+        return str(stdout.strip())
 
     async def ensure_clean_state(self, force_stash: bool = False) -> None:
         """Ensures the working directory is clean.
@@ -463,7 +463,7 @@ class GitManager:
         )
 
         if code == 0 and stdout.strip():
-            existing_pr_url = stdout.strip()
+            existing_pr_url = str(stdout.strip())
             logger.info(f"PR already exists: {existing_pr_url}")
             return existing_pr_url
 
@@ -494,6 +494,6 @@ class GitManager:
             # Try to get error message from stdout or infer
             raise RuntimeError(f"Failed to create PR: {stdout if stdout else 'Unknown error'}")
 
-        pr_url = stdout.strip()
+        pr_url = str(stdout.strip())
         logger.info(f"Final PR created: {pr_url}")
         return pr_url
