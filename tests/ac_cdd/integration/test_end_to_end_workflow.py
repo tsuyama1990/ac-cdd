@@ -6,7 +6,7 @@ import pytest
 
 
 @pytest.mark.asyncio
-async def test_full_gen_cycles_workflow():
+async def test_full_gen_cycles_workflow() -> None:
     """Test complete gen-cycles workflow from start to finish."""
     with (
         patch("ac_cdd_core.services.git_ops.GitManager") as mock_git,
@@ -47,7 +47,7 @@ async def test_full_gen_cycles_workflow():
 
 
 @pytest.mark.asyncio
-async def test_full_run_cycle_workflow():
+async def test_full_run_cycle_workflow() -> None:
     """Test complete run-cycle workflow."""
     with (
         patch("ac_cdd_core.session_manager.SessionManager.load_or_reconcile_session") as mock_load,
@@ -109,7 +109,7 @@ async def test_full_run_cycle_workflow():
         assert "APPROVED" in audit_result
 
 
-def test_session_persistence_across_commands():
+def test_session_persistence_across_commands() -> None:
     """Test that session persists correctly across multiple commands."""
     with (
         patch("ac_cdd_core.session_manager.SessionManager.save_session") as mock_save,
@@ -136,7 +136,7 @@ def test_session_persistence_across_commands():
 
 
 @pytest.mark.asyncio
-async def test_error_recovery_workflow():
+async def test_error_recovery_workflow() -> None:
     """Test error recovery in workflow."""
     with (
         patch("ac_cdd_core.services.jules_client.JulesClient") as mock_jules,
@@ -167,5 +167,5 @@ async def test_error_recovery_workflow():
         assert code == 1
 
         # Retry succeeds
-        stdout, stderr, code = await mock_sandbox_instance.run_command(["test"])
+        _stdout, _stderr, code = await mock_sandbox_instance.run_command(["test"])
         assert code == 0

@@ -63,7 +63,7 @@ class LLMReviewer:
             content = response.choices[0].message.content
             return str(content)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"LLMReviewer failed: {e}")
             return f"SYSTEM_ERROR: LLM API call failed: {e}"
 
@@ -87,7 +87,7 @@ class LLMReviewer:
             target_section += f"\nFile: {name} (AUDIT TARGET)\n```{lang}\n{content}\n```\n"
 
         # 3. Assemble Prompt
-        prompt = f"""
+        return f"""
 {instruction}
 
 ###################
@@ -111,4 +111,3 @@ Provide feedback ONLY for these files.
 ###################
 {target_section}
 """
-        return prompt

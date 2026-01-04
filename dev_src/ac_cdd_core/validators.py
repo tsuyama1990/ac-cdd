@@ -2,13 +2,13 @@
 
 from abc import ABC, abstractmethod
 
+from ac_cdd_core.services.git_ops import GitManager
 from ac_cdd_core.session_manager import SessionManager
 from ac_cdd_core.utils import logger
 
 
 class ValidationError(Exception):
     """Base exception for validation failures."""
-
 
 
 class BaseValidator(ABC):
@@ -32,7 +32,7 @@ class BaseValidator(ABC):
 class SessionValidator(BaseValidator):
     """Validates session state consistency."""
 
-    def __init__(self, session_id: str, integration_branch: str, check_remote: bool = True):
+    def __init__(self, session_id: str, integration_branch: str, check_remote: bool = True) -> None:
         self.session_id = session_id
         self.integration_branch = integration_branch
         self.check_remote = check_remote
@@ -46,8 +46,6 @@ class SessionValidator(BaseValidator):
 
         # Remote branch check (optional)
         if self.check_remote:
-            from ac_cdd_core.services.git_ops import GitManager
-
             git = GitManager()
             is_valid_remote, remote_error = await git.validate_remote_branch(
                 self.integration_branch
@@ -62,7 +60,7 @@ class SessionValidator(BaseValidator):
 class CompositeValidator(BaseValidator):
     """Runs multiple validators in sequence."""
 
-    def __init__(self, validators: list[BaseValidator]):
+    def __init__(self, validators: list[BaseValidator]) -> None:
         self.validators = validators
 
     async def validate(self) -> tuple[bool, str]:

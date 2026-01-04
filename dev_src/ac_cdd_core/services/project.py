@@ -34,10 +34,10 @@ class ProjectManager:
             if missing_templates:
                 msg += f"\nWarning: Missing templates: {', '.join(missing_templates)}"
 
-            return True, msg
-            return True, msg
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return False, f"Failed to create cycle: {e}"
+        else:
+            return True, msg
 
     def initialize_project(self, templates_path: str) -> None:
         """

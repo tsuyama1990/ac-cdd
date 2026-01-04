@@ -10,27 +10,22 @@ from ac_cdd_core.state import CycleState
 class TestGenCyclesCountOption:
     """Test suite for --count option in gen-cycles command."""
 
-    def test_state_propagation_with_count(self):
+    def test_state_propagation_with_count(self) -> None:
         """Test that requested_cycle_count is correctly stored in CycleState."""
         # Test with count specified
-        state = CycleState(
-            cycle_id="00",
-            requested_cycle_count=3
-        )
+        state = CycleState(cycle_id="00", requested_cycle_count=3)
         assert state.requested_cycle_count == 3
         assert state.get("requested_cycle_count") == 3
 
-    def test_state_propagation_without_count(self):
+    def test_state_propagation_without_count(self) -> None:
         """Test that requested_cycle_count defaults to None when not specified."""
         # Test without count (default behavior)
-        state = CycleState(
-            cycle_id="00"
-        )
+        state = CycleState(cycle_id="00")
         assert state.requested_cycle_count is None
         assert state.get("requested_cycle_count") is None
 
     @pytest.mark.asyncio
-    async def test_prompt_injection_with_count(self, tmp_path):
+    async def test_prompt_injection_with_count(self, tmp_path) -> None:
         """Test that architect_session_node injects constraint when count is specified."""
         # Setup mocks
         mock_sandbox = MagicMock()
@@ -51,13 +46,10 @@ class TestGenCyclesCountOption:
             nodes = CycleNodes(sandbox_runner=mock_sandbox, jules_client=mock_jules)
 
             # Create state with requested_cycle_count
-            state = CycleState(
-                cycle_id="00",
-                requested_cycle_count=5
-            )
+            state = CycleState(cycle_id="00", requested_cycle_count=5)
 
             # Execute the node
-            result = await nodes.architect_session_node(state)
+            await nodes.architect_session_node(state)
 
             # Verify run_session was called
             assert mock_jules.run_session.called
@@ -72,7 +64,7 @@ class TestGenCyclesCountOption:
             assert instruction_content in actual_prompt
 
     @pytest.mark.asyncio
-    async def test_prompt_no_injection_without_count(self, tmp_path):
+    async def test_prompt_no_injection_without_count(self, tmp_path) -> None:
         """Test that architect_session_node does NOT inject constraint when count is not specified."""
         # Setup mocks
         mock_sandbox = MagicMock()
@@ -93,12 +85,10 @@ class TestGenCyclesCountOption:
             nodes = CycleNodes(sandbox_runner=mock_sandbox, jules_client=mock_jules)
 
             # Create state WITHOUT requested_cycle_count
-            state = CycleState(
-                cycle_id="00"
-            )
+            state = CycleState(cycle_id="00")
 
             # Execute the node
-            result = await nodes.architect_session_node(state)
+            await nodes.architect_session_node(state)
 
             # Verify run_session was called
             assert mock_jules.run_session.called
@@ -114,7 +104,7 @@ class TestGenCyclesCountOption:
 
     @pytest.mark.parametrize("count_value", [1, 2, 3, 5, 10])
     @pytest.mark.asyncio
-    async def test_prompt_injection_various_counts(self, count_value):
+    async def test_prompt_injection_various_counts(self, count_value) -> None:
         """Test that the correct count value is injected for various inputs."""
         # Setup mocks
         mock_sandbox = MagicMock()
@@ -131,10 +121,7 @@ class TestGenCyclesCountOption:
 
             nodes = CycleNodes(sandbox_runner=mock_sandbox, jules_client=mock_jules)
 
-            state = CycleState(
-                cycle_id="00",
-                requested_cycle_count=count_value
-            )
+            state = CycleState(cycle_id="00", requested_cycle_count=count_value)
 
             await nodes.architect_session_node(state)
 

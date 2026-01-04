@@ -88,9 +88,7 @@ async def test_wait_for_completion_loop_success(
 
 
 @pytest.mark.asyncio
-async def test_wait_for_completion_timeout(
-    mock_client: JulesClient, mock_httpx: AsyncMock
-) -> None:
+async def test_wait_for_completion_timeout(mock_client: JulesClient, mock_httpx: AsyncMock) -> None:
     """Test timeout behaves correctly."""
     mock_client.timeout = 0.001
     mock_client._sleep = AsyncMock()

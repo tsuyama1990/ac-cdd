@@ -1,4 +1,5 @@
 import os
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
@@ -18,15 +19,11 @@ PROMPT_FILENAME_MAP = {
 
 
 def _detect_package_dir() -> str:
-    """
-    Detects the main package directory under /opt/ac_cdd/ac_cdd_core or dev_src/
-    """
-    # 1. Check Docker installed location
+    """Detects the main package directory."""
     docker_path = Path("/opt/ac_cdd/ac_cdd_core")
     if docker_path.exists():
         return str(docker_path)
 
-    # 2. Check local dev location
     src_path = Path("dev_src")
     if src_path.exists():
         for p in src_path.iterdir():
@@ -45,7 +42,6 @@ class PathsConfig(BaseModel):
     src: Path = Field(default_factory=lambda: Path.cwd() / "src")
     tests: Path = Field(default_factory=lambda: Path.cwd() / "tests")
     templates: Path = Field(default_factory=lambda: Path.cwd() / "dev_documents" / "templates")
-    # For local testing fallback
     prompts_dir: str = "dev_src/ac_cdd_core/prompts"
 
     @model_validator(mode="after")
@@ -94,22 +90,19 @@ class SandboxConfig(BaseModel):
 
 
 class AgentsConfig(BaseModel):
-    # Models
-    auditor_model: str
-    qa_analyst_model: str
+    auditor_model: str = "claude-3-5-sonnet"
+    qa_analyst_model: str = "claude-3-5-sonnet"
 
 
 class ReviewerConfig(BaseModel):
     smart_model: str = Field(
+        default="claude-3-5-sonnet",
         description="Model for editing code (Fixer)",
     )
     fast_model: str = Field(
+        default="claude-3-5-sonnet",
         description="Model for reading/auditing code",
     )
-
-    # Prompts are now loaded dynamically via methods on Settings,
-    # as they depend on paths that might change.
-    # We remove static prompt fields here to avoid confusion.
 
 
 class SessionConfig(BaseModel):
@@ -125,26 +118,21 @@ class SessionConfig(BaseModel):
 class Settings(BaseSettings):
     """
     Application settings, loaded from environment variables.
-    Prefix: AC_CDD_
     """
 
-    # Core settings
     JULES_API_KEY: str | None = None
     OPENROUTER_API_KEY: str | None = None
     MAX_RETRIES: int = 10
     DUMMY_CYCLE_ID: str = "00"
     E2B_API_KEY: str | None = None
 
-    # GCP Config for Jules API
     GCP_PROJECT_ID: str | None = None
     GCP_REGION: str = "us-central1"
 
-    # Committee Config
     NUM_AUDITORS: int = 3
     REVIEWS_PER_AUDITOR: int = 2
     MAX_ITERATIONS: int = 3
 
-    # Constants
     filename_spec: str = "ALL_SPEC.md"
     filename_arch: str = "SYSTEM_ARCHITECTURE.md"
     max_audit_retries: int = 2
@@ -157,16 +145,13 @@ class Settings(BaseSettings):
         "ARCHITECT_INSTRUCTION.md",
     ]
 
-    # Nested Configurations
     session: SessionConfig = Field(default_factory=SessionConfig)
     paths: PathsConfig = Field(default_factory=PathsConfig)
     jules: JulesConfig = Field(default_factory=JulesConfig)
     tools: ToolsConfig = Field(default_factory=ToolsConfig)
     sandbox: SandboxConfig = Field(default_factory=SandboxConfig)
-    # AgentsConfig/ReviewerConfig have required fields, so no default_factory unless we mock it or allow empty.
-    # Pydantic Settings will populate from env vars.
-    agents: AgentsConfig
-    reviewer: ReviewerConfig
+    agents: AgentsConfig = Field(default_factory=AgentsConfig)
+    reviewer: ReviewerConfig = Field(default_factory=ReviewerConfig)
 
     model_config = SettingsConfigDict(
         env_prefix="AC_CDD_",
@@ -178,50 +163,53 @@ class Settings(BaseSettings):
 
     @model_validator(mode="before")
     @classmethod
-    def load_legacy_env_vars(cls, data: Any) -> Any:
-        if isinstance(data, dict):
-            # Check for legacy/global env vars and inject if missing from structured data
-            smart = os.getenv("SMART_MODEL")
-            fast = os.getenv("FAST_MODEL")
+    def load_legacy_env_vars(cls, data: dict[str, Any]) -> dict[str, Any]:
+        """Inject legacy/global env vars if missing from structured data."""
+        smart = os.getenv("SMART_MODEL")
+        fast = os.getenv("FAST_MODEL")
 
-            # Load API Keys from unprefixed env vars
-            for key in ["JULES_API_KEY", "OPENROUTER_API_KEY", "E2B_API_KEY"]:
-                if key not in data or data[key] is None:
-                    val = os.getenv(key)
-                    if val:
-                        data[key] = val
+        for key in ["JULES_API_KEY", "OPENROUTER_API_KEY", "E2B_API_KEY"]:
+            if (key not in data or data[key] is None) and (val := os.getenv(key)):
+                data[key] = val
 
-            if smart or fast:
-                # Update Agents Config (default construct if missing)
-                agents = data.get("agents", {})
-                if not isinstance(agents, dict): agents = {}
-
-                if smart and "auditor_model" not in agents:
-                    agents["auditor_model"] = smart
-                if fast and "qa_analyst_model" not in agents:
-                    agents["qa_analyst_model"] = fast
-                data["agents"] = agents
-
-                # Update Reviewer Config
-                reviewer = data.get("reviewer", {})
-                if not isinstance(reviewer, dict): reviewer = {}
-
-                if smart and "smart_model" not in reviewer:
-                    reviewer["smart_model"] = smart
-                if fast and "fast_model" not in reviewer:
-                    reviewer["fast_model"] = fast
-                data["reviewer"] = reviewer
+        if smart or fast:
+            cls._update_agents_config(data, smart, fast)
+            cls._update_reviewer_config(data, smart, fast)
 
         return data
 
+    @classmethod
+    def _update_agents_config(
+        cls, data: dict[str, Any], smart: str | None, fast: str | None
+    ) -> None:
+        agents = data.get("agents", {})
+        if not isinstance(agents, dict):
+            agents = {}
+        if smart and "auditor_model" not in agents:
+            agents["auditor_model"] = smart
+        if fast and "qa_analyst_model" not in agents:
+            agents["qa_analyst_model"] = fast
+        data["agents"] = agents
+
+    @classmethod
+    def _update_reviewer_config(
+        cls, data: dict[str, Any], smart: str | None, fast: str | None
+    ) -> None:
+        reviewer = data.get("reviewer", {})
+        if not isinstance(reviewer, dict):
+            reviewer = {}
+        if smart and "smart_model" not in reviewer:
+            reviewer["smart_model"] = smart
+        if fast and "fast_model" not in reviewer:
+            reviewer["fast_model"] = fast
+        data["reviewer"] = reviewer
+
     @property
     def current_session_id(self) -> str:
-        """Get or generate session ID from timestamp with milliseconds."""
+        """Get or generate session ID."""
         if self.session.session_id:
             return self.session.session_id
-        from datetime import datetime
-
-        now = datetime.now()
+        now = datetime.now(UTC)
         return f"session-{now.strftime('%Y%m%d-%H%M%S-%f')[:20]}"
 
     @property
@@ -229,51 +217,31 @@ class Settings(BaseSettings):
         return f"{self.session.integration_branch_prefix}/{self.current_session_id}/integration"
 
     def get_template(self, name: str) -> Path:
-        """
-        Resolve a template path.
-        Priority:
-        1. User override: /app/dev_documents/system_prompts/{name}
-        2. System default: /opt/ac_cdd/templates/{name}
-        3. Local dev fallback: ./dev_documents/system_prompts/{name}
-        """
-        # 1. User Override (Context)
+        """Resolve a template path."""
         user_path = self.paths.documents_dir / "system_prompts" / name
         if user_path.exists():
             return user_path
 
-        # 2. System Default (Docker)
         system_path = self.paths.templates / name
         if system_path.exists():
             return system_path
 
-        # 3. Local Dev Fallback
-        # dev_src/ac_cdd_core/config.py -> .../dev_documents/system_prompts
         local_dev_path = (
             Path(__file__).parent.parent.parent / "dev_documents" / "system_prompts" / name
         )
         if local_dev_path.exists():
             return local_dev_path
 
-        # Return default path even if missing (let caller handle)
         return system_path
 
     def get_prompt_content(self, filename: str, default: str = "") -> str:
-        """
-        Reads prompt content using the logic that was previously in ac_cdd_config.py
-        """
+        """Reads prompt content."""
         target_filename = PROMPT_FILENAME_MAP.get(filename, filename)
-
-        # Try to find the file
         path = self.get_template(target_filename)
-
-        # If not found via template logic, check legacy/fallback locations if needed
-        # But get_template covers User and System locations.
 
         if path.exists():
             return path.read_text(encoding="utf-8").strip()
 
-        # Fallback: Check System Defaults (Fallback in source code)
-        # This was in ac_cdd_config.py as dev_src/ac_cdd_core/prompts
         fallback_path = Path(self.paths.prompts_dir) / filename
         if fallback_path.exists():
             return fallback_path.read_text(encoding="utf-8").strip()
@@ -281,10 +249,8 @@ class Settings(BaseSettings):
         return default
 
     def get_context_files(self) -> list[str]:
-        """Auditor/Coderにとっての参照専用ファイル(仕様書)のパスリスト"""
         p = self.paths.documents_dir
         if not p.exists():
-            # Fallback for local testing
             p = Path.cwd() / "dev_documents"
 
         if p.exists():
@@ -292,9 +258,7 @@ class Settings(BaseSettings):
         return []
 
     def get_target_files(self) -> list[str]:
-        """Auditor/Coderにとっての編集対象ファイル(コード)のパスリスト"""
         targets = []
-
         src = self.paths.src
         if not src.exists():
             src = Path.cwd() / "src"
@@ -305,7 +269,6 @@ class Settings(BaseSettings):
 
         if src.exists():
             targets.extend([str(p) for p in src.rglob("*.py")])
-
         if tests.exists():
             targets.extend([str(p) for p in tests.rglob("*.py")])
 
@@ -313,4 +276,4 @@ class Settings(BaseSettings):
 
 
 # Global settings object
-settings = Settings()  # type: ignore[call-arg]
+settings = Settings()

@@ -19,7 +19,7 @@ def mock_env():
         yield
 
 
-def test_config_env_vars_loaded(mock_env):
+def test_config_env_vars_loaded(mock_env) -> None:
     """Test that environment variables override defaults."""
     # We must instantiate a new Settings object to pick up the env vars
     # because the global 'settings' object is instantiated at import time.
@@ -30,17 +30,19 @@ def test_config_env_vars_loaded(mock_env):
     assert local_settings.jules.timeout_seconds == 999
 
 
-def test_config_defaults():
+def test_config_defaults() -> None:
     """Test default values without env overrides."""
     # Clean env for this test
     with patch.dict(os.environ, {}, clear=True):
         local_settings = Settings()
         assert local_settings.reviewer.smart_model == "claude-3-5-sonnet"
-        assert str(local_settings.paths.src) == "/app/src"
-        assert str(local_settings.paths.templates) == "/opt/ac_cdd/templates"
+        assert str(local_settings.paths.src) == str(Path.cwd() / "src")
+        assert str(local_settings.paths.templates) == str(
+            Path.cwd() / "dev_documents" / "templates"
+        )
 
 
-def test_get_template_logic():
+def test_get_template_logic() -> None:
     """Test the template resolution logic priority."""
     local_settings = Settings()
     local_settings.paths.documents_dir = Path("/user/docs")
@@ -51,13 +53,11 @@ def test_get_template_logic():
     # We mock only Path.exists.
     # The conflict in previous run was due to nesting patches or autospec issues.
 
-    def side_effect(self):
+    def side_effect(self) -> bool:
         s = str(self)
         if s.startswith("/user/docs/system_prompts/foo.md"):
             return True
-        if s.startswith("/system/templates/bar.md"):
-            return True
-        return False
+        return bool(s.startswith("/system/templates/bar.md"))
 
     with patch("pathlib.Path.exists", side_effect=side_effect, autospec=True):
         # Case 1: User override
@@ -69,7 +69,7 @@ def test_get_template_logic():
         assert str(result2) == "/system/templates/bar.md"
 
 
-def test_get_prompt_content():
+def test_get_prompt_content() -> None:
     """Test that prompt content is read correctly."""
     local_settings = Settings()
 
@@ -87,7 +87,7 @@ def test_get_prompt_content():
         assert content == "MOCKED PROMPT CONTENT"
 
 
-def test_path_separation():
+def test_path_separation() -> None:
     """
     Test that Context (Specs) and Target (Code) paths are strictly separated.
     Requirements:

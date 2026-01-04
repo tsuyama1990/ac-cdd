@@ -1,8 +1,8 @@
 from pathlib import Path
 
-from ..config import settings
-from ..domain_models import CyclePlan
-from ..utils import logger
+from ac_cdd_core.config import settings
+from ac_cdd_core.domain_models import CyclePlan
+from ac_cdd_core.utils import logger
 
 
 class ArtifactManager:

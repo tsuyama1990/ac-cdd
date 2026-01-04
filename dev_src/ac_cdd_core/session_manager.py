@@ -2,16 +2,17 @@
 
 import json
 import subprocess
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, TypedDict
 
+from ac_cdd_core.config import settings
+from ac_cdd_core.error_messages import RecoveryMessages
 from ac_cdd_core.utils import logger
 
 
 class SessionValidationError(Exception):
     """Raised when session validation fails."""
-
 
 
 class SessionInfo(TypedDict, total=False):
@@ -30,17 +31,18 @@ class SessionManager:
     @classmethod
     def save_session(cls, project_session_id: str, integration_branch: str) -> None:
         """Save session information to file."""
+        now = datetime.now(UTC).isoformat()
         session_data = {
             "project_session_id": project_session_id,
             "integration_branch": integration_branch,
-            "created_at": datetime.now().isoformat(),
-            "last_updated": datetime.now().isoformat(),
+            "created_at": now,
+            "last_updated": now,
         }
         cls.SESSION_FILE.write_text(json.dumps(session_data, indent=2))
         logger.info(f"Session saved: {project_session_id}")
 
     @classmethod
-    def update_session(cls, **kwargs: Any) -> None:
+    def update_session(cls, **kwargs: Any) -> None:  # noqa: ANN401
         """
         Update existing session file with new data.
         Preserves existing keys not in kwargs.
@@ -52,24 +54,26 @@ class SessionManager:
         try:
             data = json.loads(cls.SESSION_FILE.read_text())
             data.update(kwargs)
-            data["last_updated"] = datetime.now().isoformat()
+            data["last_updated"] = datetime.now(UTC).isoformat()
             cls.SESSION_FILE.write_text(json.dumps(data, indent=2))
             logger.info(f"Session updated with keys: {list(kwargs.keys())}")
-        except Exception as e:
-            logger.error(f"Failed to update session: {e}")
+        except (OSError, json.JSONDecodeError):
+            logger.exception("Failed to update session")
 
     @classmethod
     def load_session(cls) -> dict[str, Any] | None:
         """Load session information from file."""
-        if cls.SESSION_FILE.exists():
-            try:
-                data: dict[str, Any] = json.loads(cls.SESSION_FILE.read_text())
-                logger.info(f"Session loaded: {data.get('project_session_id')}")
-                return data
-            except Exception as e:
-                logger.warning(f"Failed to load session file: {e}")
-                return None
-        return None
+        if not cls.SESSION_FILE.exists():
+            return None
+
+        try:
+            data: dict[str, Any] = json.loads(cls.SESSION_FILE.read_text())
+        except (OSError, json.JSONDecodeError):
+            logger.exception("Failed to load session file")
+            return None
+
+        logger.info(f"Session loaded: {data.get('project_session_id')}")
+        return data
 
     @classmethod
     def clear_session(cls) -> None:
@@ -79,7 +83,9 @@ class SessionManager:
             logger.info("Session file cleared")
 
     @classmethod
-    def validate_session(cls, project_session_id: str, integration_branch: str) -> tuple[bool, str | None]:
+    def validate_session(
+        cls, _project_session_id: str, integration_branch: str
+    ) -> tuple[bool, str | None]:
         """
         Validate that session state is consistent with Git state.
 
@@ -105,20 +111,13 @@ class SessionManager:
                 # Found on remote! Fetch it.
                 logger.info(f"Branch {integration_branch} found on remote. Fetching...")
                 fetch_res = subprocess.run(  # noqa: S603
-                    [
-                        "git",
-                        "fetch",
-                        "origin",
-                        f"{integration_branch}:{integration_branch}",
-                    ],
+                    ["git", "fetch", "origin", f"{integration_branch}:{integration_branch}"],  # noqa: S607
                     capture_output=True,
                     check=False,
                 )
                 if fetch_res.returncode == 0:
                     return True, None
                 logger.error(f"Failed to fetch branch: {fetch_res.stderr.decode()}")
-
-            from ac_cdd_core.error_messages import RecoveryMessages
 
             error_msg = f"Session validation failed: {RecoveryMessages.branch_not_found(integration_branch, str(cls.SESSION_FILE))}"
             return False, error_msg
@@ -132,8 +131,6 @@ class SessionManager:
         )
 
         if result.returncode != 0 or not result.stdout.strip():
-            from ac_cdd_core.error_messages import RecoveryMessages
-
             error_msg = RecoveryMessages.remote_branch_missing(integration_branch)
             logger.warning(error_msg)
             # Don't fail, just warn
@@ -169,19 +166,20 @@ class SessionManager:
             logger.info("No session branches found for reconciliation")
             return None
 
-        # Use the most recent branch (lexicographically last, which works for our timestamp format)
+        # Use the most recent branch (lexicographically last)
         latest_branch = sorted(branches)[-1]
-        # Format: dev/session-{timestamp}/integration
+
         # Remove prefix "dev/" and suffix "/integration"
         session_id = latest_branch.replace("dev/", "").replace("/integration", "")
 
         logger.info(f"Reconciled session from branch: {latest_branch}")
 
+        now = datetime.now(UTC).isoformat()
         session_data = {
             "project_session_id": session_id,
             "integration_branch": latest_branch,
-            "created_at": datetime.now().isoformat(),
-            "last_updated": datetime.now().isoformat(),
+            "created_at": now,
+            "last_updated": now,
             "reconciled": True,
         }
 
@@ -200,8 +198,6 @@ class SessionManager:
         Returns:
             Integration branch name (e.g., 'dev/session-20251230-120000')
         """
-        from ac_cdd_core.config import settings
-
         return f"{settings.session.integration_branch_prefix}/{project_session_id}/integration"
 
     @classmethod
@@ -211,7 +207,10 @@ class SessionManager:
         If session_name is None, attempts to load it from the session file.
         Returns resume_info dict if successful.
         """
-        from ac_cdd_core.services.jules_client import JulesClient
+        from ac_cdd_core.services.jules_client import (  # noqa: PLC0415
+            JulesClient,
+            JulesSessionError,
+        )
 
         if not session_name:
             # Try to load from persisted session
@@ -220,9 +219,8 @@ class SessionManager:
                 session_name = session_data.get("agent_session_id")
 
         if not session_name:
-            raise SessionValidationError(
-                "Cannot resume: No Jules Session ID provided or found in file."
-            )
+            msg = "Cannot resume: No Jules Session ID provided or found in file."
+            raise SessionValidationError(msg)
 
         # Normalize session name
         name = session_name if session_name.startswith("sessions/") else f"sessions/{session_name}"
@@ -232,29 +230,26 @@ class SessionManager:
         jules = JulesClient()
         try:
             result = await jules.wait_for_completion(name)
-
-            # We accept success OR just completion if we simply want to resume control context
-            if result.get("status") == "success":
-                resume_info = {
-                    "pr_url": result.get(
-                        "pr_url"
-                    ),  # Might be None if manually completed without PR
-                    "jules_session_name": name,
-                }
-                if result.get("pr_url"):
-                    logger.info(f"Successfully resumed Jules session with PR: {result['pr_url']}")
-                else:
-                    logger.info(
-                        "Resumed Jules session completed successfully (No PR URL potentially)."
-                    )
-                return resume_info
-            raise SessionValidationError(
-                f"Cannot resume: Jules session ended with status: {result.get('status')}"
-            )
+        except (SessionValidationError, JulesSessionError):
+            raise
         except Exception as e:
-            if isinstance(e, SessionValidationError):
-                raise
-            raise SessionValidationError(f"Failed to resume Jules session: {e}") from e
+            msg = f"Failed to resume Jules session: {e}"
+            raise SessionValidationError(msg) from e
+
+        # We accept success OR just completion if we simply want to resume control context
+        if result.get("status") != "success":
+            msg = f"Cannot resume: Jules session ended with status: {result.get('status')}"
+            raise SessionValidationError(msg)
+
+        resume_info = {
+            "pr_url": result.get("pr_url"),  # Might be None if manually completed without PR
+            "jules_session_name": name,
+        }
+        if result.get("pr_url"):
+            logger.info(f"Successfully resumed Jules session with PR: {result['pr_url']}")
+        else:
+            logger.info("Resumed Jules session completed successfully (No PR URL potentially).")
+        return resume_info
 
     @classmethod
     def load_or_reconcile_session(
@@ -278,12 +273,11 @@ class SessionManager:
         Raises:
             SessionValidationError: If no session can be found
         """
-        from ac_cdd_core.config import settings
 
         # Handle Branch Override FIRST
         # If provided, it updates persistent state if session exists
         if override_branch:
-             cls.update_session(integration_branch=override_branch)
+            cls.update_session(integration_branch=override_branch)
 
         # If resuming, we might infer session ID from saved context if not provided
         if resume_info and not project_session_id:
@@ -295,16 +289,12 @@ class SessionManager:
             else:
                 # If we are resuming but can't find local context, we might fail
                 # or create a new one? Assuming fail based on previous logic.
-                raise SessionValidationError(
-                    "Cannot resume: No session context found. Provide --session parameter."
-                )
+                msg = "Cannot resume: No session context found. Provide --session parameter."
+                raise SessionValidationError(msg)
 
         # 1. Use explicit session ID if provided
         if project_session_id:
-            if override_branch:
-                integration_branch = override_branch
-            else:
-                integration_branch = cls.get_integration_branch(project_session_id)
+            integration_branch = override_branch or cls.get_integration_branch(project_session_id)
 
             return {
                 "project_session_id": project_session_id,
@@ -344,7 +334,7 @@ class SessionManager:
                 }
 
         # No session found
-        raise SessionValidationError(
+        msg = (
             "No session found.\n\n"
             "Recovery options:\n"
             "1. Start a new session:\n"
@@ -352,3 +342,4 @@ class SessionManager:
             "2. If you have an existing session, specify it:\n"
             "   uv run manage.py run-cycle --session <session-id>"
         )
+        raise SessionValidationError(msg)

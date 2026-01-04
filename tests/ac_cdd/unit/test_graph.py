@@ -1,3 +1,4 @@
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -8,7 +9,7 @@ from langgraph.graph.state import CompiledStateGraph
 
 
 @pytest.fixture
-def mock_sandbox():
+def mock_sandbox() -> MagicMock:
     sandbox = MagicMock()
     # Mock run_command to return success tuple
     sandbox.run_command = AsyncMock(return_value=("PASS", "", 0))
@@ -16,11 +17,12 @@ def mock_sandbox():
 
 
 @pytest.fixture
-def mock_jules():
+def mock_jules() -> MagicMock:
     client = MagicMock()
     # Mock methods used in graph nodes
     client.start_architect_session = AsyncMock(return_value={"status": "success"})
-    async def mock_run_session(*args, **kwargs):
+
+    async def mock_run_session(*args: Any, **kwargs: Any) -> dict[str, Any]:
         return {
             "status": "success",
             "pr_url": "http://pr",
@@ -33,7 +35,7 @@ def mock_jules():
 
 
 @pytest.fixture
-def services(mock_sandbox, mock_jules):
+def services(mock_sandbox: MagicMock, mock_jules: MagicMock) -> ServiceContainer:
     # GraphBuilder now expects a ServiceContainer, not raw clients.
     container = ServiceContainer.default()
     # We replace the real instances with our mocks
@@ -43,27 +45,29 @@ def services(mock_sandbox, mock_jules):
 
 
 @pytest.fixture
-def graph_builder(services):
+def graph_builder(services: ServiceContainer) -> GraphBuilder:
     # Updated GraphBuilder signature: (services)
     return GraphBuilder(services)
 
 
 @pytest.mark.asyncio
-async def test_architect_graph_structure(graph_builder):
+async def test_architect_graph_structure(graph_builder: GraphBuilder) -> None:
     """Test that architect graph is built correctly."""
     graph = graph_builder.build_architect_graph()
     assert isinstance(graph, CompiledStateGraph)
 
 
 @pytest.mark.asyncio
-async def test_coder_graph_structure(graph_builder):
+async def test_coder_graph_structure(graph_builder: GraphBuilder) -> None:
     """Test that coder graph is built correctly."""
     graph = graph_builder.build_coder_graph()
     assert isinstance(graph, CompiledStateGraph)
 
 
 @pytest.mark.asyncio
-async def test_architect_graph_execution(graph_builder, mock_jules):
+async def test_architect_graph_execution(
+    graph_builder: GraphBuilder, mock_jules: MagicMock
+) -> None:
     """Test architect graph execution flow."""
     graph = graph_builder.build_architect_graph()
     initial_state = CycleState(cycle_id="00", session_id="test-session")
@@ -82,7 +86,7 @@ async def test_architect_graph_execution(graph_builder, mock_jules):
 
 
 @pytest.mark.asyncio
-async def test_coder_graph_execution(services, mock_jules):
+async def test_coder_graph_execution(services: ServiceContainer, mock_jules: MagicMock) -> None:
     """Test coder graph execution flow."""
     initial_state = CycleState(cycle_id="01", iteration_count=0)
 
