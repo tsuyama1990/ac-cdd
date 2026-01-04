@@ -11,6 +11,7 @@ from .sandbox import SandboxRunner
 from .services.audit_orchestrator import AuditOrchestrator
 from .services.jules_client import JulesClient
 from .services.llm_reviewer import LLMReviewer
+from .session_manager import SessionManager
 from .state import CycleState
 
 console = Console()
@@ -96,6 +97,25 @@ class CycleNodes(IGraphNodes):
         cycle_id = state.get("cycle_id")
         iteration = state.get("iteration_count")
 
+        # Resume Logic using SessionManager
+        mgr = SessionManager()
+        cycle_manifest = mgr.get_cycle(cycle_id)
+
+        # 1. Try Resume if session ID exists
+        if cycle_manifest and cycle_manifest.jules_session_id and state.get("resume_mode", False):
+            try:
+                console.print(
+                    f"[bold blue]Resuming Jules Session: {cycle_manifest.jules_session_id}[/bold blue]"
+                )
+                result = await self.jules.wait_for_completion(cycle_manifest.jules_session_id)
+
+                # Check outcome
+                if result.get("status") == "success" or result.get("pr_url"):
+                    return {"status": "ready_for_audit", "pr_url": result.get("pr_url")}
+                console.print("[yellow]Resume incomplete or failed. Restarting session...[/yellow]")
+            except Exception as e:
+                console.print(f"[yellow]Resume failed: {e}. Starting new session.[/yellow]")
+
         console.print(
             f"[bold green]Starting Coder Session for Cycle {cycle_id} "
             f"(Iteration {iteration})...[/bold green]"
@@ -115,15 +135,25 @@ class CycleNodes(IGraphNodes):
         context_files = settings.get_context_files()
 
         try:
-            session_id = f"coder-cycle-{cycle_id}-iter-{iteration}"
+            # Generate a unique logical ID for the session request
+            # But the actual Jules session ID will be returned by the API
+            timestamp = datetime.now(UTC).strftime("%Y%m%d-%H%M")
+            session_req_id = f"coder-cycle-{cycle_id}-iter-{iteration}-{timestamp}"
 
+            # Start new session
             result = await self.jules.run_session(
-                session_id=session_id,
+                session_id=session_req_id,
                 prompt=instruction,
                 target_files=target_files,
                 context_files=context_files,
-                require_plan_approval=False,
+                require_plan_approval=False,  # We might want to enable this for better control, but following prompt
             )
+
+            # 2. Persist Session ID IMMEDIATELY for Hot Resume
+            if result.get("session_name"):
+                mgr.update_cycle_state(
+                    cycle_id, jules_session_id=result["session_name"], status="in_progress"
+                )
 
             if result.get("status") == "success" or result.get("pr_url"):
                 return {"status": "ready_for_audit", "pr_url": result.get("pr_url")}

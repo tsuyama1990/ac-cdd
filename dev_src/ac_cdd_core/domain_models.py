@@ -1,6 +1,35 @@
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+
+class CycleManifest(BaseModel):
+    """Manifest for a single development cycle."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    status: Literal["planned", "in_progress", "review_fix", "completed", "failed"] = "planned"
+    branch_name: str | None = None
+    # Critical for resume
+    jules_session_id: str | None = Field(default=None, description="Active AI session ID")
+    current_iteration: int = 1
+    pr_url: str | None = None
+    last_error: str | None = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class ProjectManifest(BaseModel):
+    """Root manifest for the entire project state."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    project_session_id: str
+    integration_branch: str
+    cycles: list[CycleManifest] = Field(default_factory=list)
+    last_updated: datetime = Field(default_factory=datetime.utcnow)
 
 
 class FileArtifact(BaseModel):

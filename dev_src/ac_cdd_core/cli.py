@@ -32,6 +32,19 @@ def init() -> None:
     """Initialize a new AC-CDD project."""
     check_environment()
     ProjectManager().initialize_project(settings.paths.templates)
+
+    # Initialize empty project state if not exists
+    mgr = SessionManager()
+    if not mgr.load_manifest():
+        try:
+            # Create a dummy initial manifest or just ensure directory
+            # Real manifest is created at gen-cycles
+            mgr.MANIFEST_PATH.parent.mkdir(parents=True, exist_ok=True)
+            if not mgr.MANIFEST_PATH.exists():
+                mgr.MANIFEST_PATH.write_text("{}", encoding="utf-8")
+        except Exception as e:
+            console.print(f"[yellow]Warning: Failed to touch project_state.json: {e}[/yellow]")
+
     console.print("[bold green]Initialization Complete. Happy Coding![/bold green]")
 
 
@@ -98,8 +111,10 @@ def finalize_session(
 @app.command()
 def list_actions() -> None:
     """List recommended next actions."""
-    session_data = SessionManager.load_session() or {}
-    sid = session_data.get("session_id")
+    mgr = SessionManager()
+    manifest = mgr.load_manifest()
+
+    sid = manifest.project_session_id if manifest else None
 
     if not sid:
         msg = (
@@ -110,14 +125,15 @@ def list_actions() -> None:
         )
         SuccessMessages.show_panel(msg, "Recommended Actions")
     else:
-        msg = (
-            f"Active Session: {sid}\n\n"
-            "Next steps:\n"
-            "1. Run a specific cycle:\n"
-            "   uv run manage.py run-cycle --id 01\n"
-            "2. Finalize the session when all cycles are done:\n"
-            "   uv run manage.py finalize-session"
+        # Check incomplete cycles
+        next_cycle = next((c.id for c in manifest.cycles if c.status != "completed"), None)
+        cycle_cmd = (
+            f"uv run manage.py run-cycle --id {next_cycle}"
+            if next_cycle
+            else "uv run manage.py finalize-session"
         )
+
+        msg = f"Active Session: {sid}\n\nNext steps:\n1. Continue development:\n   {cycle_cmd}\n"
         SuccessMessages.show_panel(msg, "Recommended Actions")
 
 
