@@ -34,17 +34,27 @@ def init() -> None:
     ProjectManager().initialize_project(str(settings.paths.templates))
 
     # Initialize empty project state if not exists
-    mgr = SessionManager()
-    if not mgr.load_manifest():
-        try:
-            # Create a dummy initial manifest or just ensure directory
-            # Real manifest is created at gen-cycles
-            mgr.MANIFEST_PATH.parent.mkdir(parents=True, exist_ok=True)
-            if not mgr.MANIFEST_PATH.exists():
-                mgr.MANIFEST_PATH.write_text("{}", encoding="utf-8")
-        except Exception as e:
-            console.print(f"[yellow]Warning: Failed to touch project_state.json: {e}[/yellow]")
+    async def _init_state() -> None:
+        mgr = SessionManager()
+        if not await mgr.load_manifest():
+            try:
+                # Ensure orphan branch exists
+                await mgr.git.ensure_state_branch()
 
+                # Update gitignore in main branch
+                gitignore_path = utils.root_path() / ".gitignore"
+                if gitignore_path.exists():
+                    content = gitignore_path.read_text(encoding="utf-8")
+                    if "dev_documents/project_state.json" not in content:
+                         with gitignore_path.open("a", encoding="utf-8") as f:
+                             f.write("\n# AC-CDD State\ndev_documents/project_state.json\n")
+                else:
+                    gitignore_path.write_text("# AC-CDD State\ndev_documents/project_state.json\n")
+
+            except Exception as e:
+                console.print(f"[yellow]Warning: Failed to initialize project state: {e}[/yellow]")
+
+    asyncio.run(_init_state())
     console.print("[bold green]Initialization Complete. Happy Coding![/bold green]")
 
 
@@ -111,30 +121,33 @@ def finalize_session(
 @app.command()
 def list_actions() -> None:
     """List recommended next actions."""
-    mgr = SessionManager()
-    manifest = mgr.load_manifest()
+    async def _list() -> None:
+        mgr = SessionManager()
+        manifest = await mgr.load_manifest()
 
-    sid = manifest.project_session_id if manifest else None
+        sid = manifest.project_session_id if manifest else None
 
-    if not sid:
-        msg = (
-            "No active session found.\n\ne.g.,\n"
-            "uv run manage.py start-session 'Change greeting to Hello World'\n"
-            "or\n"
-            "uv run manage.py gen-cycles"
-        )
-        SuccessMessages.show_panel(msg, "Recommended Actions")
-    elif manifest:
-        # Check incomplete cycles
-        next_cycle = next((c.id for c in manifest.cycles if c.status != "completed"), None)
-        cycle_cmd = (
-            f"uv run manage.py run-cycle --id {next_cycle}"
-            if next_cycle
-            else "uv run manage.py finalize-session"
-        )
+        if not sid:
+            msg = (
+                "No active session found.\n\ne.g.,\n"
+                "uv run manage.py start-session 'Change greeting to Hello World'\n"
+                "or\n"
+                "uv run manage.py gen-cycles"
+            )
+            SuccessMessages.show_panel(msg, "Recommended Actions")
+        elif manifest:
+            # Check incomplete cycles
+            next_cycle = next((c.id for c in manifest.cycles if c.status != "completed"), None)
+            cycle_cmd = (
+                f"uv run manage.py run-cycle --id {next_cycle}"
+                if next_cycle
+                else "uv run manage.py finalize-session"
+            )
 
-        msg = f"Active Session: {sid}\n\nNext steps:\n1. Continue development:\n   {cycle_cmd}\n"
-        SuccessMessages.show_panel(msg, "Recommended Actions")
+            msg = f"Active Session: {sid}\n\nNext steps:\n1. Continue development:\n   {cycle_cmd}\n"
+            SuccessMessages.show_panel(msg, "Recommended Actions")
+
+    asyncio.run(_list())
 
 
 if __name__ == "__main__":

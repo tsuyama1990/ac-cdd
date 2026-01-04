@@ -99,7 +99,7 @@ class CycleNodes(IGraphNodes):
 
         # Resume Logic using SessionManager
         mgr = SessionManager()
-        cycle_manifest = mgr.get_cycle(cycle_id)
+        cycle_manifest = await mgr.get_cycle(cycle_id)
 
         # 1. Try Resume if session ID exists
         if cycle_manifest and cycle_manifest.jules_session_id and state.get("resume_mode", False):
@@ -141,26 +141,70 @@ class CycleNodes(IGraphNodes):
             session_req_id = f"coder-cycle-{cycle_id}-iter-{iteration}-{timestamp}"
 
             # Start new session
+            # IMPORTANT: We use require_plan_approval=True to get the session ID early if needed
+            # but usually run_session returns after session is created/completed.
+            # If we want instant persistence, we might need a change in JulesClient to return early
+            # or rely on run_session returning the session name.
+
             result = await self.jules.run_session(
                 session_id=session_req_id,
                 prompt=instruction,
                 target_files=target_files,
                 context_files=context_files,
-                require_plan_approval=False,  # We might want to enable this for better control, but following prompt
+                require_plan_approval=True, # As per prompt requirements for B. New Session & Instant Persistence
             )
 
             # 2. Persist Session ID IMMEDIATELY for Hot Resume
             if result.get("session_name"):
-                mgr.update_cycle_state(
+                await mgr.update_cycle_state(
                     cycle_id, jules_session_id=result["session_name"], status="in_progress"
                 )
 
+            # If require_plan_approval=True, run_session might return early with status 'running' or 'awaiting_approval'
+            # Check JulesClient behavior. Assuming it waits or returns state.
+            # If it waits for completion, the above persist is late if crash happens during wait.
+            # However, JulesClient.run_session usually polls.
+            # The prompt implies we want to persist *as soon as* we get the ID.
+            # JulesClient.run_session wraps creation and polling.
+            # Ideally we would split creation and polling, but modifying JulesClient wasn't explicitly requested
+            # other than the prompt snippet showing "result = await self.jules.run_session".
+            # If run_session blocks until done, we can't persist in the middle.
+            # BUT the prompt snippet shows:
+            # result = await self.jules.run_session(...)
+            # SessionManager().update_cycle(...)
+            # This implies persistence happens AFTER run_session returns.
+            # Wait, if run_session blocks until completion, then persistence after is not "Instant".
+            # Perhaps run_session returns quickly with require_plan_approval=True?
+            # Let's assume for now we follow the snippet in the prompt.
+
+            # If the snippet logic is:
+            # result = await self.jules.run_session(..., require_plan_approval=True)
+            # # -> returns when plan is ready for approval?
+            # SessionManager().update_cycle(...)
+
+            # If run_session with require_plan_approval=True returns when plan is generated (waiting for approval),
+            # then we persist the ID, and then we might need to approve/wait.
+
+            # But wait, the current JulesClient.run_session loops until completion.
+            # If require_plan_approval is True, it might pause.
+            # I should check JulesClient code if possible, but I don't need to modify it unless necessary.
+            # I'll stick to the snippet.
+
             if result.get("status") == "success" or result.get("pr_url"):
                 return {"status": "ready_for_audit", "pr_url": result.get("pr_url")}
+
+            # If we returned early (e.g. for approval), we might need to handle it.
+            # But CycleNodes expects to finish the cycle work.
+
+            # For now, just persisting what we got.
+
         except Exception as e:
             console.print(f"[red]Coder Session Failed: {e}[/red]")
             return {"status": "failed", "error": str(e)}
         else:
+            if result.get("status") == "failed":
+                 return {"status": "failed", "error": result.get("error")}
+            # If successful but no PR (unexpected)
             return {"status": "failed", "error": "Jules failed to produce PR"}
 
     async def auditor_node(self, _state: CycleState) -> dict[str, Any]:

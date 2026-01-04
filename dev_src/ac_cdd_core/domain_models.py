@@ -1,7 +1,9 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+CycleStatus = Literal["planned", "in_progress", "review_fix", "completed", "failed"]
 
 
 class CycleManifest(BaseModel):
@@ -10,15 +12,15 @@ class CycleManifest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     id: str
-    status: Literal["planned", "in_progress", "review_fix", "completed", "failed"] = "planned"
+    status: CycleStatus = "planned"
     branch_name: str | None = None
-    # Critical for resume
+    # Resume-critical field
     jules_session_id: str | None = Field(default=None, description="Active AI session ID")
     current_iteration: int = 1
     pr_url: str | None = None
     last_error: str | None = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class ProjectManifest(BaseModel):
@@ -29,34 +31,33 @@ class ProjectManifest(BaseModel):
     project_session_id: str
     integration_branch: str
     cycles: list[CycleManifest] = Field(default_factory=list)
-    last_updated: datetime = Field(default_factory=datetime.utcnow)
+    last_updated: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class FileArtifact(BaseModel):
-    """生成・修正されたファイル単体"""
+    """Generated or modified file artifact"""
 
     model_config = ConfigDict(extra="forbid")
-    path: str = Field(..., description="ファイルパス (例: dev_documents/CYCLE01/SPEC.md)")
-    content: str = Field(..., description="ファイルの内容")
-    language: str = Field("markdown", description="言語 (python, markdown, etc.)")
+    path: str = Field(..., description="File path (e.g. dev_documents/CYCLE01/SPEC.md)")
+    content: str = Field(..., description="File content")
+    language: str = Field("markdown", description="Language (python, markdown, etc.)")
 
 
 class CyclePlan(BaseModel):
-    """計画フェーズの成果物一式"""
+    """Planning phase artifacts"""
 
     model_config = ConfigDict(extra="forbid")
     spec_file: FileArtifact
     schema_file: FileArtifact
     uat_file: FileArtifact
-    thought_process: str = Field(..., description="なぜこの設計にしたかの思考プロセス")
+    thought_process: str = Field(..., description="Thought process behind the design")
 
 
 class AuditResult(BaseModel):
-    """監査結果"""
+    """Audit result"""
 
     model_config = ConfigDict(extra="forbid")
-    # Mapping 'approved' status to boolean is_approved
-    status: str | None = None  # Added to support mapping from LLMReviewer status string
+    status: str | None = None
     is_approved: bool = False
     reason: str | None = None
     feedback: str | None = None
@@ -65,7 +66,7 @@ class AuditResult(BaseModel):
 
 
 class UatAnalysis(BaseModel):
-    """UAT実行結果の分析"""
+    """UAT execution analysis"""
 
     model_config = ConfigDict(extra="forbid")
     verdict: Literal["PASS", "FAIL"]

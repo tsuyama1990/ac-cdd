@@ -1,0 +1,77 @@
+import pytest
+from unittest.mock import AsyncMock, MagicMock, patch
+from ac_cdd_core.graph_nodes import CycleNodes
+from ac_cdd_core.domain_models import CycleManifest, ProjectManifest
+
+@pytest.mark.asyncio
+class TestResumeLogic:
+
+    @pytest.fixture
+    def mock_dependencies(self):
+        sandbox = MagicMock()
+        jules = MagicMock()
+        jules.wait_for_completion = AsyncMock()
+        jules.run_session = AsyncMock()
+        return sandbox, jules
+
+    @patch("ac_cdd_core.graph_nodes.SessionManager")
+    async def test_hot_resume_active(self, mock_sm_cls, mock_dependencies):
+        """Test that coder_session_node resumes if session ID exists in manifest."""
+        sandbox, jules = mock_dependencies
+        nodes = CycleNodes(sandbox, jules)
+
+        # Setup Manifest with existing Jules Session
+        mock_mgr = mock_sm_cls.return_value
+        cycle = CycleManifest(id="01", jules_session_id="jules-existing-123")
+        mock_mgr.get_cycle = AsyncMock(return_value=cycle)
+
+        # Setup Jules Client to return success on wait
+        jules.wait_for_completion.return_value = {"status": "success", "pr_url": "http://pr"}
+
+        state = {"cycle_id": "01", "iteration_count": 1, "resume_mode": True}
+
+        # Execute
+        result = await nodes.coder_session_node(state)
+
+        # Assertions
+        jules.wait_for_completion.assert_awaited_once_with("jules-existing-123")
+        jules.run_session.assert_not_awaited() # Should NOT start new session
+        assert result["status"] == "ready_for_audit"
+        assert result["pr_url"] == "http://pr"
+
+    @patch("ac_cdd_core.graph_nodes.SessionManager")
+    async def test_fallback_to_new_session_and_persist(self, mock_sm_cls, mock_dependencies):
+        """Test that if no session exists, a new one is started and immediately persisted."""
+        sandbox, jules = mock_dependencies
+        nodes = CycleNodes(sandbox, jules)
+
+        # Setup Manifest with NO existing session
+        mock_mgr = mock_sm_cls.return_value
+        cycle = CycleManifest(id="01", jules_session_id=None)
+        mock_mgr.get_cycle = AsyncMock(return_value=cycle)
+        mock_mgr.update_cycle_state = AsyncMock()
+
+        # Setup Jules to return a new session
+        jules.run_session.return_value = {
+            "session_name": "jules-new-456",
+            "status": "success",
+            "pr_url": "http://pr-new"
+        }
+
+        state = {"cycle_id": "01", "iteration_count": 1, "resume_mode": True}
+
+        # Execute
+        result = await nodes.coder_session_node(state)
+
+        # Assertions
+        jules.run_session.assert_awaited_once()
+        assert jules.run_session.await_args.kwargs['require_plan_approval'] is True
+
+        # Verify Immediate Persistence
+        mock_mgr.update_cycle_state.assert_awaited_with(
+            "01",
+            jules_session_id="jules-new-456",
+            status="in_progress"
+        )
+
+        assert result["status"] == "ready_for_audit"

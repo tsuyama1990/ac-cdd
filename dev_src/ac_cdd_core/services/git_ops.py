@@ -1,4 +1,7 @@
 import contextlib
+import shutil
+import tempfile
+from pathlib import Path
 
 from ac_cdd_core.config import settings
 from ac_cdd_core.messages import RecoveryMessages
@@ -11,6 +14,8 @@ class GitManager:
     Manages Git operations for the AC-CDD workflow.
     Uses 'git' and 'gh' CLI commands.
     """
+
+    STATE_BRANCH = "ac-cdd/state"
 
     def __init__(self) -> None:
         self.runner = ProcessRunner()
@@ -394,3 +399,109 @@ class GitManager:
         pr_url = str(stdout.strip())
         logger.info(f"Final PR created: {pr_url}")
         return pr_url
+
+    async def ensure_state_branch(self) -> None:
+        """
+        Ensures the orphan branch 'ac-cdd/state' exists.
+        It first checks locally, then tries to fetch from remote.
+        If neither exists, it creates it cleanly without affecting the current worktree.
+        """
+        # 1. Check if local branch exists
+        _, _, code = await self.runner.run_command(
+            [self.git_cmd, "rev-parse", "--verify", self.STATE_BRANCH], check=False
+        )
+        if code == 0:
+            return  # Exists locally
+
+        # 2. Try to fetch from origin
+        logger.info(f"Checking remote for {self.STATE_BRANCH}...")
+        await self._run_git(["fetch", "origin", f"{self.STATE_BRANCH}:{self.STATE_BRANCH}"], check=False)
+
+        # Check again after fetch
+        _, _, code = await self.runner.run_command(
+            [self.git_cmd, "rev-parse", "--verify", self.STATE_BRANCH], check=False
+        )
+        if code == 0:
+            logger.info(f"Fetched {self.STATE_BRANCH} from remote.")
+            return
+
+        # 3. Create orphan branch if not found anywhere
+        logger.info(f"Creating orphan branch: {self.STATE_BRANCH}")
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            # Create an empty tree object
+            empty_tree, _, _ = await self.runner.run_command(
+                [self.git_cmd, "mktree"], input_str="", check=True
+            )
+            empty_tree = empty_tree.strip()
+
+            # Create a commit object from the empty tree
+            commit_hash, _, _ = await self.runner.run_command(
+                [self.git_cmd, "commit-tree", empty_tree, "-m", "Initial state branch"], check=True
+            )
+            commit_hash = commit_hash.strip()
+
+            # Update the ref for the new branch
+            await self._run_git(
+                ["update-ref", f"refs/heads/{self.STATE_BRANCH}", commit_hash], check=True
+            )
+            logger.info(f"Created {self.STATE_BRANCH} at {commit_hash}")
+
+    async def read_state_file(self, filename: str) -> str | None:
+        """Reads a file from the state branch."""
+        try:
+            content, _, code = await self.runner.run_command(
+                [self.git_cmd, "show", f"{self.STATE_BRANCH}:{filename}"], check=False
+            )
+            if code != 0:
+                return None
+            return str(content)
+        except Exception as e:
+            logger.warning(f"Failed to read state file {filename}: {e}")
+            return None
+
+    async def save_state_file(self, filename: str, content: str, message: str) -> None:
+        """
+        Saves a file to the state branch using a temporary worktree.
+        This avoids touching the user's main working directory.
+        """
+        await self.ensure_state_branch()
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            # Create a worktree for the state branch
+            try:
+                await self._run_git(
+                    ["worktree", "add", tmp_dir, self.STATE_BRANCH], check=True
+                )
+            except RuntimeError as e:
+                # Check if it's already checked out in another worktree
+                logger.warning(f"Could not add worktree (maybe locked?): {e}. Retrying with force.")
+                # Try to prune/force if needed, or just fail safely
+                await self._run_git(["worktree", "prune"], check=False)
+                await self._run_git(
+                    ["worktree", "add", "-f", tmp_dir, self.STATE_BRANCH], check=True
+                )
+
+            try:
+                # Write file
+                file_path = Path(tmp_dir) / filename
+                file_path.parent.mkdir(parents=True, exist_ok=True)
+                file_path.write_text(content, encoding="utf-8")
+
+                # Git add & commit inside worktree
+                await self._run_git(["-C", tmp_dir, "add", filename], check=True)
+
+                # Check for changes
+                status, _, _ = await self.runner.run_command(
+                    [self.git_cmd, "-C", tmp_dir, "status", "--porcelain"], check=False
+                )
+                if status.strip():
+                    await self._run_git(
+                        ["-C", tmp_dir, "commit", "-m", message], check=True
+                    )
+                    await self._run_git(
+                        ["-C", tmp_dir, "push", "origin", self.STATE_BRANCH], check=False
+                    )
+            finally:
+                # Clean up worktree
+                await self._run_git(["worktree", "remove", "--force", tmp_dir], check=False)

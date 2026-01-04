@@ -53,11 +53,11 @@ class WorkflowService(IWorkflowOrchestrator):
 
                 # Create Manifest with Cycles
                 mgr = SessionManager()
-                manifest = mgr.create_manifest(session_id_val, integration_branch)
+                manifest = await mgr.create_manifest(session_id_val, integration_branch)
                 manifest.cycles = [
                     CycleManifest(id=f"{i:02}", status="planned") for i in range(1, cycles + 1)
                 ]
-                mgr.save_manifest(
+                await mgr.save_manifest(
                     manifest, commit_msg=f"Initialize architecture with {cycles} cycles"
                 )
 
@@ -98,7 +98,7 @@ class WorkflowService(IWorkflowOrchestrator):
         self, resume: bool, auto: bool, start_iter: int, project_session_id: str | None
     ) -> None:
         mgr = SessionManager()
-        manifest = mgr.load_manifest()
+        manifest = await mgr.load_manifest()
 
         if manifest:
             cycles_to_run = [c.id for c in manifest.cycles if c.status != "completed"]
@@ -128,7 +128,7 @@ class WorkflowService(IWorkflowOrchestrator):
                 os.environ["AC_CDD_AUTO_APPROVE"] = "1"
 
             mgr = SessionManager()
-            manifest = mgr.load_manifest()
+            manifest = await mgr.load_manifest()
 
             # Fallback if manifest doesn't exist (shouldn't happen in proper flow)
             pid = project_session_id
@@ -161,7 +161,7 @@ class WorkflowService(IWorkflowOrchestrator):
 
             # Update status to completed
             if manifest:
-                mgr.update_cycle_state(cycle_id, status="completed")
+                await mgr.update_cycle_state(cycle_id, status="completed")
 
         except Exception:
             console.print(f"[bold red]Cycle {cycle_id} execution failed.[/bold red]")
@@ -224,7 +224,7 @@ class WorkflowService(IWorkflowOrchestrator):
         ensure_api_key()
 
         mgr = SessionManager()
-        manifest = mgr.load_manifest()
+        manifest = await mgr.load_manifest()
 
         sid = project_session_id or (manifest.project_session_id if manifest else None)
         integration_branch = manifest.integration_branch if manifest else None
@@ -241,7 +241,7 @@ class WorkflowService(IWorkflowOrchestrator):
                 body=f"This PR merges all implemented cycles from session {sid} into main.",
             )
             console.print(SuccessMessages.session_finalized(pr_url))
-            SessionManager.clear_session()
+            # SessionManager.clear_session() # Removed as it's static and we are using git state
         except Exception as e:
             console.print(f"[bold red]Finalization failed:[/bold red] {e}")
             sys.exit(1)
