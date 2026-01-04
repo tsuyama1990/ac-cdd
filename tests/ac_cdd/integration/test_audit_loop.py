@@ -64,7 +64,6 @@ async def test_audit_rejection_loop() -> None:
     # or better, just define it as a variable in the protocol: `llm_reviewer: Any`
 
     # Let's fix interfaces.py.
-    pass
 
     # Re-running the test logic logic (this file is just overwriting the test content, but I need to fix interfaces.py)
     # I will revert the test file to the clean version and fix the root cause in interfaces.py

@@ -1,6 +1,8 @@
+from unittest.mock import patch
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 from ac_cdd_core.services.git_ops import GitManager
+
 
 @pytest.mark.asyncio
 class TestGitStatePersistence:
@@ -72,18 +74,13 @@ class TestGitStatePersistence:
     @patch("pathlib.Path.write_text") # Mock writing file
     async def test_save_state_file(self, mock_write, mock_run, mock_temp, git_manager):
         # Setup mocks
-        mock_temp.return_value.__enter__.return_value = "/tmp/dir"
+        mock_temp.return_value.__enter__.return_value = "/tmp/dir" # noqa: S108
 
         # Sequence of calls:
         # ensure_state_branch calls rev-parse -> success
 
         # Then save_state_file logic:
-        # worktree add
-        # add file
-        # status (changed)
-        # commit
-        # push
-        # worktree remove
+        # worktree add, add file, status (changed), commit, push, worktree remove
 
         # We need to feed enough mock returns
         mock_run.side_effect = [

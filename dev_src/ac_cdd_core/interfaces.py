@@ -1,7 +1,5 @@
 from typing import Any, Protocol
 
-from ac_cdd_core.domain_models import AuditResult
-from ac_cdd_core.services.jules_client import JulesClient
 from ac_cdd_core.state import CycleState
 
 

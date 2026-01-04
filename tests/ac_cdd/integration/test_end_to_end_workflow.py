@@ -1,171 +1,97 @@
-"""End-to-end workflow integration tests."""
-
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
+from ac_cdd_core.domain_models import ProjectManifest
+from ac_cdd_core.services.workflow import WorkflowService
 
 
 @pytest.mark.asyncio
-async def test_full_gen_cycles_workflow() -> None:
-    """Test complete gen-cycles workflow from start to finish."""
-    with (
-        patch("ac_cdd_core.services.git_ops.GitManager") as mock_git,
-        patch("ac_cdd_core.services.jules_client.JulesClient") as mock_jules,
-        patch("ac_cdd_core.session_manager.SessionManager.save_session") as mock_save,
-        patch("ac_cdd_core.graph.GraphBuilder"),
-    ):
-        # Setup mocks
-        mock_git_instance = MagicMock()
-        mock_git.return_value = mock_git_instance
-        mock_git_instance.create_integration_branch.return_value = "dev/session-test"
-        mock_git_instance.create_session_branch.return_value = "dev/session-test/arch"
+class TestEndToEndWorkflow:
 
-        mock_jules_instance = MagicMock()
-        mock_jules.return_value = mock_jules_instance
-        mock_jules_instance.run_session = AsyncMock(
-            return_value="https://github.com/user/repo/pull/1"
-        )
+    @pytest.fixture
+    def workflow(self):
+        # We need to ensure we patch dependencies that WorkflowService initializes
+        with patch("ac_cdd_core.services.workflow.ServiceContainer"), \
+             patch("ac_cdd_core.services.workflow.GraphBuilder"):
+            return WorkflowService()
 
-        # Simulate workflow
-        session_id = "session-test"
-        integration_branch = mock_git_instance.create_integration_branch(session_id)
-        arch_branch = mock_git_instance.create_session_branch(
-            session_id, "arch", "architecture", integration_branch
-        )
-
-        pr_url = await mock_jules_instance.run_session(
-            session_id, "prompt", [], MagicMock(), target_branch=integration_branch
-        )
-
-        mock_save(session_id, integration_branch)
-
-        # Verify workflow
-        assert integration_branch == "dev/session-test"
-        assert arch_branch == "dev/session-test/arch"
-        assert pr_url is not None
-        mock_save.assert_called_once()
-
-
-@pytest.mark.asyncio
-async def test_full_run_cycle_workflow() -> None:
-    """Test complete run-cycle workflow."""
-    with (
-        patch("ac_cdd_core.session_manager.SessionManager.load_or_reconcile_session") as mock_load,
-        patch("ac_cdd_core.services.git_ops.GitManager") as mock_git,
-        patch("ac_cdd_core.services.jules_client.JulesClient") as mock_jules,
-        patch("ac_cdd_core.sandbox.SandboxRunner") as mock_sandbox,
-        patch("ac_cdd_core.services.llm_reviewer.LLMReviewer") as mock_reviewer,
-    ):
-        # Setup session
-        mock_load.return_value = {
-            "session_id": "session-test",
-            "integration_branch": "dev/session-test",
+    @patch("ac_cdd_core.services.workflow.SessionManager")
+    @patch("ac_cdd_core.services.workflow.GitManager")
+    @patch("ac_cdd_core.services.workflow.ensure_api_key")
+    async def test_full_gen_cycles_workflow(self, mock_auth, mock_git_cls, mock_sm_cls, workflow):
+        # Setup Graph Mock
+        mock_graph = AsyncMock()
+        mock_graph.ainvoke.return_value = {
+            "project_session_id": "p1",
+            "integration_branch": "dev/p1"
         }
+        workflow.builder.build_architect_graph.return_value = mock_graph
 
-        # Setup git
-        mock_git_instance = MagicMock()
-        mock_git.return_value = mock_git_instance
-        mock_git_instance.create_session_branch.return_value = "dev/session-test/cycle01"
+        # Setup SessionManager Mock
+        mock_mgr = mock_sm_cls.return_value
+        mock_mgr.create_manifest = AsyncMock(return_value=ProjectManifest(project_session_id="p1", integration_branch="dev/p1"))
+        mock_mgr.save_manifest = AsyncMock()
 
-        # Setup Jules
-        mock_jules_instance = MagicMock()
-        mock_jules.return_value = mock_jules_instance
-        mock_jules_instance.run_session = AsyncMock(
-            return_value="https://github.com/user/repo/pull/2"
-        )
-        mock_jules_instance.continue_session = AsyncMock(
-            return_value="https://github.com/user/repo/pull/2"
-        )
+        # Setup GitManager Mock
+        mock_git = mock_git_cls.return_value
+        mock_git.create_integration_branch = AsyncMock()
 
-        # Setup sandbox
-        mock_sandbox_instance = MagicMock()
-        mock_sandbox.return_value = mock_sandbox_instance
-        mock_sandbox_instance.run_command = AsyncMock(return_value=("", "", 0))
+        # Mock cleanup
+        workflow.builder.cleanup = AsyncMock()
 
-        # Setup reviewer
-        mock_reviewer_instance = MagicMock()
-        mock_reviewer.return_value = mock_reviewer_instance
-        mock_reviewer_instance.review_code = AsyncMock(return_value="APPROVED")
-
-        # Simulate workflow
-        session = mock_load()
-        cycle_branch = mock_git_instance.create_session_branch(
-            session["session_id"], "cycle", "01", session["integration_branch"]
-        )
-
-        pr_url = await mock_jules_instance.run_session(
-            session["session_id"], "prompt", [], MagicMock()
-        )
-
-        # Run tests
-        await mock_sandbox_instance.run_command(["pytest"])
-
-        # Run audit
-        audit_result = await mock_reviewer_instance.review_code({}, "audit", "model")
+        # Execute
+        await workflow.run_gen_cycles(cycles=2, project_session_id=None)
 
         # Verify
-        assert cycle_branch == "dev/session-test/cycle01"
-        assert pr_url is not None
-        assert "APPROVED" in audit_result
+        workflow.builder.build_architect_graph.assert_called_once()
+        mock_graph.ainvoke.assert_called_once()
+        mock_mgr.create_manifest.assert_awaited()
+        mock_mgr.save_manifest.assert_awaited()
+        mock_git.create_integration_branch.assert_awaited()
+        workflow.builder.cleanup.assert_awaited()
 
+    @patch("ac_cdd_core.services.workflow.SessionManager")
+    @patch("ac_cdd_core.services.workflow.ensure_api_key")
+    async def test_full_run_cycle_workflow(self, mock_auth, mock_sm_cls, workflow):
+        # Setup Graph Mock
+        mock_graph = AsyncMock()
+        mock_graph.ainvoke.return_value = {"status": "completed"}
+        workflow.builder.build_coder_graph.return_value = mock_graph
 
-def test_session_persistence_across_commands() -> None:
-    """Test that session persists correctly across multiple commands."""
-    with (
-        patch("ac_cdd_core.session_manager.SessionManager.save_session") as mock_save,
-        patch("ac_cdd_core.session_manager.SessionManager.load_session") as mock_load,
-    ):
-        # First command: gen-cycles saves session
-        session_id = "session-test"
-        integration_branch = "dev/session-test"
-        mock_save(session_id, integration_branch)
+        # Setup SessionManager Mock
+        mock_mgr = mock_sm_cls.return_value
+        manifest = ProjectManifest(project_session_id="p1", integration_branch="dev/p1")
+        mock_mgr.load_manifest = AsyncMock(return_value=manifest)
+        mock_mgr.update_cycle_state = AsyncMock()
 
-        # Second command: run-cycle loads session
-        mock_load.return_value = {
-            "session_id": session_id,
-            "integration_branch": integration_branch,
-        }
+        # Setup Cleanup
+        workflow.builder.cleanup = AsyncMock()
 
-        loaded = mock_load()
+        # Execute
+        await workflow.run_cycle("01", resume=False, auto=True, start_iter=1, project_session_id=None)
 
-        # Verify persistence
-        assert loaded["session_id"] == session_id
-        assert loaded["integration_branch"] == integration_branch
-        mock_save.assert_called_once()
-        mock_load.assert_called_once()
+        # Verify
+        mock_graph.ainvoke.assert_called_once()
+        mock_mgr.update_cycle_state.assert_awaited_with("01", status="completed")
+        workflow.builder.cleanup.assert_awaited()
 
+    @patch("ac_cdd_core.services.workflow.SessionManager")
+    async def test_session_persistence_across_commands(self, mock_sm_cls, workflow):
+        # This test previously verified file persistence. Now we verify interaction with Git-backed SessionManager.
+        mock_mgr = mock_sm_cls.return_value
 
-@pytest.mark.asyncio
-async def test_error_recovery_workflow() -> None:
-    """Test error recovery in workflow."""
-    with (
-        patch("ac_cdd_core.services.jules_client.JulesClient") as mock_jules,
-        patch("ac_cdd_core.sandbox.SandboxRunner") as mock_sandbox,
-    ):
-        # Setup Jules to fail first, then succeed
-        mock_jules_instance = MagicMock()
-        mock_jules.return_value = mock_jules_instance
-        mock_jules_instance.run_session = AsyncMock(
-            side_effect=[Exception("API Error"), "https://github.com/user/repo/pull/3"]
-        )
+        # Simulate loading manifest
+        manifest = ProjectManifest(project_session_id="p1", integration_branch="dev/p1")
+        mock_mgr.load_manifest = AsyncMock(return_value=manifest)
 
-        # Setup sandbox to fail first, then succeed
-        mock_sandbox_instance = MagicMock()
-        mock_sandbox.return_value = mock_sandbox_instance
-        mock_sandbox_instance.run_command = AsyncMock(side_effect=[("", "Error", 1), ("", "", 0)])
+        # Setup Cleanup
+        workflow.builder.cleanup = AsyncMock()
 
-        # First attempt fails
-        with pytest.raises(Exception, match=".*"):
-            await mock_jules_instance.run_session("session", "prompt", [], MagicMock())
+        # Setup build_coder_graph
+        mock_graph = AsyncMock()
+        mock_graph.ainvoke.return_value = {"status": "completed"}
+        workflow.builder.build_coder_graph.return_value = mock_graph
 
-        # Retry succeeds
-        pr_url = await mock_jules_instance.run_session("session", "prompt", [], MagicMock())
-        assert pr_url is not None
+        await workflow._run_all_cycles(resume=False, auto=True, start_iter=1, project_session_id=None)
 
-        # Sandbox first attempt fails
-        stdout, stderr, code = await mock_sandbox_instance.run_command(["test"])
-        assert code == 1
-
-        # Retry succeeds
-        _stdout, _stderr, code = await mock_sandbox_instance.run_command(["test"])
-        assert code == 0
+        mock_mgr.load_manifest.assert_awaited()

@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -19,8 +19,8 @@ class CycleManifest(BaseModel):
     current_iteration: int = 1
     pr_url: str | None = None
     last_error: str | None = None
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class ProjectManifest(BaseModel):
@@ -31,7 +31,7 @@ class ProjectManifest(BaseModel):
     project_session_id: str
     integration_branch: str
     cycles: list[CycleManifest] = Field(default_factory=list)
-    last_updated: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    last_updated: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class FileArtifact(BaseModel):

@@ -1,6 +1,8 @@
-from datetime import datetime, timezone
+from datetime import datetime
+
 import pytest
-from ac_cdd_core.domain_models import ProjectManifest, CycleManifest
+from ac_cdd_core.domain_models import CycleManifest, ProjectManifest
+
 
 class TestProjectManifest:
     def test_cycle_manifest_defaults(self):
@@ -34,9 +36,9 @@ class TestProjectManifest:
     def test_manifest_validation(self):
         """Test validation rules."""
         # Missing required fields
-        with pytest.raises(ValueError):
-            ProjectManifest(project_session_id="only-id") # Missing integration_branch
+        with pytest.raises(ValueError, match="Field required"):
+            ProjectManifest(project_session_id="only-id") # type: ignore
 
         # Invalid cycle status
-        with pytest.raises(ValueError):
-            CycleManifest(id="01", status="invalid_status")
+        with pytest.raises(ValueError, match="Input should be"):
+            CycleManifest(id="01", status="invalid_status") # type: ignore

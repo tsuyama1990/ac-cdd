@@ -143,15 +143,13 @@ class CycleNodes(IGraphNodes):
             # Start new session
             # IMPORTANT: We use require_plan_approval=True to get the session ID early if needed
             # but usually run_session returns after session is created/completed.
-            # If we want instant persistence, we might need a change in JulesClient to return early
-            # or rely on run_session returning the session name.
 
             result = await self.jules.run_session(
                 session_id=session_req_id,
                 prompt=instruction,
                 target_files=target_files,
                 context_files=context_files,
-                require_plan_approval=True, # As per prompt requirements for B. New Session & Instant Persistence
+                require_plan_approval=True,
             )
 
             # 2. Persist Session ID IMMEDIATELY for Hot Resume
@@ -159,36 +157,6 @@ class CycleNodes(IGraphNodes):
                 await mgr.update_cycle_state(
                     cycle_id, jules_session_id=result["session_name"], status="in_progress"
                 )
-
-            # If require_plan_approval=True, run_session might return early with status 'running' or 'awaiting_approval'
-            # Check JulesClient behavior. Assuming it waits or returns state.
-            # If it waits for completion, the above persist is late if crash happens during wait.
-            # However, JulesClient.run_session usually polls.
-            # The prompt implies we want to persist *as soon as* we get the ID.
-            # JulesClient.run_session wraps creation and polling.
-            # Ideally we would split creation and polling, but modifying JulesClient wasn't explicitly requested
-            # other than the prompt snippet showing "result = await self.jules.run_session".
-            # If run_session blocks until done, we can't persist in the middle.
-            # BUT the prompt snippet shows:
-            # result = await self.jules.run_session(...)
-            # SessionManager().update_cycle(...)
-            # This implies persistence happens AFTER run_session returns.
-            # Wait, if run_session blocks until completion, then persistence after is not "Instant".
-            # Perhaps run_session returns quickly with require_plan_approval=True?
-            # Let's assume for now we follow the snippet in the prompt.
-
-            # If the snippet logic is:
-            # result = await self.jules.run_session(..., require_plan_approval=True)
-            # # -> returns when plan is ready for approval?
-            # SessionManager().update_cycle(...)
-
-            # If run_session with require_plan_approval=True returns when plan is generated (waiting for approval),
-            # then we persist the ID, and then we might need to approve/wait.
-
-            # But wait, the current JulesClient.run_session loops until completion.
-            # If require_plan_approval is True, it might pause.
-            # I should check JulesClient code if possible, but I don't need to modify it unless necessary.
-            # I'll stick to the snippet.
 
             if result.get("status") == "success" or result.get("pr_url"):
                 return {"status": "ready_for_audit", "pr_url": result.get("pr_url")}

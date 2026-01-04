@@ -39,12 +39,20 @@ class SessionValidator(BaseValidator):
 
     async def validate(self) -> tuple[bool, str]:
         """Validate session consistency with Git state."""
-        # Local branch check
-        is_valid, error = SessionManager.validate_session(self.session_id, self.integration_branch)
-        if not is_valid:
-            return False, error
+        # 1. Check if session exists in manifest
+        mgr = SessionManager()
+        manifest = await mgr.load_manifest()
 
-        # Remote branch check (optional)
+        if not manifest:
+            return False, "Project manifest not found."
+
+        if manifest.project_session_id != self.session_id:
+            return False, f"Manifest session ID {manifest.project_session_id} does not match requested {self.session_id}"
+
+        if manifest.integration_branch != self.integration_branch:
+             return False, f"Manifest integration branch {manifest.integration_branch} does not match {self.integration_branch}"
+
+        # 2. Remote branch check (optional)
         if self.check_remote:
             git = GitManager()
             is_valid_remote, remote_error = await git.validate_remote_branch(

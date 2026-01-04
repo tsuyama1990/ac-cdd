@@ -241,7 +241,6 @@ class WorkflowService(IWorkflowOrchestrator):
                 body=f"This PR merges all implemented cycles from session {sid} into main.",
             )
             console.print(SuccessMessages.session_finalized(pr_url))
-            # SessionManager.clear_session() # Removed as it's static and we are using git state
         except Exception as e:
             console.print(f"[bold red]Finalization failed:[/bold red] {e}")
             sys.exit(1)

@@ -1,7 +1,7 @@
 """Session management utilities for AC-CDD using Git-based state persistence."""
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from ac_cdd_core.domain_models import CycleManifest, ProjectManifest
@@ -40,7 +40,7 @@ class SessionManager:
     async def save_manifest(self, manifest: ProjectManifest, commit_msg: str = "Update state") -> None:
         """Saves manifest to the orphan state branch."""
         try:
-            manifest.last_updated = datetime.now(timezone.utc)
+            manifest.last_updated = datetime.now(UTC)
             content = manifest.model_dump_json(indent=2)
             await self.git.save_state_file(self.STATE_FILE, content, commit_msg)
         except Exception as e:
@@ -91,7 +91,7 @@ class SessionManager:
                 updated = True
 
         if updated:
-            cycle.updated_at = datetime.now(timezone.utc)
+            cycle.updated_at = datetime.now(UTC)
             commit_msg = f"Update cycle {cycle_id}"
             if "status" in kwargs:
                 commit_msg += f" status to {kwargs['status']}"
@@ -109,4 +109,3 @@ class SessionManager:
         """
         # Implementation for clearing state if strictly required,
         # but usually we just start a new session which overwrites or creates new.
-        pass

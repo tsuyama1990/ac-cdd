@@ -1,9 +1,8 @@
 from typing import Any
 
-from pydantic_ai import Agent
-
 from ac_cdd_core.config import settings
 from ac_cdd_core.domain_models import PlanAuditResult
+from pydantic_ai import Agent
 
 
 class PlanAuditor:

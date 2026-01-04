@@ -1,5 +1,4 @@
 import contextlib
-import shutil
 import tempfile
 from pathlib import Path
 
@@ -428,7 +427,7 @@ class GitManager:
         # 3. Create orphan branch if not found anywhere
         logger.info(f"Creating orphan branch: {self.STATE_BRANCH}")
 
-        with tempfile.TemporaryDirectory() as tmp_dir:
+        with tempfile.TemporaryDirectory():
             # Create an empty tree object
             empty_tree, _, _ = await self.runner.run_command(
                 [self.git_cmd, "mktree"], input_str="", check=True
