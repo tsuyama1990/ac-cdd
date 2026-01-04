@@ -575,17 +575,81 @@ class JulesClient:
 
         return full_context
 
+    async def _handle_plan_approval(self, session_url: str, processed_ids: set[str]) -> None:
+        """Handles automated plan review and approval."""
+        session_name = "sessions/" + session_url.split("/sessions/")[-1]
+        plan = await self.get_latest_plan(session_name)
+        
+        if not plan:
+            return
+
+        plan_id = plan.get("planId")
+        if not plan_id or plan_id in processed_ids:
+            return
+
+        self.console.print(f"\n[bold magenta]Plan Approval Requested:[/bold magenta] {plan_id}")
+
+        # Build context for Auditor
+        mgr = SessionManager()
+        manifest = await mgr.load_manifest()
+        
+        current_cycle_id = None
+        if manifest:
+             for cycle in manifest.cycles:
+                if cycle.status == "in_progress":
+                    current_cycle_id = cycle.id
+                    break
+
+        context_parts = []
+        if current_cycle_id:
+             self._load_cycle_docs(current_cycle_id, context_parts)
+        
+        # Add Plan Content
+        import json
+        plan_steps = plan.get("steps", [])
+        plan_text = json.dumps(plan_steps, indent=2) 
+        context_parts.append(f"# GENERATED PLAN TO REVIEW\n{plan_text}\n")
+        
+        intro = (
+            "Jules has generated an implementation plan. Please review it against the specifications.\n"
+            "If the plan is acceptable, reply with just 'APPROVE' (single word).\n"
+            "If there are issues, reply with specific feedback to correct the plan.\n"
+            "Do NOT approve if the plan is missing critical steps or violates requirements.\n"
+        )
+        full_context = intro + "\n".join(context_parts)
+
+        self.console.print("[dim]Auditing Plan...[/dim]")
+        try:
+            mgr_response = await self.manager_agent.run(full_context)
+            reply = mgr_response.output.strip()
+
+            if "APPROVE" in reply.upper() and len(reply) < 50:
+                 self.console.print(f"[bold green]Plan Approved by Auditor.[/bold green]")
+                 await self.approve_plan(session_name, plan_id)
+            else:
+                 self.console.print(f"[bold yellow]Plan Rejected. Sending Feedback...[/bold yellow]")
+                 await self._send_message(session_url, reply)
+                 
+            processed_ids.add(plan_id)
+        except Exception as e:
+            logger.error(f"Plan audit failed: {e}")
+
     async def _process_inquiries(
         self, client: httpx.AsyncClient, session_url: str, state: str, processed_ids: set[str]
     ) -> None:
         active_states = [
             "AWAITING_USER_FEEDBACK",
+            "AWAITING_USER_PLAN_APPROVAL",
             "COMPLETED",
             "SUCCEEDED",
             "NEEDS_MORE_INFORMATION",
             "RUNNING",
         ]
         if state not in active_states:
+            return
+            
+        if state == "AWAITING_USER_PLAN_APPROVAL":
+            await self._handle_plan_approval(session_url, processed_ids)
             return
 
         inquiry = await self._check_for_inquiry(client, session_url)
