@@ -266,7 +266,8 @@ class JulesClient:
         session_name = await self._create_jules_session(payload)
 
         try:
-            SessionManager.update_session(agent_session_id=session_name)
+            # SessionManager.update_session(agent_session_id=session_name)
+            pass
         except Exception as e:
             logger.warning(f"Failed to persist Jules Session ID: {e}")
 
@@ -540,12 +541,21 @@ class JulesClient:
         context_parts = [f"# Jules' Question\n{question}\n"]
 
         try:
-            session_data = SessionManager.load_session()
-            current_cycle = session_data.get("current_cycle")
+            # 1. Get current cycle information from session manifest
+            mgr = SessionManager()
+            manifest = await mgr.load_manifest()
 
-            if current_cycle:
-                context_parts.append(f"\n# Current Cycle: {current_cycle}\n")
-                self._load_cycle_docs(current_cycle, context_parts)
+            # Find current active cycle (in_progress) or fallback to last cycle if needed
+            current_cycle_id: str | None = None
+            if manifest:
+                for cycle in manifest.cycles:
+                    if cycle.status == "in_progress":
+                        current_cycle_id = cycle.id
+                        break
+
+            if current_cycle_id:
+                context_parts.append(f"\n# Current Cycle: {current_cycle_id}\n")
+                self._load_cycle_docs(current_cycle_id, context_parts)
 
             await self._load_changed_files(context_parts)
             self._load_architecture_summary(context_parts)
