@@ -265,11 +265,7 @@ class JulesClient:
 
         session_name = await self._create_jules_session(payload)
 
-        try:
-            # SessionManager.update_session(agent_session_id=session_name)
-            pass
-        except Exception as e:
-            logger.warning(f"Failed to persist Jules Session ID: {e}")
+        # Session persistence is handled by the caller (graph_nodes.py)
 
         if require_plan_approval:
             return {"session_name": session_name, "status": "running"}
@@ -575,48 +571,73 @@ class JulesClient:
 
         return full_context
 
-    async def _handle_plan_approval(self, session_url: str, processed_ids: set[str]) -> None:
-        """Handles automated plan review and approval."""
-        session_name = "sessions/" + session_url.split("/sessions/")[-1]
-        plan = await self.get_latest_plan(session_name)
-        
-        if not plan:
-            return
+    async def _fetch_pending_plan(
+        self, client: httpx.AsyncClient, session_url: str, processed_ids: set[str]
+    ) -> tuple[dict[str, Any], str] | None:
+        """Fetches a pending plan from activities if one exists."""
+        act_url = f"{session_url}/activities"
+        try:
+            act_resp = await client.get(act_url, headers=self._get_headers(), timeout=10.0)
+            if act_resp.status_code != httpx.codes.OK:
+                return None
 
-        plan_id = plan.get("planId")
-        if not plan_id or plan_id in processed_ids:
-            return
+            activities = act_resp.json().get("activities", [])
 
-        self.console.print(f"\n[bold magenta]Plan Approval Requested:[/bold magenta] {plan_id}")
+            for activity in activities:
+                if "planGenerated" in activity:
+                    plan = activity.get("planGenerated", {})
+                    plan_id = plan.get("planId")
+                    if plan_id and plan_id not in processed_ids:
+                        return (plan, plan_id)
+        except Exception as e:
+            logger.debug(f"Failed to check for plan: {e}")
+        else:
+            return None
+        return None
 
-        # Build context for Auditor
+    async def _build_plan_review_context(self, plan: dict[str, Any]) -> str:
+        """Builds context for plan review including specs and plan content."""
         mgr = SessionManager()
         manifest = await mgr.load_manifest()
-        
+
         current_cycle_id = None
         if manifest:
-             for cycle in manifest.cycles:
+            for cycle in manifest.cycles:
                 if cycle.status == "in_progress":
                     current_cycle_id = cycle.id
                     break
 
-        context_parts = []
+        context_parts: list[str] = []
         if current_cycle_id:
-             self._load_cycle_docs(current_cycle_id, context_parts)
-        
-        # Add Plan Content
+            self._load_cycle_docs(current_cycle_id, context_parts)
+
         import json
         plan_steps = plan.get("steps", [])
-        plan_text = json.dumps(plan_steps, indent=2) 
+        plan_text = json.dumps(plan_steps, indent=2)
         context_parts.append(f"# GENERATED PLAN TO REVIEW\n{plan_text}\n")
-        
+
         intro = (
             "Jules has generated an implementation plan. Please review it against the specifications.\n"
             "If the plan is acceptable, reply with just 'APPROVE' (single word).\n"
             "If there are issues, reply with specific feedback to correct the plan.\n"
             "Do NOT approve if the plan is missing critical steps or violates requirements.\n"
         )
-        full_context = intro + "\n".join(context_parts)
+        return intro + "\n".join(context_parts)
+
+    async def _handle_plan_approval(
+        self, client: httpx.AsyncClient, session_url: str, processed_ids: set[str]
+    ) -> None:
+        """Handles automated plan review and approval."""
+        session_name = "sessions/" + session_url.split("/sessions/")[-1]
+
+        result = await self._fetch_pending_plan(client, session_url, processed_ids)
+        if not result:
+            return
+
+        plan, plan_id = result
+        self.console.print(f"\n[bold magenta]Plan Approval Requested:[/bold magenta] {plan_id}")
+
+        full_context = await self._build_plan_review_context(plan)
 
         self.console.print("[dim]Auditing Plan...[/dim]")
         try:
@@ -624,12 +645,12 @@ class JulesClient:
             reply = mgr_response.output.strip()
 
             if "APPROVE" in reply.upper() and len(reply) < 50:
-                 self.console.print(f"[bold green]Plan Approved by Auditor.[/bold green]")
-                 await self.approve_plan(session_name, plan_id)
+                self.console.print("[bold green]Plan Approved by Auditor.[/bold green]")
+                await self.approve_plan(session_name, plan_id)
             else:
-                 self.console.print(f"[bold yellow]Plan Rejected. Sending Feedback...[/bold yellow]")
-                 await self._send_message(session_url, reply)
-                 
+                self.console.print("[bold yellow]Plan Rejected. Sending Feedback...[/bold yellow]")
+                await self._send_message(session_url, reply)
+
             processed_ids.add(plan_id)
         except Exception as e:
             logger.error(f"Plan audit failed: {e}")
@@ -639,6 +660,7 @@ class JulesClient:
     ) -> None:
         active_states = [
             "AWAITING_USER_FEEDBACK",
+            "AWAITING_USER_INPUT",
             "AWAITING_USER_PLAN_APPROVAL",
             "COMPLETED",
             "SUCCEEDED",
@@ -647,11 +669,12 @@ class JulesClient:
         ]
         if state not in active_states:
             return
-            
-        if state == "AWAITING_USER_PLAN_APPROVAL":
-            await self._handle_plan_approval(session_url, processed_ids)
-            return
 
+        # Always check for plan approval first (regardless of state)
+        # This ensures we catch it even if the state string is different than expected
+        await self._handle_plan_approval(client, session_url, processed_ids)
+
+        # Then handle regular inquiries
         inquiry = await self._check_for_inquiry(client, session_url)
         if not inquiry:
             return
