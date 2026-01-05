@@ -19,7 +19,6 @@ You must generate (create) the following files in the repository:
 - `dev_documents/system_prompts/SYSTEM_ARCHITECTURE.md`
 - `dev_documents/system_prompts/CYCLE{xx}/SPEC.md` (For EACH Cycle)
 - `dev_documents/system_prompts/CYCLE{xx}/UAT.md` (For EACH Cycle)
-- `dev_documents/system_prompts/plan_status.json`
 - `pyproject.toml`
 
 ### File Content Requirements
@@ -193,14 +192,6 @@ ignore_missing_imports = true
 - **Maintainability**: Enforces modern Python patterns and clean code practices
 
 
-#### 5. `dev_documents/system_prompts/plan_status.json`
-Content format:
-```json
-{
-  "status": "completed",
-  "cycles": ["01", "02", "03", "...", "{{max_cycles}}"]
-}
-```
 **CRITICAL:** You MUST generate EXACTLY `{{max_cycles}}` cycles. Do not decide on your own to generate fewer. If the input says 8 cycles, you must create CYCLE01 through CYCLE08.
 
 FINAL REMINDER
