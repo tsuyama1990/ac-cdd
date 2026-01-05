@@ -585,8 +585,9 @@ class JulesClient:
 
             for activity in activities:
                 if "planGenerated" in activity:
-                    plan = activity.get("planGenerated", {})
-                    plan_id = plan.get("planId")
+                    plan_generated = activity.get("planGenerated", {})
+                    plan = plan_generated.get("plan", {})
+                    plan_id = plan.get("id")
                     if plan_id and plan_id not in processed_ids:
                         return (plan, plan_id)
         except Exception as e:
