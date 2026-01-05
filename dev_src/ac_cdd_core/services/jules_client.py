@@ -579,19 +579,24 @@ class JulesClient:
         try:
             act_resp = await client.get(act_url, headers=self._get_headers(), timeout=10.0)
             if act_resp.status_code != httpx.codes.OK:
+                logger.warning(f"Failed to fetch activities: HTTP {act_resp.status_code}")
                 return None
 
             activities = act_resp.json().get("activities", [])
+            logger.debug(f"Checking {len(activities)} activities for planGenerated")
 
             for activity in activities:
                 if "planGenerated" in activity:
                     plan_generated = activity.get("planGenerated", {})
                     plan = plan_generated.get("plan", {})
                     plan_id = plan.get("id")
+                    logger.info(f"Found planGenerated activity with plan ID: {plan_id}")
                     if plan_id and plan_id not in processed_ids:
+                        logger.info(f"Plan {plan_id} is new, will process")
                         return (plan, plan_id)
+                    logger.debug(f"Plan {plan_id} already processed, skipping")
         except Exception as e:
-            logger.debug(f"Failed to check for plan: {e}")
+            logger.warning(f"Failed to check for plan: {e}", exc_info=True)
         else:
             return None
         return None
