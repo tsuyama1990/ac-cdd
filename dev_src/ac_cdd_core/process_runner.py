@@ -37,12 +37,12 @@ class ProcessRunner:
             returncode = process.returncode or 0
 
             if returncode != 0:
-                logger.error(f"Command failed [{returncode}]: {cmd_str}")
-                if stderr_str:
-                    logger.error(f"Stderr: {stderr_str}")
-
                 if check:
-                    pass
+                    logger.error(f"Command failed [{returncode}]: {cmd_str}")
+                    if stderr_str:
+                        logger.error(f"Stderr: {stderr_str}")
+                else:
+                    logger.debug(f"Command failed (expected) [{returncode}]: {cmd_str}")
         except Exception as e:
             logger.error(f"Execution failed for '{cmd_str}': {e}")
             return "", str(e), -1
