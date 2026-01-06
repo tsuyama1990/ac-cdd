@@ -369,7 +369,7 @@ class JulesClient:
         return result
 
     async def _check_for_inquiry(
-        self, client: httpx.AsyncClient, session_url: str
+        self, client: httpx.AsyncClient, session_url: str, processed_ids: set[str]
     ) -> tuple[str, str] | None:
         """Checks if the session is waiting for user feedback."""
         try:
@@ -379,9 +379,12 @@ class JulesClient:
             if act_resp.status_code == httpx.codes.OK:
                 activities = act_resp.json().get("activities", [])
                 for act in activities:
+                    act_id = act.get("name", act.get("id"))
+                    # Skip already processed activities to prevent duplicates
+                    if act_id in processed_ids:
+                        continue
                     msg = self._extract_activity_message(act)
                     if msg:
-                        act_id = act.get("name", act.get("id"))
                         return msg, act_id
         except Exception as e:
             logger.warning(f"Failed to check for inquiry: {e}")
@@ -689,8 +692,8 @@ class JulesClient:
         # This ensures we catch it even if the state string is different than expected
         await self._handle_plan_approval(client, session_url, processed_ids)
 
-        # Then handle regular inquiries
-        inquiry = await self._check_for_inquiry(client, session_url)
+        # Then handle regular inquiries (skip already processed activities)
+        inquiry = await self._check_for_inquiry(client, session_url, processed_ids)
         if not inquiry:
             return
 

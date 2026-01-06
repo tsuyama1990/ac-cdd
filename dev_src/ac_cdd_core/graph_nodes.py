@@ -248,13 +248,13 @@ class CycleNodes(IGraphNodes):
                 f for f in changed_file_paths if Path(f).suffix in reviewable_extensions
             ]
 
-            # CRITICAL: Filter out framework/dev files - only review application code
-            # The Auditor should only review what Jules was asked to create (src/, tests/)
-            # NOT the framework itself (dev_src/, dev_documents/)
-            excluded_prefixes = ("dev_src/", "dev_documents/", ".git/", ".venv/", "venv/")
+            # CRITICAL: ONLY review application code (src/, tests/)
+            # The Auditor should ONLY review what Jules was asked to create
+            # NOT framework files (dev_src/, dev_documents/, pyproject.toml, etc.)
+            included_prefixes = ("src/", "tests/")
             reviewable_files = [
                 f for f in reviewable_files
-                if not any(f.startswith(prefix) for prefix in excluded_prefixes)
+                if any(f.startswith(prefix) for prefix in included_prefixes)
             ]
 
             if not reviewable_files:
