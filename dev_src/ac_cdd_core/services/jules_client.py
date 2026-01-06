@@ -428,7 +428,7 @@ class JulesClient:
         await self._initialize_processed_ids(session_url, processed_activity_ids)
 
         last_activity_count = 0
-        plan_rejection_count = 0
+        plan_rejection_count = [0]  # Use list to persist across iterations
         max_plan_rejections = 2  # Limit plan approval iterations
         async with httpx.AsyncClient() as client:
             while True:
@@ -437,16 +437,16 @@ class JulesClient:
                     raise JulesTimeoutError(tmsg)
 
                 try:
-                    resp = await client.get(session_url, headers=self._get_headers(), timeout=10.0)
-                    if resp.status_code != httpx.codes.OK:
-                        logger.warning(f"Polling error: {resp.status_code}")
-                    else:
-                        data = resp.json()
+                    response = await client.get(session_url, headers=self._get_headers())
+                    response.raise_for_status()
+                    data = response.json()
+
+                    if data:
                         state = data.get("state")
                         logger.info(f"Jules session state: {state}")
                         await self._process_inquiries(
                             client, session_url, state, processed_activity_ids,
-                            [plan_rejection_count], max_plan_rejections, require_plan_approval
+                            plan_rejection_count, max_plan_rejections, require_plan_approval
                         )
                         success_result = await self._check_success_state(
                             client, session_url, data, state
