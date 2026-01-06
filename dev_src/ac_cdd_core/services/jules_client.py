@@ -272,7 +272,7 @@ class JulesClient:
             return {"session_name": session_name, "status": "running"}
 
         logger.info(f"Session created: {session_name}. Waiting for PR creation...")
-        result = await self.wait_for_completion(session_name)
+        result = await self.wait_for_completion(session_name, require_plan_approval=False)
         result["session_name"] = session_name
         return result
 
@@ -407,7 +407,9 @@ class JulesClient:
             return None
         return msg
 
-    async def wait_for_completion(self, session_name: str) -> dict[str, Any]:
+    async def wait_for_completion(
+        self, session_name: str, require_plan_approval: bool = True
+    ) -> dict[str, Any]:
         """Polls for PR creation and handles user interaction (Human-in-the-loop)."""
         if self.api_client.api_key == "dummy_jules_key" and not self._is_httpx_mocked():
             return {"status": "success", "pr_url": "https://github.com/dummy/pr/1"}
@@ -444,7 +446,7 @@ class JulesClient:
                         logger.info(f"Jules session state: {state}")
                         await self._process_inquiries(
                             client, session_url, state, processed_activity_ids,
-                            [plan_rejection_count], max_plan_rejections
+                            [plan_rejection_count], max_plan_rejections, require_plan_approval
                         )
                         success_result = await self._check_success_state(
                             client, session_url, data, state
@@ -688,7 +690,7 @@ class JulesClient:
 
     async def _process_inquiries(
         self, client: httpx.AsyncClient, session_url: str, state: str, processed_ids: set[str],
-        rejection_count: list[int], max_rejections: int
+        rejection_count: list[int], max_rejections: int, require_plan_approval: bool = True
     ) -> None:
         active_states = [
             "AWAITING_USER_FEEDBACK",
@@ -705,9 +707,10 @@ class JulesClient:
         if state not in active_states:
             return
 
-        # Always check for plan approval first (regardless of state)
+        # Always check for plan approval first (if enabled)
         # This ensures we catch it even if the state string is different than expected
-        await self._handle_plan_approval(client, session_url, processed_ids, rejection_count, max_rejections)
+        if require_plan_approval:
+            await self._handle_plan_approval(client, session_url, processed_ids, rejection_count, max_rejections)
 
         # Then handle regular inquiries (skip already processed activities)
         inquiry = await self._check_for_inquiry(client, session_url, processed_ids)
