@@ -274,6 +274,13 @@ class CycleNodes(IGraphNodes):
             else:
                 console.print(f"[dim]Auditor: Reviewing {len(reviewable_files)} code files[/dim]")
 
+            # CRITICAL: Remove context files from review targets
+            # Context files (SPEC.md, UAT.md, etc.) should only be reference, not audit targets
+            context_file_names = {str(p) for p in context_paths}
+            reviewable_files = [f for f in reviewable_files if f not in context_file_names]
+
+            console.print(f"[dim]Auditor: Final review target: {len(reviewable_files)} files (context excluded)[/dim]")
+
             target_files = await self._read_files(reviewable_files)
 
         except Exception as e:
