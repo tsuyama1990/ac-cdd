@@ -654,6 +654,7 @@ class JulesClient:
 
         context_parts: list[str] = []
         if current_cycle_id:
+            context_parts.append(f"# CURRENT CYCLE: {current_cycle_id}\n")
             self._load_cycle_docs(current_cycle_id, context_parts)
 
         import json
