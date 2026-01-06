@@ -227,8 +227,12 @@ class CycleNodes(IGraphNodes):
 
         instruction = settings.get_template("AUDITOR_INSTRUCTION.md").read_text()
 
-        # Get context files (SPEC, UAT, etc.) - these are static references
+        # Get context files (SPEC, UAT, ARCHITECT_INSTRUCTION, etc.) - these are static references
         context_paths = settings.get_context_files()
+        # Add ARCHITECT_INSTRUCTION.md for project structure context
+        architect_instruction = settings.get_template("ARCHITECT_INSTRUCTION.md")
+        if architect_instruction.exists():
+            context_paths.append(str(architect_instruction))
         context_docs = await self._read_files(context_paths)
 
         # DYNAMIC: Get all files changed in the current branch (what's in the PR)
