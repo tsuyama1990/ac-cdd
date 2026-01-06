@@ -191,7 +191,7 @@ class CycleNodes(IGraphNodes):
                 prompt=instruction,
                 target_files=target_files,
                 context_files=context_files,
-                require_plan_approval=True,
+                require_plan_approval=False,  # Auto-approve all plans
             )
 
             # 2. Persist Session ID IMMEDIATELY for Hot Resume

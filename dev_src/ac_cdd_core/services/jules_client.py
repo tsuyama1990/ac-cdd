@@ -194,6 +194,11 @@ class JulesClient:
             self.credentials = None
 
         self.manager_agent = manager_agent
+        
+        # Import PlanAuditor for plan approval (separate from manager_agent for questions)
+        from ac_cdd_core.services.plan_auditor import PlanAuditor
+        self.plan_auditor = PlanAuditor()
+        
         api_key_to_use = settings.JULES_API_KEY
         if not api_key_to_use and self.credentials:
             api_key_to_use = self.credentials.token
