@@ -170,8 +170,8 @@ FAST_MODEL=openrouter/nousresearch/hermes-3-llama-3.1-405b:free
             "UAT_DESIGN.md",
         ]
 
-        # Source directory: current project's dev_documents/system_prompts
-        source_dir = Path(__file__).parent.parent.parent.parent / "dev_documents" / "system_prompts"
+        # Source directory: package templates (always available)
+        source_dir = Path(__file__).parent.parent / "templates"
 
         if not source_dir.exists():
             logger.warning(f"Template source directory not found: {source_dir}")
@@ -190,4 +190,5 @@ FAST_MODEL=openrouter/nousresearch/hermes-3-llama-3.1-405b:free
                     logger.warning(f"Failed to copy {template_file}: {e}")
             elif dest_file.exists():
                 logger.debug(f"Skipping {template_file} (already exists)")
+
 
