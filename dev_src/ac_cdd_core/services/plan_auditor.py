@@ -36,8 +36,10 @@ class PlanAuditor:
         )
 
     async def audit_plan(
-        self, plan_details: dict[str, Any], context_files: dict[str, str],
-        phase: str = "coder"  # "architect" or "coder"
+        self,
+        plan_details: dict[str, Any],
+        context_files: dict[str, str],
+        phase: str = "coder",  # "architect" or "coder"
     ) -> PlanAuditResult:
         """
         Audits a plan against the requirements.

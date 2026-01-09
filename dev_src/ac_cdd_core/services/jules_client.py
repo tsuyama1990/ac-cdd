@@ -18,7 +18,7 @@ except ImportError:
 
 import google.auth
 import httpx
-from ac_cdd_core.agents import manager_agent
+from ac_cdd_core.agents import get_manager_agent
 from ac_cdd_core.config import settings
 from ac_cdd_core.services.git_ops import GitManager
 from ac_cdd_core.session_manager import SessionManager
@@ -193,10 +193,11 @@ class JulesClient:
             )
             self.credentials = None
 
-        self.manager_agent = manager_agent
+        self.manager_agent = get_manager_agent()
 
         # Import PlanAuditor for plan approval (separate from manager_agent for questions)
         from ac_cdd_core.services.plan_auditor import PlanAuditor
+
         self.plan_auditor = PlanAuditor()
 
         api_key_to_use = settings.JULES_API_KEY
@@ -450,8 +451,13 @@ class JulesClient:
                         state = data.get("state")
                         logger.info(f"Jules session state: {state}")
                         await self._process_inquiries(
-                            client, session_url, state, processed_activity_ids,
-                            plan_rejection_count, max_plan_rejections, require_plan_approval
+                            client,
+                            session_url,
+                            state,
+                            processed_activity_ids,
+                            plan_rejection_count,
+                            max_plan_rejections,
+                            require_plan_approval,
                         )
                         success_result = await self._check_success_state(
                             client, session_url, data, state
@@ -663,6 +669,7 @@ class JulesClient:
             self._load_cycle_docs(current_cycle_id, context_parts)
 
         import json
+
         plan_steps = plan.get("steps", [])
         plan_text = json.dumps(plan_steps, indent=2)
         context_parts.append(f"# GENERATED PLAN TO REVIEW\n{plan_text}\n")
@@ -676,8 +683,12 @@ class JulesClient:
         return intro + "\n".join(context_parts)
 
     async def _handle_plan_approval(
-        self, client: httpx.AsyncClient, session_url: str, processed_ids: set[str],
-        rejection_count: list[int], max_rejections: int
+        self,
+        client: httpx.AsyncClient,
+        session_url: str,
+        processed_ids: set[str],
+        rejection_count: list[int],
+        max_rejections: int,
     ) -> None:
         """Handles automated plan review and approval."""
         session_name = "sessions/" + session_url.split("/sessions/")[-1]
@@ -718,8 +729,14 @@ class JulesClient:
             logger.error(f"Plan audit failed: {e}")
 
     async def _process_inquiries(
-        self, client: httpx.AsyncClient, session_url: str, state: str, processed_ids: set[str],
-        rejection_count: list[int], max_rejections: int, require_plan_approval: bool = True
+        self,
+        client: httpx.AsyncClient,
+        session_url: str,
+        state: str,
+        processed_ids: set[str],
+        rejection_count: list[int],
+        max_rejections: int,
+        require_plan_approval: bool = True,
     ) -> None:
         active_states = [
             "AWAITING_USER_FEEDBACK",
@@ -739,7 +756,9 @@ class JulesClient:
         # Always check for plan approval first (if enabled)
         # This ensures we catch it even if the state string is different than expected
         if require_plan_approval:
-            await self._handle_plan_approval(client, session_url, processed_ids, rejection_count, max_rejections)
+            await self._handle_plan_approval(
+                client, session_url, processed_ids, rejection_count, max_rejections
+            )
 
         # Then handle regular inquiries (skip already processed activities)
         inquiry = await self._check_for_inquiry(client, session_url, processed_ids)
@@ -804,7 +823,9 @@ class JulesClient:
                         pr_url = pr_data.get("url")
                         if pr_url:
                             self.console.print(f"\n[bold green]PR Created: {pr_url}[/bold green]")
-                            logger.info(f"Found PR in activities (not in session outputs): {pr_url}")
+                            logger.info(
+                                f"Found PR in activities (not in session outputs): {pr_url}"
+                            )
                             return {"pr_url": pr_url, "status": "success", "raw": data}
         except Exception as e:
             logger.debug(f"Failed to check activities for PR: {e}")
@@ -817,7 +838,9 @@ class JulesClient:
             try:
                 pr_url = await self._create_manual_pr(session_url)
                 if pr_url:
-                    self.console.print(f"\n[bold green]✓ PR Created Manually: {pr_url}[/bold green]")
+                    self.console.print(
+                        f"\n[bold green]✓ PR Created Manually: {pr_url}[/bold green]"
+                    )
                     return {"pr_url": pr_url, "status": "success", "raw": data}
             except Exception as e:
                 logger.warning(f"Failed to create manual PR: {e}")
@@ -825,7 +848,6 @@ class JulesClient:
 
             return {"status": "success", "raw": data}
         return None
-
 
     def _check_failure_state(self, data: dict[str, Any], state: str) -> None:
         if state != "FAILED":

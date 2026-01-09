@@ -78,7 +78,9 @@ class AuditOrchestrator:
             current_plan_id = plan_id
             console.print(f"[blue]Plan Generated (ID: {plan_id})[/blue]")
 
-            audit_result = await self.auditor.audit_plan(plan_details, spec_files, phase="architect")
+            audit_result = await self.auditor.audit_plan(
+                plan_details, spec_files, phase="architect"
+            )
 
             style = "green" if audit_result.status == "APPROVED" else "red"
             console.print(

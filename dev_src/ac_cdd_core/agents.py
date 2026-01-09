@@ -99,40 +99,48 @@ def get_model(model_name: str) -> Model | str:
 # --- Agents ---
 # Auditor Agent is deprecated/removed in favor of LLMReviewer.
 
-# QA Analyst Agent
-# Updated to use dynamic prompt loading via factory function or string injection
-# Since pydantic-ai Agent accepts system_prompt as string or function,
-# we can call the loader function immediately if we assume static loading,
-# OR we can wrap it in a function.
-# However, settings.reviewer.qa_analyst used to contain the STRING content.
-# We must replicate that behavior.
-
-qa_analyst_agent: Agent[Any, UatAnalysis] = Agent(
-    model=get_model(settings.agents.qa_analyst_model),
-    system_prompt=settings.get_prompt_content("UAT_DESIGN.md", default="You are a QA Analyst."),
-)
+# Lazy initialization to avoid requiring API keys at import time
+_qa_analyst_agent: Agent[Any, UatAnalysis] | None = None
+_manager_agent: Agent[Any, str] | None = None
 
 
-@qa_analyst_agent.system_prompt
-def qa_analyst_system_prompt(_ctx: RunContext[Any]) -> str:
-    return _get_system_context()
+def get_qa_analyst_agent() -> Agent[Any, UatAnalysis]:
+    """Get or create the QA Analyst agent instance."""
+    global _qa_analyst_agent  # noqa: PLW0603
+    if _qa_analyst_agent is None:
+        _qa_analyst_agent = Agent(
+            model=get_model(settings.agents.qa_analyst_model),
+            system_prompt=settings.get_prompt_content(
+                "UAT_DESIGN.md", default="You are a QA Analyst."
+            ),
+        )
+
+        @_qa_analyst_agent.system_prompt
+        def qa_analyst_system_prompt(_ctx: RunContext[Any]) -> str:
+            return _get_system_context()
+
+    return _qa_analyst_agent
 
 
-# Manager Agent (for handling clarifying questions and plan approval)
-manager_agent: Agent[Any, str] = Agent(
-    model=get_model(settings.agents.auditor_model),
-    system_prompt=(
-        "You are a Senior Technical Project Manager and Debugging Mentor. "
-        "When answering questions from the developer (Jules):\n"
-        "1. Focus on ROOT CAUSE ANALYSIS - help identify WHY problems occur, not just HOW to fix them\n"
-        "2. Guide systematic investigation - suggest specific files, functions, or debugging steps\n"
-        "3. Discourage trial-and-error - promote understanding before fixing\n"
-        "4. Be analytical and educational - help Jules become a better problem solver\n"
-        "Answer questions accurately, concisely, and with clear reasoning based on project specifications."
-    ),
-)
+def get_manager_agent() -> Agent[Any, str]:
+    """Get or create the Manager agent instance."""
+    global _manager_agent  # noqa: PLW0603
+    if _manager_agent is None:
+        _manager_agent = Agent(
+            model=get_model(settings.agents.auditor_model),
+            system_prompt=(
+                "You are a Senior Technical Project Manager and Debugging Mentor. "
+                "When answering questions from the developer (Jules):\n"
+                "1. Focus on ROOT CAUSE ANALYSIS - help identify WHY problems occur, not just HOW to fix them\n"
+                "2. Guide systematic investigation - suggest specific files, functions, or debugging steps\n"
+                "3. Discourage trial-and-error - promote understanding before fixing\n"
+                "4. Be analytical and educational - help Jules become a better problem solver\n"
+                "Answer questions accurately, concisely, and with clear reasoning based on project specifications."
+            ),
+        )
 
+        @_manager_agent.system_prompt
+        def manager_system_prompt(_ctx: RunContext[Any]) -> str:
+            return _get_system_context()
 
-@manager_agent.system_prompt
-def manager_system_prompt(_ctx: RunContext[Any]) -> str:
-    return _get_system_context()
+    return _manager_agent

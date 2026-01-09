@@ -41,37 +41,14 @@ def check_environment() -> None:
 
 @app.command()
 def init() -> None:
-    """Initialize a new AC-CDD project."""
-    check_environment()
+    """Initialize a new AC-CDD project structure and create .env template."""
+    # Don't check environment yet - .env doesn't exist
     ProjectManager().initialize_project(str(settings.paths.templates))
 
-    # Initialize empty project state if not exists
-    async def _init_state() -> None:
-        mgr = SessionManager()
-        if not await mgr.load_manifest():
-            try:
-                # Ensure orphan branch exists
-                await mgr.git.ensure_state_branch()
-
-                # Update gitignore in main branch
-                gitignore_path = settings.paths.workspace_root / ".gitignore"
-                if gitignore_path.exists():
-                    content = gitignore_path.read_text(encoding="utf-8")
-                    if "dev_documents/project_state.json" not in content:
-                        with gitignore_path.open("a", encoding="utf-8") as f:
-                            f.write("\n# AC-CDD State\ndev_documents/project_state.json\n")
-                else:
-                    gitignore_path.write_text("# AC-CDD State\ndev_documents/project_state.json\n")
-
-            except Exception as e:
-                console.print(f"[yellow]Warning: Failed to initialize project state: {e}[/yellow]")
-
-    asyncio.run(_init_state())
-
     # Show next steps
-    console.print("\n[bold green]✓ Initialization Complete![/bold green]\n")
+    console.print("\n[bold green]✓ Project Structure Created![/bold green]\n")
     console.print("[bold cyan]Next Steps:[/bold cyan]")
-    console.print("  1. Configure your environment:")
+    console.print("  1. Configure your API keys:")
     console.print("     [yellow]cp .ac_cdd/.env.example .ac_cdd/.env[/yellow]")
     console.print("     Then edit [yellow].ac_cdd/.env[/yellow] and add your API keys\n")
     console.print("  2. Verify your configuration:")
@@ -285,10 +262,11 @@ def env_verify() -> None:  # noqa: PLR0915
     # Summary
     if missing_keys:
         panel = Panel(
-            "[yellow]⚠ Missing API Keys:[/yellow]\n" + "\n".join(f"  • {key}" for key in missing_keys) +
-            f"\n\nPlease edit: [cyan]{env_file_used}[/cyan]",
+            "[yellow]⚠ Missing API Keys:[/yellow]\n"
+            + "\n".join(f"  • {key}" for key in missing_keys)
+            + f"\n\nPlease edit: [cyan]{env_file_used}[/cyan]",
             title="[bold yellow]Configuration Incomplete[/bold yellow]",
-            border_style="yellow"
+            border_style="yellow",
         )
         console.print(panel)
         raise typer.Exit(code=1)
@@ -298,7 +276,7 @@ def env_verify() -> None:  # noqa: PLR0915
         "You're ready to start development!\n"
         "Next step: [yellow]uv run manage.py gen-cycles[/yellow]",
         title="[bold green]✓ Configuration Valid[/bold green]",
-        border_style="green"
+        border_style="green",
     )
     console.print(panel)
 

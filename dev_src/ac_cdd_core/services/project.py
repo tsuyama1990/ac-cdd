@@ -69,15 +69,14 @@ class ProjectManager:
         # Copy default instruction templates if they don't exist
         self._copy_default_templates(system_prompts_dir)
 
-        # Create .ac_cdd directory for configuration
-        ac_cdd_dir = Path.cwd() / ".ac_cdd"
-        ac_cdd_dir.mkdir(exist_ok=True)
+        # Create .env.example in project root (NOT in .ac_cdd yet)
+        # The .ac_cdd directory will be created later by gen-cycles
+        env_example_path = Path.cwd() / ".ac_cdd" / ".env.example"
+        env_example_path.parent.mkdir(exist_ok=True)
 
-        # Create .env.example with all necessary configuration
-        env_example_path = ac_cdd_dir / ".env.example"
         if not env_example_path.exists():
             env_example_content = """# AC-CDD Configuration File
-# Copy this file to .env and fill in your actual API keys
+# Copy this file to .ac_cdd/.env and fill in your actual API keys
 
 # ============================================================================
 # Required API Keys
@@ -131,14 +130,14 @@ FAST_MODEL=openrouter/nousresearch/hermes-3-llama-3.1-405b:free
 # ============================================================================
 # Notes
 # ============================================================================
-# 1. After copying this to .env, make sure to add .env to .gitignore
+# 1. After copying this to .ac_cdd/.env, it will be automatically loaded
 # 2. Never commit your actual API keys to version control
-# 3. The .env file should be placed in the project root directory
+# 3. The .ac_cdd/.env file is already in .gitignore
 """
             env_example_path.write_text(env_example_content, encoding="utf-8")
             logger.info(f"✓ Created .env.example at {env_example_path}")
-            logger.info("  Please copy it to .env and fill in your API keys:")
-            logger.info(f"  cp {env_example_path} .env")
+            logger.info("  Please copy it to .ac_cdd/.env and fill in your API keys:")
+            logger.info(f"  cp {env_example_path} .ac_cdd/.env")
 
         # Update .gitignore to exclude .env files
         gitignore_path = Path.cwd() / ".gitignore"
@@ -190,5 +189,3 @@ FAST_MODEL=openrouter/nousresearch/hermes-3-llama-3.1-405b:free
                     logger.warning(f"Failed to copy {template_file}: {e}")
             elif dest_file.exists():
                 logger.debug(f"Skipping {template_file} (already exists)")
-
-

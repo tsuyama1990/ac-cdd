@@ -433,7 +433,8 @@ class GitManager:
         with tempfile.TemporaryDirectory():
             # Create an empty tree object using asyncio directly (ProcessRunner doesn't support stdin)
             process = await asyncio.create_subprocess_exec(
-                self.git_cmd, "mktree",
+                self.git_cmd,
+                "mktree",
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
@@ -446,7 +447,11 @@ class GitManager:
 
             # Create a commit object from the empty tree
             process = await asyncio.create_subprocess_exec(
-                self.git_cmd, "commit-tree", empty_tree, "-m", "Initial state branch",
+                self.git_cmd,
+                "commit-tree",
+                empty_tree,
+                "-m",
+                "Initial state branch",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
