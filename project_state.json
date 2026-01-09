@@ -1,6 +1,29 @@
 {
   "project_session_id": "sessions/13430441784821981357",
   "integration_branch": "dev/architect-cycle-00-20260109-1650/integration",
-  "cycles": [],
-  "last_updated": "2026-01-09T17:04:10.495601Z"
+  "cycles": [
+    {
+      "id": "01",
+      "status": "planned",
+      "branch_name": null,
+      "jules_session_id": null,
+      "current_iteration": 1,
+      "pr_url": null,
+      "last_error": null,
+      "created_at": "2026-01-09T17:04:11.589338Z",
+      "updated_at": "2026-01-09T17:04:11.589343Z"
+    },
+    {
+      "id": "02",
+      "status": "planned",
+      "branch_name": null,
+      "jules_session_id": null,
+      "current_iteration": 1,
+      "pr_url": null,
+      "last_error": null,
+      "created_at": "2026-01-09T17:04:11.589358Z",
+      "updated_at": "2026-01-09T17:04:11.589359Z"
+    }
+  ],
+  "last_updated": "2026-01-09T17:04:11.589395Z"
 }
