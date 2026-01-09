@@ -809,10 +809,23 @@ class JulesClient:
         except Exception as e:
             logger.debug(f"Failed to check activities for PR: {e}")
 
-        if state == "SUCCEEDED":
-            self.console.print("[yellow]Session Succeeded but NO PR found.[/yellow]")
+        # If session is COMPLETED but no PR found, try to create PR manually
+        if state in ["SUCCEEDED", "COMPLETED"]:
+            self.console.print("[yellow]Session Completed but NO PR found.[/yellow]")
+            self.console.print("[cyan]Attempting to create PR manually...[/cyan]")
+
+            try:
+                pr_url = await self._create_manual_pr(session_url)
+                if pr_url:
+                    self.console.print(f"\n[bold green]✓ PR Created Manually: {pr_url}[/bold green]")
+                    return {"pr_url": pr_url, "status": "success", "raw": data}
+            except Exception as e:
+                logger.warning(f"Failed to create manual PR: {e}")
+                self.console.print(f"[yellow]Could not create PR automatically: {e}[/yellow]")
+
             return {"status": "success", "raw": data}
         return None
+
 
     def _check_failure_state(self, data: dict[str, Any], state: str) -> None:
         if state != "FAILED":
@@ -925,3 +938,65 @@ class JulesClient:
             session_id if session_id.startswith("sessions/") else f"sessions/{session_id}"
         )
         return self.api_client.approve_plan(session_id_path, plan_id)
+
+    async def _create_manual_pr(self, session_url: str) -> str | None:
+        """
+        Ask Jules to commit changes and create PR when auto-PR creation fails.
+
+        Returns PR URL if successful, None otherwise.
+        """
+        try:
+            self.console.print("[cyan]Sending message to Jules to commit and create PR...[/cyan]")
+
+            message = (
+                "The session has completed successfully, but no Pull Request was created.\n\n"
+                "Please commit all your changes and create a Pull Request now.\n\n"
+                "**Action Required:**\n"
+                "1. Review all the files you've created/modified\n"
+                "2. Commit all changes with a descriptive commit message\n"
+                "3. Create a Pull Request to the main branch\n\n"
+                "Do not wait for further instructions. Proceed immediately."
+            )
+
+            await self._send_message(session_url, message)
+
+            # Wait for Jules to process and create PR
+            self.console.print("[dim]Waiting for Jules to create PR...[/dim]")
+
+            # Poll for PR creation (max 5 minutes)
+            import asyncio
+
+            max_wait = 300  # 5 minutes
+            poll_interval = 10  # 10 seconds
+            elapsed = 0
+
+            async with httpx.AsyncClient() as client:
+                while elapsed < max_wait:
+                    await asyncio.sleep(poll_interval)
+                    elapsed += poll_interval
+
+                    # Check for PR in activities
+                    act_url = f"{session_url}/activities"
+                    try:
+                        act_resp = await client.get(
+                            act_url, headers=self._get_headers(), timeout=10.0
+                        )
+                        if act_resp.status_code == httpx.codes.OK:
+                            activities = act_resp.json().get("activities", [])
+                            for activity in activities:
+                                if "pullRequest" in activity:
+                                    pr_url: str | None = activity["pullRequest"].get("url")
+                                    if pr_url:
+                                        return pr_url
+                    except Exception as e:
+                        logger.debug(f"Error checking for PR: {e}")
+
+                    if elapsed % 30 == 0:  # Progress update every 30 seconds
+                        self.console.print(f"[dim]Still waiting... ({elapsed}s elapsed)[/dim]")
+
+                logger.warning("Timeout waiting for Jules to create PR")
+                return None
+
+        except Exception as e:
+            logger.error(f"Error requesting Jules to create PR: {e}")
+            return None
