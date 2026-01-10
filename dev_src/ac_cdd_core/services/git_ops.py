@@ -226,6 +226,16 @@ class GitManager:
         """Checks out the Pull Request branch using GitHub CLI."""
         logger.info(f"Checking out PR: {pr_url}...")
         await self.smart_checkout(pr_url, is_pr=True)
+        
+        # CRITICAL: Pull latest commits after checkout
+        # Jules may have updated the PR with new commits
+        logger.info("Pulling latest commits from PR...")
+        try:
+            await self._run_git(["pull"])
+            logger.info("Successfully pulled latest commits")
+        except Exception as e:
+            logger.warning(f"Could not pull latest commits: {e}")
+        
         logger.info(f"Checked out PR {pr_url} successfully.")
 
     async def checkout_branch(self, branch_name: str, force: bool = False) -> None:
