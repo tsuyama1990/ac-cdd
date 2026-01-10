@@ -62,10 +62,6 @@ class WorkflowService:
 
                 git = GitManager()
                 try:
-                    # Get the current branch (architect's branch) BEFORE creating integration branch
-                    architect_branch = await git.get_current_branch()
-                    logger.info(f"Architect branch: {architect_branch}")
-                    
                     # Create integration branch from main
                     await git.create_integration_branch(
                         session_id_val, branch_name=integration_branch
@@ -74,16 +70,33 @@ class WorkflowService:
                     # Merge the architect PR branch into integration branch
                     # This ensures SPEC.md and UAT.md files are available for run-cycle
                     pr_url = final_state.get("pr_url")
-                    if pr_url and architect_branch != integration_branch:
-                        logger.info(f"Merging architect branch {architect_branch} into {integration_branch}")
-                        
-                        # We're already on integration branch after create_integration_branch
-                        # Just merge the architect branch
-                        await git._run_git(["merge", architect_branch, "--no-ff", "-m", 
-                                          f"Merge architecture from {architect_branch}"])
-                        await git._run_git(["push", "origin", integration_branch])
-                        
-                        logger.info(f"Architecture PR has been merged to integration branch.")
+                    if pr_url:
+                        # Get the actual PR head branch (Jules creates its own branch)
+                        # We can't use get_current_branch() because that's our feature branch,
+                        # not Jules's branch
+                        try:
+                            stdout, _, code = await git.runner.run_command(
+                                [git.gh_cmd, "pr", "view", pr_url, "--json", "headRefName", "--jq", ".headRefName"],
+                                check=False
+                            )
+                            if code == 0 and stdout.strip():
+                                jules_branch = stdout.strip()
+                                logger.info(f"Jules created branch: {jules_branch}")
+                                
+                                # Fetch the branch from origin
+                                await git._run_git(["fetch", "origin", jules_branch])
+                                
+                                # Merge Jules's branch into integration
+                                logger.info(f"Merging {jules_branch} into {integration_branch}")
+                                await git._run_git(["merge", f"origin/{jules_branch}", "--no-ff", "-m", 
+                                                  f"Merge architecture from {jules_branch}"])
+                                await git._run_git(["push", "origin", integration_branch])
+                                
+                                logger.info(f"Architecture PR has been merged to integration branch.")
+                            else:
+                                logger.warning(f"Could not get PR head branch from {pr_url}")
+                        except Exception as e:
+                            logger.warning(f"Failed to merge PR branch: {e}")
                 except Exception as e:
                     logger.warning(f"Could not prepare integration branch: {e}")
 
