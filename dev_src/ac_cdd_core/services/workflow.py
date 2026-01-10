@@ -207,6 +207,20 @@ class WorkflowService:
             if not pid:
                 console.print("[red]No active session found. Run gen-cycles first.[/red]")
                 sys.exit(1)
+            
+            # CRITICAL: Checkout integration branch before starting coder session
+            # This ensures Jules creates PR against the correct base branch
+            if ib:
+                logger.info(f"Checking out integration branch: {ib}")
+                git = GitManager()
+                try:
+                    await git.checkout_branch(ib)
+                    logger.info(f"Successfully checked out integration branch: {ib}")
+                except Exception as e:
+                    logger.warning(f"Could not checkout integration branch: {e}")
+                    logger.warning("Proceeding with current branch (may cause issues!)")
+            else:
+                logger.warning("No integration branch found in manifest. Using current branch.")
 
             state = CycleState(
                 cycle_id=cycle_id,

@@ -263,7 +263,12 @@ class CycleNodes(IGraphNodes):
             else:
                 console.print("[yellow]Warning: No PR URL provided, reviewing current branch[/yellow]")
             
-            changed_file_paths = await git.get_changed_files()
+            # Get base branch for comparison (integration branch, not main)
+            # This ensures we only review changes made in THIS cycle
+            base_branch = state.get("integration_branch", "main")
+            console.print(f"[dim]Comparing changes against base branch: {base_branch}[/dim]")
+            
+            changed_file_paths = await git.get_changed_files(base_branch=base_branch)
             console.print(
                 f"[dim]Auditor: Found {len(changed_file_paths)} changed files to review[/dim]"
             )
@@ -349,6 +354,17 @@ class CycleNodes(IGraphNodes):
             reason="AI Audit Complete",
             feedback=audit_feedback,
         )
+        
+        # IMPORTANT: Return to integration branch after audit
+        # This ensures subsequent iterations start from the correct branch
+        integration_branch = state.get("integration_branch")
+        if integration_branch:
+            try:
+                console.print(f"[dim]Returning to integration branch: {integration_branch}[/dim]")
+                await git.checkout_branch(integration_branch)
+                console.print("[dim]Successfully returned to integration branch[/dim]")
+            except Exception as e:
+                console.print(f"[yellow]Warning: Could not return to integration branch: {e}[/yellow]")
 
         return {"audit_result": result, "status": status}
 
