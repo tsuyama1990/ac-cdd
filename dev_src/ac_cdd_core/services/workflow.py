@@ -173,8 +173,11 @@ class WorkflowService:
             cycles_to_run = settings.default_cycles
 
         console.print(f"[bold cyan]Running ALL Planned Cycles: {cycles_to_run}[/bold cyan]")
-        for cid in cycles_to_run:
+        
+        for idx, cid in enumerate(cycles_to_run, 1):
+            console.print(f"[bold yellow]Starting Cycle {cid} ({idx}/{len(cycles_to_run)})[/bold yellow]")
             await self._run_single_cycle(str(cid), resume, auto, start_iter, project_session_id)
+            console.print(f"[bold green]Completed Cycle {cid} ({idx}/{len(cycles_to_run)})[/bold green]")
 
     async def _run_single_cycle(
         self,
