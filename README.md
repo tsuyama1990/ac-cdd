@@ -174,6 +174,10 @@ AC_CDD_AGENTS__QA_ANALYST_MODEL=openrouter/meta-llama/llama-3.3-70b-instruct:fre
 # Override reviewer models (optional)
 AC_CDD_REVIEWER__SMART_MODEL=claude-3-5-sonnet
 AC_CDD_REVIEWER__FAST_MODEL=gemini-2.0-flash-exp
+
+# Choose auditor model mode (optional, default: "fast")
+# Options: "smart" (thorough but slower) or "fast" (quicker but less thorough)
+AC_CDD_AUDITOR_MODEL_MODE=fast
 ```
 
 ## 🚀 Usage

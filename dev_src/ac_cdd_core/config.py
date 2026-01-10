@@ -166,6 +166,9 @@ class Settings(BaseSettings):
     sandbox: SandboxConfig = Field(default_factory=SandboxConfig)
     agents: AgentsConfig = Field(default_factory=AgentsConfig)
     reviewer: ReviewerConfig = Field(default_factory=ReviewerConfig)
+    
+    # Auditor model selection: "smart" or "fast"
+    AUDITOR_MODEL_MODE: Literal["smart", "fast"] = "fast"
 
     model_config = SettingsConfigDict(
         env_prefix="AC_CDD_",

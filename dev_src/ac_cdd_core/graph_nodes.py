@@ -305,7 +305,12 @@ class CycleNodes(IGraphNodes):
             target_paths = settings.get_target_files()
             target_files = await self._read_files(target_paths)
 
-        model = settings.reviewer.fast_model
+        # Select model based on AUDITOR_MODEL_MODE setting
+        model = (
+            settings.reviewer.smart_model
+            if settings.AUDITOR_MODEL_MODE == "smart"
+            else settings.reviewer.fast_model
+        )
 
         audit_feedback = await self.llm_reviewer.review_code(
             target_files=target_files,
