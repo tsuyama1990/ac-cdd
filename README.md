@@ -90,6 +90,27 @@ AC-CDD is designed as a **containerized CLI tool**. You do not clone the tool's 
     alias ac-cdd='docker-compose run --rm ac-cdd'
     ```
 
+3.  **Setup GitHub Authentication:**
+    
+    The Docker container needs access to your Git credentials for pushing branches and creating PRs.
+    
+    **Recommended: Use GITHUB_TOKEN in .ac_cdd/.env**
+    
+    ```bash
+    # Get your GitHub token
+    gh auth token
+    
+    # Add it to .ac_cdd/.env
+    echo "GITHUB_TOKEN=$(gh auth token)" >> .ac_cdd/.env
+    ```
+    
+    The `docker-compose.yml` automatically mounts:
+    - `~/.ssh` - Your SSH keys (for SSH-based authentication)
+    - `SSH_AUTH_SOCK` - SSH agent socket for key forwarding
+    
+    **Note**: We intentionally do NOT mount `~/.gitconfig` or `~/.config/gh` to avoid conflicts with host-specific `gh auth git-credential` configurations. The GITHUB_TOKEN-based credential store is sufficient for all Git operations.
+
+
 ### Configuration
 
 The system is configured via environment variables. Run `ac-cdd init` to generate a `.env.example` file in the `.ac_cdd/` directory with all necessary configuration options.
@@ -103,10 +124,15 @@ The system is configured via environment variables. Run `ac-cdd init` to generat
 
 2. **Copy the example configuration:**
    ```bash
-   cp .ac_cdd/.env.example .env
+   cp .ac_cdd/.env.example .ac_cdd/.env
    ```
 
-3. **Fill in your API keys in `.env`**
+3. **Fill in your API keys in `.ac_cdd/.env`**
+
+4. **Verify your configuration:**
+   ```bash
+   ac-cdd env-verify
+   ```
 
 #### API Keys
 

@@ -9,19 +9,29 @@ services:
     # Mount current directory to /app
     volumes:
       - .:/app
+      
+      # Git authentication - SSH keys only (not .gitconfig to avoid conflicts)
+      - ${HOME}/.ssh:/root/.ssh:ro
+      
+      # SSH Agent socket (for SSH agent forwarding)
+      - ${SSH_AUTH_SOCK:-/dev/null}:${SSH_AUTH_SOCK:-/dev/null}
+      
       # Optional: Mount global config if exists
       # - ${HOME}/.ac_cdd/.env:/root/.ac_cdd/.env
 
-    # Load environment variables
+    # Load environment variables from .ac_cdd/.env
     env_file:
-      - .env
+      - .ac_cdd/.env
 
     environment:
       # Pass Host UID/GID to fix permission issues
       - HOST_UID=${UID:-1000}
       - HOST_GID=${GID:-1000}
 
-      # GitHub Token is required
+      # SSH Agent forwarding (recommended for security)
+      - SSH_AUTH_SOCK=${SSH_AUTH_SOCK}
+
+      # GitHub Token (alternative to SSH)
       # - GH_TOKEN=${GH_TOKEN}
 
       # Configuration Examples (Override here if needed)
