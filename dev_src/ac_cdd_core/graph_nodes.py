@@ -290,6 +290,48 @@ class CycleNodes(IGraphNodes):
                 if any(f.startswith(prefix) for prefix in included_prefixes)
                 and not any(f.startswith(prefix) for prefix in excluded_prefixes)
             ]
+            
+            # Filter out build artifacts and gitignored files
+            # These are generated files that shouldn't be reviewed
+            build_artifact_patterns = [
+                ".egg-info/",
+                "__pycache__/",
+                ".pyc",
+                ".pyo",
+                ".pyd",
+                "dist/",
+                "build/",
+                ".pytest_cache/",
+                ".mypy_cache/",
+                ".ruff_cache/",
+            ]
+            
+            reviewable_files = [
+                f for f in reviewable_files
+                if not any(pattern in f for pattern in build_artifact_patterns)
+            ]
+            
+            # Use git check-ignore to filter out .gitignore'd files
+            # This catches any other generated files we might have missed
+            if reviewable_files:
+                try:
+                    # git check-ignore returns 0 for ignored files, 1 for not ignored
+                    filtered_files = []
+                    for file_path in reviewable_files:
+                        _, _, code = await git.runner.run_command(
+                            ["git", "check-ignore", "-q", file_path],
+                            check=False
+                        )
+                        if code != 0:  # Not ignored, keep it
+                            filtered_files.append(file_path)
+                    
+                    ignored_count = len(reviewable_files) - len(filtered_files)
+                    if ignored_count > 0:
+                        console.print(f"[dim]Filtered out {ignored_count} gitignored files[/dim]")
+                    
+                    reviewable_files = filtered_files
+                except Exception as e:
+                    console.print(f"[yellow]Warning: Could not filter gitignored files: {e}[/yellow]")
 
             if not reviewable_files:
                 console.print(
