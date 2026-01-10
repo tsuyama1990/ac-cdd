@@ -62,6 +62,11 @@ class WorkflowService:
 
                 git = GitManager()
                 try:
+                    # Get the current branch (architect's branch) BEFORE creating integration branch
+                    architect_branch = await git.get_current_branch()
+                    logger.info(f"Architect branch: {architect_branch}")
+                    
+                    # Create integration branch from main
                     await git.create_integration_branch(
                         session_id_val, branch_name=integration_branch
                     )
@@ -69,14 +74,11 @@ class WorkflowService:
                     # Merge the architect PR branch into integration branch
                     # This ensures SPEC.md and UAT.md files are available for run-cycle
                     pr_url = final_state.get("pr_url")
-                    if pr_url:
-                        # Extract branch name from PR URL or use the session name
-                        # The architect session creates a branch, we need to merge it
-                        architect_branch = await git.get_current_branch()
+                    if pr_url and architect_branch != integration_branch:
                         logger.info(f"Merging architect branch {architect_branch} into {integration_branch}")
                         
-                        # Checkout integration branch and merge
-                        await git._run_git(["checkout", integration_branch])
+                        # We're already on integration branch after create_integration_branch
+                        # Just merge the architect branch
                         await git._run_git(["merge", architect_branch, "--no-ff", "-m", 
                                           f"Merge architecture from {architect_branch}"])
                         await git._run_git(["push", "origin", integration_branch])
