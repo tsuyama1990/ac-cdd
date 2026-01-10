@@ -249,6 +249,20 @@ class CycleNodes(IGraphNodes):
         git = GitManager()
 
         try:
+            # CRITICAL: Checkout the PR branch before reviewing
+            # Otherwise we'll be reviewing the wrong code!
+            pr_url = state.get("pr_url")
+            if pr_url:
+                console.print(f"[dim]Checking out PR: {pr_url}[/dim]")
+                try:
+                    await git.checkout_pr(pr_url)
+                    console.print("[dim]Successfully checked out PR branch[/dim]")
+                except Exception as e:
+                    console.print(f"[yellow]Warning: Could not checkout PR: {e}[/yellow]")
+                    console.print("[yellow]Proceeding with current branch (may review wrong code!)[/yellow]")
+            else:
+                console.print("[yellow]Warning: No PR URL provided, reviewing current branch[/yellow]")
+            
             changed_file_paths = await git.get_changed_files()
             console.print(
                 f"[dim]Auditor: Found {len(changed_file_paths)} changed files to review[/dim]"
@@ -278,12 +292,14 @@ class CycleNodes(IGraphNodes):
                 )
                 # Fallback to static configuration (also apply filtering)
                 all_target_files = settings.get_target_files()
+                console.print(f"[dim]DEBUG: Fallback target files: {all_target_files}[/dim]")
                 excluded_prefixes_fallback = ("tests/ac_cdd/",)  # Framework tests
                 reviewable_files = [
                     f
                     for f in all_target_files
                     if not any(f.startswith(prefix) for prefix in excluded_prefixes_fallback)
                 ]
+                console.print(f"[dim]DEBUG: After filtering: {reviewable_files}[/dim]")
             else:
                 console.print(f"[dim]Auditor: Reviewing {len(reviewable_files)} code files[/dim]")
 
@@ -295,8 +311,14 @@ class CycleNodes(IGraphNodes):
             console.print(
                 f"[dim]Auditor: Final review target: {len(reviewable_files)} files (context excluded)[/dim]"
             )
+            console.print(f"[dim]DEBUG: Final reviewable files: {reviewable_files}[/dim]")
 
             target_files = await self._read_files(reviewable_files)
+            
+            # DEBUG: Show what files were actually read
+            console.print(f"[dim]DEBUG: Successfully read {len(target_files)} files[/dim]")
+            for filepath in target_files.keys():
+                console.print(f"[dim]DEBUG: - {filepath} ({len(target_files[filepath])} chars)[/dim]")
 
         except Exception as e:
             console.print(f"[yellow]Warning: Could not get changed files from git: {e}[/yellow]")
