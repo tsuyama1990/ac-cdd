@@ -70,10 +70,10 @@ class WorkflowService:
                     # Merge the architect PR branch into integration branch
                     # This ensures SPEC.md and UAT.md files are available for run-cycle
                     pr_url = final_state.get("pr_url")
+                    jules_branch = None
+                    
                     if pr_url:
                         # Get the actual PR head branch (Jules creates its own branch)
-                        # We can't use get_current_branch() because that's our feature branch,
-                        # not Jules's branch
                         try:
                             stdout, _, code = await git.runner.run_command(
                                 [git.gh_cmd, "pr", "view", pr_url, "--json", "headRefName", "--jq", ".headRefName"],
@@ -81,22 +81,58 @@ class WorkflowService:
                             )
                             if code == 0 and stdout.strip():
                                 jules_branch = stdout.strip()
-                                logger.info(f"Jules created branch: {jules_branch}")
-                                
-                                # Fetch the branch from origin
-                                await git._run_git(["fetch", "origin", jules_branch])
-                                
-                                # Merge Jules's branch into integration
-                                logger.info(f"Merging {jules_branch} into {integration_branch}")
-                                await git._run_git(["merge", f"origin/{jules_branch}", "--no-ff", "-m", 
-                                                  f"Merge architecture from {jules_branch}"])
-                                await git._run_git(["push", "origin", integration_branch])
-                                
-                                logger.info(f"Architecture PR has been merged to integration branch.")
-                            else:
-                                logger.warning(f"Could not get PR head branch from {pr_url}")
+                                logger.info(f"Jules created branch from PR: {jules_branch}")
                         except Exception as e:
-                            logger.warning(f"Failed to merge PR branch: {e}")
+                            logger.warning(f"Failed to get PR head branch: {e}")
+                    
+                    # Fallback: If no PR or failed to get branch from PR, try to find Jules's branch
+                    # Jules creates branches like: feat/generate-architectural-documents-{session_id}
+                    if not jules_branch:
+                        logger.info("No PR found, searching for Jules's branch by session ID...")
+                        # Extract numeric session ID from session_name (e.g., "sessions/8670944109372824194")
+                        if "/" in session_id_val:
+                            numeric_id = session_id_val.split("/")[-1]
+                        else:
+                            numeric_id = session_id_val
+                        
+                        # Try common Jules branch naming patterns
+                        possible_patterns = [
+                            f"feat/generate-architectural-documents-{numeric_id}",
+                            f"feat/architectural-documentation-{numeric_id}",
+                            f"feat/system-architecture-documentation-{numeric_id}",
+                        ]
+                        
+                        for pattern in possible_patterns:
+                            try:
+                                stdout, _, code = await git.runner.run_command(
+                                    ["git", "ls-remote", "--heads", "origin", pattern],
+                                    check=False
+                                )
+                                if code == 0 and stdout.strip():
+                                    jules_branch = pattern
+                                    logger.info(f"Found Jules's branch: {jules_branch}")
+                                    break
+                            except Exception:
+                                continue
+                    
+                    # Merge Jules's branch if found
+                    if jules_branch:
+                        try:
+                            # Fetch the branch from origin
+                            await git._run_git(["fetch", "origin", jules_branch])
+                            
+                            # Merge Jules's branch into integration
+                            logger.info(f"Merging {jules_branch} into {integration_branch}")
+                            await git._run_git(["merge", f"origin/{jules_branch}", "--no-ff", "-m", 
+                                              f"Merge architecture from {jules_branch}"])
+                            await git._run_git(["push", "origin", integration_branch])
+                            
+                            logger.info(f"Architecture has been merged to integration branch.")
+                        except Exception as e:
+                            logger.warning(f"Failed to merge Jules's branch: {e}")
+                    else:
+                        logger.warning("Could not find Jules's branch to merge. Integration branch may not have SPEC.md files.")
+                        
                 except Exception as e:
                     logger.warning(f"Could not prepare integration branch: {e}")
 
