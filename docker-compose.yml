@@ -3,7 +3,7 @@ version: '3.8'
 services:
   ac-cdd:
     build: .
-    image: tsuyama1990/ac-cdd-agent:latest
+    image: ac-cdd
     container_name: ac-cdd-agent
 
     # Mount current directory to /app
@@ -19,9 +19,7 @@ services:
       # Optional: Mount global config if exists
       # - ${HOME}/.ac_cdd/.env:/root/.ac_cdd/.env
 
-    # Load environment variables from .ac_cdd/.env
-    env_file:
-      - .ac_cdd/.env
+
 
     environment:
       # Pass Host UID/GID to fix permission issues

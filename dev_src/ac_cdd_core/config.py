@@ -12,12 +12,17 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 _ac_cdd_env = Path.cwd() / ".ac_cdd" / ".env"
 _root_env = Path.cwd() / ".env"
 
-if _ac_cdd_env.exists():
-    load_dotenv(_ac_cdd_env, override=True)
-elif _root_env.exists():
-    load_dotenv(_root_env, override=True)
-else:
-    load_dotenv()  # Try default locations
+try:
+    if _ac_cdd_env.exists():
+        load_dotenv(_ac_cdd_env, override=True)
+    elif _root_env.exists():
+        load_dotenv(_root_env, override=True)
+    else:
+        load_dotenv()  # Try default locations
+except Exception:
+    # If environment loading fails (e.g. in strict docker envs), continue
+    # The application will handle missing keys later if they are actually needed
+    pass
 
 # Constants
 PROMPT_FILENAME_MAP = {

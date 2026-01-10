@@ -7,7 +7,7 @@ name = "autonomous-dev-env"
 version = "0.1.0"
 description = "AI-Native Cycle-Based Contract-Driven Development Environment"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.12, <3.14"
 dependencies = [
     "pydantic~=2.11.0",
     "python-dotenv",
