@@ -65,6 +65,23 @@ class WorkflowService:
                     await git.create_integration_branch(
                         session_id_val, branch_name=integration_branch
                     )
+                    
+                    # Merge the architect PR branch into integration branch
+                    # This ensures SPEC.md and UAT.md files are available for run-cycle
+                    pr_url = final_state.get("pr_url")
+                    if pr_url:
+                        # Extract branch name from PR URL or use the session name
+                        # The architect session creates a branch, we need to merge it
+                        architect_branch = await git.get_current_branch()
+                        logger.info(f"Merging architect branch {architect_branch} into {integration_branch}")
+                        
+                        # Checkout integration branch and merge
+                        await git._run_git(["checkout", integration_branch])
+                        await git._run_git(["merge", architect_branch, "--no-ff", "-m", 
+                                          f"Merge architecture from {architect_branch}"])
+                        await git._run_git(["push", "origin", integration_branch])
+                        
+                        logger.info(f"Architecture PR has been merged to integration branch.")
                 except Exception as e:
                     logger.warning(f"Could not prepare integration branch: {e}")
 
