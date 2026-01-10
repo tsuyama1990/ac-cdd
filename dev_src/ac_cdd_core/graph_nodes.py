@@ -9,6 +9,7 @@ from .domain_models import AuditResult
 from .interfaces import IGraphNodes
 from .sandbox import SandboxRunner
 from .services.audit_orchestrator import AuditOrchestrator
+from .services.git_ops import GitManager
 from .services.jules_client import JulesClient
 from .services.llm_reviewer import LLMReviewer
 from .session_manager import SessionManager
@@ -25,6 +26,7 @@ class CycleNodes(IGraphNodes):
     def __init__(self, sandbox_runner: SandboxRunner, jules_client: JulesClient) -> None:
         self.sandbox = sandbox_runner
         self.jules = jules_client
+        self.git = GitManager()
         # Dependency injection for sub-services could be improved by passing them in,
         # but for now we construct them with the injected clients.
         self.audit_orchestrator = AuditOrchestrator(jules_client, sandbox_runner)
