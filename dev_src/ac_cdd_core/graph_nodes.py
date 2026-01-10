@@ -69,6 +69,11 @@ class CycleNodes(IGraphNodes):
 
         timestamp = datetime.now(UTC).strftime("%Y%m%d-%H%M")
         session_id = f"architect-cycle-{state['cycle_id']}-{timestamp}"
+        
+        # Create a feature branch for the architect to work on
+        # This ensures Jules doesn't work directly on main
+        architect_branch = f"feat/generate-architecture-{timestamp}"
+        await self.git.create_feature_branch(architect_branch, from_branch="main")
 
         result = await self.jules.run_session(
             session_id=session_id,

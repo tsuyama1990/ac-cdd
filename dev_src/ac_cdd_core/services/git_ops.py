@@ -306,6 +306,23 @@ class GitManager:
 
         return integration_branch
 
+    async def create_feature_branch(self, branch_name: str, from_branch: str = "main") -> str:
+        """Creates and checks out a new feature branch from the specified base branch."""
+        logger.info(f"Creating feature branch: {branch_name} from {from_branch}")
+        
+        # Ensure we're on the base branch and it's up to date
+        await self._run_git(["checkout", from_branch])
+        await self._run_git(["pull"])
+        
+        # Create and checkout the new branch
+        await self._run_git(["checkout", "-b", branch_name])
+        
+        # Push the branch to origin
+        await self._run_git(["push", "-u", "origin", branch_name])
+        
+        logger.info(f"Created and pushed feature branch: {branch_name}")
+        return branch_name
+
     async def create_session_branch(
         self, session_id: str, branch_type: str, branch_id: str, integration_branch: str
     ) -> str:
