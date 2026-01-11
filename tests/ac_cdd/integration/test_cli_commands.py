@@ -15,7 +15,7 @@ def mock_dependencies() -> Iterator[None]:
         patch("ac_cdd_core.cli.utils.check_api_key", return_value=True),
         patch("shutil.which", return_value="/usr/bin/git"),
         patch("ac_cdd_core.cli.ProjectManager"),
-        patch("ac_cdd_core.cli.SessionManager"),
+        patch("ac_cdd_core.cli.StateManager"),
         patch("ac_cdd_core.cli._WorkflowServiceHolder.get"),
     ):
         yield
@@ -23,19 +23,19 @@ def mock_dependencies() -> Iterator[None]:
 
 def test_init_command(mock_dependencies: None) -> None:
     # init calls SessionManager().load_manifest() and possibly git.ensure_state_branch
-    with patch("ac_cdd_core.cli.SessionManager") as mock_sm_cls:
+    with patch("ac_cdd_core.cli.StateManager") as mock_sm_cls:
         mock_mgr = mock_sm_cls.return_value
         # load_manifest is async, but init runs asyncio.run(_init_state())
-        mock_mgr.load_manifest = AsyncMock(return_value=None)
+        mock_mgr.load_manifest = MagicMock(return_value=None)
         mock_mgr.git.ensure_state_branch = AsyncMock()
 
         # We need to ensure the async loop runs correctly.
         # The CLI calls asyncio.run(_init_state()).
-        # _init_state instantiates SessionManager.
+        # _init_state instantiates StateManager.
 
         result = runner.invoke(app, ["init"])
         assert result.exit_code == 0
-        assert "Initialization Complete" in result.stdout
+        assert "Project Structure" in result.stdout
 
 
 def test_gen_cycles_command(mock_dependencies: None) -> None:
@@ -68,9 +68,9 @@ def test_finalize_session_command(mock_dependencies: None) -> None:
 
 
 def test_list_actions_no_session(mock_dependencies: None) -> None:
-    with patch("ac_cdd_core.cli.SessionManager") as mock_sm_cls:
+    with patch("ac_cdd_core.cli.StateManager") as mock_sm_cls:
         mock_mgr = mock_sm_cls.return_value
-        mock_mgr.load_manifest = AsyncMock(return_value=None)
+        mock_mgr.load_manifest = MagicMock(return_value=None)
 
         result = runner.invoke(app, ["list-actions"])
         assert result.exit_code == 0
@@ -78,14 +78,15 @@ def test_list_actions_no_session(mock_dependencies: None) -> None:
 
 
 def test_list_actions_active_session(mock_dependencies: None) -> None:
-    with patch("ac_cdd_core.cli.SessionManager") as mock_sm_cls:
+    with patch("ac_cdd_core.cli.StateManager") as mock_sm_cls:
         mock_mgr = mock_sm_cls.return_value
         manifest = ProjectManifest(
             project_session_id="p1",
+            feature_branch="dev/feat-p1",
             integration_branch="dev/p1",
             cycles=[CycleManifest(id="01", status="planned")],
         )
-        mock_mgr.load_manifest = AsyncMock(return_value=manifest)
+        mock_mgr.load_manifest = MagicMock(return_value=manifest)
 
         result = runner.invoke(app, ["list-actions"])
         assert result.exit_code == 0

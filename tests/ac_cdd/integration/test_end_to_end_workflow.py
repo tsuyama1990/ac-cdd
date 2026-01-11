@@ -16,13 +16,11 @@ class TestEndToEndWorkflow:
         ):
             return WorkflowService()
 
-    @patch("ac_cdd_core.services.workflow.SessionManager")
-    @patch("ac_cdd_core.services.workflow.GitManager")
+    @patch("ac_cdd_core.services.workflow.StateManager")
     @patch("ac_cdd_core.services.workflow.ensure_api_key")
     async def test_full_gen_cycles_workflow(
         self,
         mock_auth: MagicMock,
-        mock_git_cls: MagicMock,
         mock_sm_cls: MagicMock,
         workflow: WorkflowService,
     ) -> None:
@@ -36,14 +34,12 @@ class TestEndToEndWorkflow:
 
         # Setup SessionManager Mock
         mock_mgr = mock_sm_cls.return_value
-        mock_mgr.create_manifest = AsyncMock(
-            return_value=ProjectManifest(project_session_id="p1", integration_branch="dev/p1")
+        mock_mgr.create_manifest = MagicMock(
+            return_value=ProjectManifest(
+                project_session_id="p1", integration_branch="dev/p1", feature_branch="dev/feat-p1"
+            )
         )
-        mock_mgr.save_manifest = AsyncMock()
-
-        # Setup GitManager Mock
-        mock_git = mock_git_cls.return_value
-        mock_git.create_integration_branch = AsyncMock()
+        mock_mgr.save_manifest = MagicMock()
 
         # Mock cleanup
         workflow.builder.cleanup = AsyncMock()
@@ -54,12 +50,11 @@ class TestEndToEndWorkflow:
         # Verify
         workflow.builder.build_architect_graph.assert_called_once()
         mock_graph.ainvoke.assert_called_once()
-        mock_mgr.create_manifest.assert_awaited()
-        mock_mgr.save_manifest.assert_awaited()
-        mock_git.create_integration_branch.assert_awaited()
+        mock_mgr.create_manifest.assert_called()
+        mock_mgr.save_manifest.assert_called()
         workflow.builder.cleanup.assert_awaited()
 
-    @patch("ac_cdd_core.services.workflow.SessionManager")
+    @patch("ac_cdd_core.services.workflow.StateManager")
     @patch("ac_cdd_core.services.workflow.ensure_api_key")
     async def test_full_run_cycle_workflow(
         self, mock_auth: MagicMock, mock_sm_cls: MagicMock, workflow: WorkflowService
@@ -71,9 +66,11 @@ class TestEndToEndWorkflow:
 
         # Setup SessionManager Mock
         mock_mgr = mock_sm_cls.return_value
-        manifest = ProjectManifest(project_session_id="p1", integration_branch="dev/p1")
-        mock_mgr.load_manifest = AsyncMock(return_value=manifest)
-        mock_mgr.update_cycle_state = AsyncMock()
+        manifest = ProjectManifest(
+            project_session_id="p1", feature_branch="feat/p1", integration_branch="dev/p1"
+        )
+        mock_mgr.load_manifest = MagicMock(return_value=manifest)
+        mock_mgr.update_cycle_state = MagicMock()
 
         # Setup Cleanup
         workflow.builder.cleanup = AsyncMock()
@@ -85,10 +82,10 @@ class TestEndToEndWorkflow:
 
         # Verify
         mock_graph.ainvoke.assert_called_once()
-        mock_mgr.update_cycle_state.assert_awaited_with("01", status="completed")
+        mock_mgr.update_cycle_state.assert_called_with("01", status="completed")
         workflow.builder.cleanup.assert_awaited()
 
-    @patch("ac_cdd_core.services.workflow.SessionManager")
+    @patch("ac_cdd_core.services.workflow.StateManager")
     async def test_session_persistence_across_commands(
         self, mock_sm_cls: MagicMock, workflow: WorkflowService
     ) -> None:
@@ -96,8 +93,10 @@ class TestEndToEndWorkflow:
         mock_mgr = mock_sm_cls.return_value
 
         # Simulate loading manifest
-        manifest = ProjectManifest(project_session_id="p1", integration_branch="dev/p1")
-        mock_mgr.load_manifest = AsyncMock(return_value=manifest)
+        manifest = ProjectManifest(
+            project_session_id="p1", feature_branch="feat/p1", integration_branch="dev/p1"
+        )
+        mock_mgr.load_manifest = MagicMock(return_value=manifest)
 
         # Setup Cleanup
         workflow.builder.cleanup = AsyncMock()
@@ -111,4 +110,4 @@ class TestEndToEndWorkflow:
             resume=False, auto=True, start_iter=1, project_session_id=None
         )
 
-        mock_mgr.load_manifest.assert_awaited()
+        mock_mgr.load_manifest.assert_called()

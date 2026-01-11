@@ -37,7 +37,15 @@ class TestGenCyclesCountOption:
         instruction_content = "Original architect instruction."
 
         # Mock settings.get_template to return our test content
-        with patch("ac_cdd_core.graph_nodes.settings") as mock_settings:
+        with (
+            patch("ac_cdd_core.graph_nodes.settings") as mock_settings,
+            patch("ac_cdd_core.graph_nodes.GitManager") as mock_git_cls,
+        ):
+            # Configure GitManager mock instance
+            mock_git_instance = mock_git_cls.return_value
+            mock_git_instance.create_feature_branch = AsyncMock()
+            mock_git_instance.merge_pr = AsyncMock()
+
             mock_template = MagicMock()
             mock_template.read_text.return_value = instruction_content
             mock_settings.get_template.return_value = mock_template
@@ -76,7 +84,15 @@ class TestGenCyclesCountOption:
         instruction_content = "Original architect instruction."
 
         # Mock settings.get_template to return our test content
-        with patch("ac_cdd_core.graph_nodes.settings") as mock_settings:
+        with (
+            patch("ac_cdd_core.graph_nodes.settings") as mock_settings,
+            patch("ac_cdd_core.graph_nodes.GitManager") as mock_git_cls,
+        ):
+            # Configure GitManager mock instance
+            mock_git_instance = mock_git_cls.return_value
+            mock_git_instance.create_feature_branch = AsyncMock()
+            mock_git_instance.merge_pr = AsyncMock()
+
             mock_template = MagicMock()
             mock_template.read_text.return_value = instruction_content
             mock_settings.get_template.return_value = mock_template
@@ -122,7 +138,15 @@ class TestGenCyclesCountOption:
 
         instruction_content = "Test instruction."
 
-        with patch("ac_cdd_core.graph_nodes.settings") as mock_settings:
+        with (
+            patch("ac_cdd_core.graph_nodes.settings") as mock_settings,
+            patch("ac_cdd_core.graph_nodes.GitManager") as mock_git_cls,
+        ):
+            # Configure GitManager mock instance
+            mock_git_instance = mock_git_cls.return_value
+            mock_git_instance.create_feature_branch = AsyncMock()
+            mock_git_instance.merge_pr = AsyncMock()
+
             mock_template = MagicMock()
             mock_template.read_text.return_value = instruction_content
             mock_settings.get_template.return_value = mock_template

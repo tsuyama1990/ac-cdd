@@ -70,7 +70,7 @@ class TestResumeLogic:
 
         # Assertions
         jules.run_session.assert_awaited_once()
-        assert jules.run_session.await_args.kwargs["require_plan_approval"] is True
+        assert jules.run_session.await_args.kwargs["require_plan_approval"] is False
 
         # Verify Immediate Persistence
         mock_mgr.update_cycle_state.assert_awaited_with(

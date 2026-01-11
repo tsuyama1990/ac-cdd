@@ -52,11 +52,11 @@ graph TB
         C2 -->|failed| C4[END]
         C2 -->|completed| C5[uat_evaluate]
         
-        C3 --> C6[committee_manager]
+        C3[auditor] --> C6[committee_manager]
         
-        C6 -->|approved| C5
-        C6 -->|rejected| C3
-        C6 -->|retry| C2
+        C6 -->|cycle_approved| C5
+        C6 -->|next_auditor| C3
+        C6 -->|retry_fix| C2
         C6 -->|failed| C4
         
         C5 --> C4

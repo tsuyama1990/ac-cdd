@@ -87,39 +87,25 @@ async def test_create_session_branch_cycle(git_manager: GitManager) -> None:
 
 
 @pytest.mark.asyncio
-async def test_merge_to_integration(git_manager: GitManager) -> None:
-    """Test merging PR to integration branch."""
-    pr_url = "https://github.com/user/repo/pull/123"
-    integration_branch = "dev/session-20251230-120000/integration"
+async def test_merge_pr(git_manager: GitManager) -> None:
+    """Test merging PR with auto-merge."""
+    pr_number = 123
 
     with patch.object(git_manager.runner, "run_command", new_callable=AsyncMock) as mock_run:
-        # Mock gh pr view to return source branch
-        # Mock gh pr merge
-        mock_run.side_effect = [
-            ("feature-branch", "", 0),  # gh pr view (if needed) or just merge
-            ("", "", 0),  # gh pr merge
-            ("", "", 0),  # checkout
-            ("", "", 0),  # pull
-        ]
+        mock_run.return_value = ("", "", 0)
 
-        # Note: merge_to_integration logic:
-        # 1. run_command (gh pr ready)
-        # 2. run_command (gh pr merge)
-        # 3. _run_git (checkout)
-        # 4. _run_git (pull)
+        # Merge with default method (squash)
+        await git_manager.merge_pr(pr_number)
 
-        # We need enough side effects for all calls
-        mock_run.side_effect = [
-            ("", "", 0),  # pr ready
-            ("", "", 0),  # merge
-            ("", "", 0),  # checkout
-            ("", "", 0),  # pull
-        ]
+        # Verify command arguments
+        # args[0] is the command list passed to run_command
+        call_args = mock_run.call_args[0][0]
+        assert call_args == ["gh", "pr", "merge", "123", "--squash", "--auto", "--delete-branch"]
 
-        await git_manager.merge_to_integration(pr_url, integration_branch)
-
-        # Should call gh commands
-        assert mock_run.call_count >= 1
+        # Merge with explicit method
+        await git_manager.merge_pr(pr_number, method="merge")
+        call_args = mock_run.call_args[0][0]
+        assert call_args == ["gh", "pr", "merge", "123", "--merge", "--auto", "--delete-branch"]
 
 
 @pytest.mark.asyncio
