@@ -8,7 +8,7 @@ from ac_cdd_core.config import settings
 from ac_cdd_core.messages import SuccessMessages
 from ac_cdd_core.services.project import ProjectManager
 from ac_cdd_core.services.workflow import WorkflowService
-from ac_cdd_core.session_manager import SessionManager
+from ac_cdd_core.state_manager import StateManager
 from rich.console import Console
 
 app = typer.Typer(help="AC-CDD: AI-Native Cycle-Based Contract-Driven Development Environment")
@@ -126,28 +126,30 @@ def resume_session(
 ) -> None:
     """
     Resume development with an existing architecture branch.
-    
+
     This skips gen-cycles and creates a manifest using existing branches.
     Useful when you already have SPEC.md files and want to continue development.
-    
+
     Example:
         ac-cdd resume-session feat/generate-architecture-20260110-1640 --cycles 8
     """
-    asyncio.run(_resume_session(feature_branch, integration_branch, cycles))
+    _resume_session(feature_branch, integration_branch, cycles)
 
 
-async def _resume_session(feature_branch: str, integration_branch: str | None, cycles: int) -> None:
+def _resume_session(feature_branch: str, integration_branch: str | None, cycles: int) -> None:
     """Resume session with existing branches."""
-    from datetime import datetime, UTC
+    from datetime import UTC, datetime
+
     from rich.console import Console
-    from .session_manager import SessionManager
-    from .domain_models import ProjectManifest, CycleManifest
-    
+
+    from .domain_models import CycleManifest, ProjectManifest
+    from .state_manager import StateManager
+
     console = Console()
-    
+
     # Generate session ID
     session_id = f"resume-{datetime.now(UTC).strftime('%Y%m%d-%H%M%S')}"
-    
+
     # Use feature branch name for integration if not provided
     if not integration_branch:
         # Extract timestamp from feature branch
@@ -158,28 +160,28 @@ async def _resume_session(feature_branch: str, integration_branch: str | None, c
             integration_branch = f"dev/architect-cycle-00-{timestamp}/integration"
         else:
             integration_branch = f"dev/{feature_branch}/integration"
-    
-    console.print(f"[bold cyan]Resuming session with existing branches:[/bold cyan]")
+
+    console.print("[bold cyan]Resuming session with existing branches:[/bold cyan]")
     console.print(f"  Feature branch: [green]{feature_branch}[/green]")
     console.print(f"  Integration branch: [green]{integration_branch}[/green]")
     console.print(f"  Cycles: [green]{cycles}[/green]")
-    
+
     # Create manifest
-    mgr = SessionManager()
+    mgr = StateManager()
     manifest = ProjectManifest(
         project_session_id=session_id,
         feature_branch=feature_branch,
         integration_branch=integration_branch,
         cycles=[CycleManifest(id=f"{i:02}", status="planned") for i in range(1, cycles + 1)]
     )
-    
-    await mgr.save_manifest(manifest, commit_msg=f"Resume session with {feature_branch}")
-    
-    console.print(f"\n[bold green]✅ Session resumed![/bold green]")
+
+    mgr.save_manifest(manifest)
+
+    console.print("\n[bold green]✅ Session resumed![/bold green]")
     console.print(f"Session ID: [cyan]{session_id}[/cyan]")
-    console.print(f"\nYou can now run:")
-    console.print(f"  [bold]ac-cdd run-cycle --id 01[/bold]")
-    console.print(f"  [bold]ac-cdd run-cycle --id all[/bold]")
+    console.print("\nYou can now run:")
+    console.print("  [bold]ac-cdd run-cycle --id 01[/bold]")
+    console.print("  [bold]ac-cdd run-cycle --id all[/bold]")
 
 
 @app.command()
@@ -197,8 +199,8 @@ def list_actions() -> None:
     """List recommended next actions."""
 
     async def _list() -> None:
-        mgr = SessionManager()
-        manifest = await mgr.load_manifest()
+        mgr = StateManager()
+        manifest = mgr.load_manifest()
 
         sid = manifest.project_session_id if manifest else None
 
