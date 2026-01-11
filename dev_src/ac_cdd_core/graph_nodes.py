@@ -263,9 +263,10 @@ class CycleNodes(IGraphNodes):
             else:
                 console.print("[yellow]Warning: No PR URL provided, reviewing current branch[/yellow]")
             
-            # Get base branch for comparison (integration branch, not main)
-            # This ensures we only review changes made in THIS cycle
-            base_branch = state.get("integration_branch", "main")
+            # Get base branch for comparison (feature branch, not main)
+            # Feature branch is where we accumulate all cycles
+            # We compare to the PREVIOUS state of feature branch (before this cycle's changes)
+            base_branch = state.get("feature_branch") or state.get("integration_branch", "main")
             console.print(f"[dim]Comparing changes against base branch: {base_branch}[/dim]")
             
             changed_file_paths = await git.get_changed_files(base_branch=base_branch)
@@ -397,16 +398,16 @@ class CycleNodes(IGraphNodes):
             feedback=audit_feedback,
         )
         
-        # IMPORTANT: Return to integration branch after audit
+        # IMPORTANT: Return to feature branch after audit
         # This ensures subsequent iterations start from the correct branch
-        integration_branch = state.get("integration_branch")
-        if integration_branch:
+        feature_branch = state.get("feature_branch")
+        if feature_branch:
             try:
-                console.print(f"[dim]Returning to integration branch: {integration_branch}[/dim]")
-                await git.checkout_branch(integration_branch)
-                console.print("[dim]Successfully returned to integration branch[/dim]")
+                console.print(f"[dim]Returning to feature branch: {feature_branch}[/dim]")
+                await git.checkout_branch(feature_branch)
+                console.print("[dim]Successfully returned to feature branch[/dim]")
             except Exception as e:
-                console.print(f"[yellow]Warning: Could not return to integration branch: {e}[/yellow]")
+                console.print(f"[yellow]Warning: Could not return to feature branch: {e}[/yellow]")
 
         return {"audit_result": result, "status": status}
 

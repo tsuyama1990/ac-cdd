@@ -49,10 +49,15 @@ class WorkflowService:
             else:
                 session_id_val = final_state["project_session_id"]
                 integration_branch = final_state["integration_branch"]
+                architect_branch = final_state.get("active_branch")  # feat/generate-architecture-*
 
                 # Create Manifest with Cycles
                 mgr = SessionManager()
-                manifest = await mgr.create_manifest(session_id_val, integration_branch)
+                manifest = await mgr.create_manifest(
+                    session_id_val, 
+                    feature_branch=architect_branch,
+                    integration_branch=integration_branch
+                )
                 manifest.cycles = [
                     CycleManifest(id=f"{i:02}", status="planned") for i in range(1, cycles + 1)
                 ]
@@ -211,26 +216,28 @@ class WorkflowService:
                 console.print("[red]No active session found. Run gen-cycles first.[/red]")
                 sys.exit(1)
             
-            # CRITICAL: Checkout integration branch before starting coder session
-            # This ensures Jules creates PR against the correct base branch
-            if ib:
-                logger.info(f"Checking out integration branch: {ib}")
+            # CRITICAL: Checkout feature branch before starting coder session
+            # This is the main development branch where all cycles accumulate
+            fb = manifest.feature_branch if manifest else None
+            if fb:
+                logger.info(f"Checking out feature branch: {fb}")
                 git = GitManager()
                 try:
-                    await git.checkout_branch(ib)
-                    logger.info(f"Successfully checked out integration branch: {ib}")
+                    await git.checkout_branch(fb)
+                    logger.info(f"Successfully checked out feature branch: {fb}")
                 except Exception as e:
-                    logger.warning(f"Could not checkout integration branch: {e}")
+                    logger.warning(f"Could not checkout feature branch: {e}")
                     logger.warning("Proceeding with current branch (may cause issues!)")
             else:
-                logger.warning("No integration branch found in manifest. Using current branch.")
+                logger.warning("No feature branch found in manifest. Using current branch.")
 
             state = CycleState(
                 cycle_id=cycle_id,
                 iteration_count=start_iter,
                 resume_mode=resume,
                 project_session_id=pid,
-                integration_branch=ib,
+                feature_branch=fb,  # Main development branch
+                integration_branch=ib,  # For future finalize-session
             )
 
             thread_id = f"cycle-{cycle_id}-{state.project_session_id}"

@@ -50,11 +50,13 @@ class SessionManager:
             raise
 
     async def create_manifest(
-        self, project_session_id: str, integration_branch: str
+        self, project_session_id: str, feature_branch: str, integration_branch: str
     ) -> ProjectManifest:
         """Creates and saves a new project manifest."""
         manifest = ProjectManifest(
-            project_session_id=project_session_id, integration_branch=integration_branch
+            project_session_id=project_session_id,
+            feature_branch=feature_branch,
+            integration_branch=integration_branch
         )
         await self.save_manifest(
             manifest, commit_msg=f"Initialize project state for session {project_session_id}"
