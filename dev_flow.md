@@ -146,27 +146,38 @@ final_state = await graph.ainvoke(initial_state, config)
    ```
 
 3. **Jules creates branch and PR**
-   - Branch: `feat/generate-architecture-{timestamp}` (created from `main`)
-   - **PR**: `feat/generate-architecture-{timestamp}` → **`main`** ✅
-   - Files: All SPEC.md and UAT.md files
-   - **Note**: Jules uses `startingBranch` = current branch, which is the feature branch
-   - **Important**: The PR targets `main` because Jules's `automationMode: AUTO_CREATE_PR` creates PR from current branch to its base (main)
+   - **Starting branch**: `feat/generate-architecture-{timestamp}` (we created this)
+   - **Jules's branch**: `feat/generate-architectural-documents-{session_id}` (Jules creates this)
+   - **PR**: `feat/generate-architectural-documents-{session_id}` → **`main`** ✅
+   - **Files**: All SPEC.md and UAT.md files
+   
+   **How it works**:
+   - We checkout `feat/generate-architecture-{timestamp}`
+   - Jules uses this as `startingBranch`
+   - Jules creates its own branch from this starting point
+   - Jules creates PR from its branch to `main` (the base of starting branch)
+   
+   **Important**: The PR targets `main` because:
+   - `feat/generate-architecture-{timestamp}` was created from `main`
+   - Jules's `automationMode: AUTO_CREATE_PR` creates PR to the base branch
+   - Base branch = `main`
 
 **Output State**:
 ```python
 {
     "project_session_id": "sessions/xxx",
     "integration_branch": "dev/architect-cycle-00-{timestamp}/integration",
-    "active_branch": "feat/generate-architecture-{timestamp}",
-    "pr_url": "https://github.com/.../pull/123"  # PR to main
+    "active_branch": "feat/generate-architecture-{timestamp}",  # Our feature branch
+    "pr_url": "https://github.com/.../pull/123"  # Jules's PR to main
 }
 ```
 
 **Branch State**:
 ```
 main
-  ↑ (PR #123)
-feat/generate-architecture-{timestamp} (Jules's work)
+  ↑ (PR #123: feat/generate-architectural-documents-{session_id} → main)
+feat/generate-architecture-{timestamp} (our feature branch, for run-cycle)
+feat/generate-architectural-documents-{session_id} (Jules's branch, will be deleted after merge)
 ```
 
 ---
@@ -342,16 +353,28 @@ result = await jules.run_session(
 ```
 
 ##### 2.3 Jules creates branch and PR
-- **Current branch**: `feat/generate-architecture-20260111-1044`
-- **Jules's branch**: `feat/cycle-01-implementation-{session_id}`
+- **Current branch**: `feat/generate-architecture-20260111-1044` (we checked out this)
+- **Jules's branch**: `feat/cycle-01-implementation-{session_id}` (Jules creates this)
 - **PR**: `feat/cycle-01-implementation-{session_id}` → `feat/generate-architecture-20260111-1044` ✅
 - **Files**: Source code, tests, test logs
+
+**How it works**:
+- We checkout `feat/generate-architecture-20260111-1044` (feature branch)
+- Jules uses this as `startingBranch`
+- Jules creates its own implementation branch
+- Jules creates PR from its branch to the feature branch (the base)
+
+**Important**: The PR targets the feature branch because:
+- `feat/generate-architecture-20260111-1044` is the current branch
+- Jules's `automationMode: AUTO_CREATE_PR` creates PR to the base branch
+- Base branch = feature branch (not main!)
+- This allows cycles to accumulate on the feature branch
 
 **Output State**:
 ```python
 {
     "jules_session_name": "sessions/12345",
-    "pr_url": "https://github.com/.../pull/124",
+    "pr_url": "https://github.com/.../pull/124",  # PR to feature branch
     "status": "ready_for_audit"
 }
 ```
