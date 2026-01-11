@@ -14,7 +14,7 @@ def mock_deps() -> Iterator[None]:
         patch("ac_cdd_core.cli.utils.check_api_key", return_value=True),
         patch("shutil.which", return_value="/usr/bin/git"),
         patch("ac_cdd_core.cli.ProjectManager"),
-        patch("ac_cdd_core.cli.SessionManager"),
+        patch("ac_cdd_core.cli.StateManager"),
         patch("ac_cdd_core.cli._WorkflowServiceHolder.get"),
     ):
         yield

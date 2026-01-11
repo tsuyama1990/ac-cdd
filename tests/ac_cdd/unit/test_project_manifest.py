@@ -18,6 +18,7 @@ class TestProjectManifest:
         """Test full ProjectManifest serialization loop."""
         manifest = ProjectManifest(
             project_session_id="test-session-123",
+            feature_branch="dev/feature-123",
             integration_branch="dev/test/integration",
             cycles=[
                 CycleManifest(id="01", status="in_progress", jules_session_id="jules-1"),

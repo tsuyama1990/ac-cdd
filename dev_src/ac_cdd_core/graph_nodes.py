@@ -70,34 +70,49 @@ class CycleNodes(IGraphNodes):
         context_files = settings.get_context_files()
 
         timestamp = datetime.now(UTC).strftime("%Y%m%d-%H%M")
-        session_id = f"architect-cycle-{state['cycle_id']}-{timestamp}"
 
-        # Create a feature branch for the architect to work on
-        # This ensures Jules doesn't work directly on main
-        architect_branch = f"feat/generate-architecture-{timestamp}"
-        await self.git.create_feature_branch(architect_branch, from_branch="main")
+        # New Branch Strategy: Create Integration Branch as the working base
+        integration_branch = f"dev/int-{timestamp}"
+
+        # Create integration branch from main (works same as feature branch creation)
+        await self.git.create_feature_branch(integration_branch, from_branch="main")
 
         result = await self.jules.run_session(
-            session_id=session_id,
+            session_id=f"architect-{timestamp}",  # Logical ID for request
             prompt=instruction,
             target_files=context_files,
             context_files=[],
             require_plan_approval=False,
         )
 
-        prefix = settings.session.integration_branch_prefix
-        sid = state.get("project_session_id") or session_id
-        integration_branch = f"{prefix}/{sid}/integration"
+        if result.get("status") in ("success", "running") and result.get("pr_url"):
+            pr_url = result["pr_url"]
+            pr_number = pr_url.split("/")[-1]
 
-        if result.get("status") in ("success", "running"):
+            # Auto-Merge Architecture PR
+            try:
+                console.print(
+                    f"[bold blue]Auto-merging Architecture PR #{pr_number}...[/bold blue]"
+                )
+                await self.git.merge_pr(pr_number)
+                console.print("[bold green]Architecture merged successfully![/bold green]")
+            except Exception as e:
+                console.print(f"[bold red]Failed to auto-merge Architecture PR: {e}[/bold red]")
+                # We don't fail the cycle here, but manual intervention will be needed
+
             return {
                 "status": "architect_completed",
                 "current_phase": "architect_done",
                 "integration_branch": integration_branch,
+                "active_branch": integration_branch,  # Working on integration branch
                 "project_session_id": result.get("session_name"),
-                "pr_url": result.get("pr_url"),
+                "pr_url": pr_url,
             }
-        return {"status": "architect_failed", "error": result.get("error")}
+
+        if result.get("error"):
+            return {"status": "architect_failed", "error": result.get("error")}
+
+        return {"status": "architect_failed", "error": "Unknown Jules error or no PR URL"}
 
     async def _send_audit_feedback_to_session(
         self, session_id: str, feedback: str
@@ -472,9 +487,23 @@ class CycleNodes(IGraphNodes):
             "status": "retry_fix",
         }
 
-    async def uat_evaluate_node(self, _state: CycleState) -> dict[str, Any]:
-        """Node for UAT Evaluation."""
+    async def uat_evaluate_node(self, state: CycleState) -> dict[str, Any]:
+        """Node for UAT Evaluation and Auto-Merge."""
         console.print("[bold cyan]Running UAT Evaluation...[/bold cyan]")
+        # Assume UAT passes for now
+
+        # Auto-Merge Cycle PR
+        pr_url = state.get("pr_url")
+        if pr_url:
+            try:
+                pr_number = pr_url.split("/")[-1]
+                console.print(f"[bold blue]Auto-merging Cycle PR #{pr_number}...[/bold blue]")
+                await self.git.merge_pr(pr_number)
+                console.print("[bold green]Cycle PR merged successfully![/bold green]")
+            except Exception as e:
+                console.print(f"[bold red]Failed to auto-merge Cycle PR: {e}[/bold red]")
+                return {"status": "failed", "error": str(e)}
+
         return {"status": "cycle_completed"}
 
     def check_coder_outcome(self, state: CycleState) -> str:

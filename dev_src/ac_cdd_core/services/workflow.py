@@ -24,7 +24,7 @@ class WorkflowService:
         self.services = ServiceContainer.default()
         self.builder = GraphBuilder(self.services)
 
-    async def run_gen_cycles(self, cycles: int, project_session_id: str | None) -> None:  # noqa: PLR0912, PLR0915, C901
+    async def run_gen_cycles(self, cycles: int, project_session_id: str | None) -> None:
         with KeepAwake(reason="Generating Architecture and Cycles"):
             console.rule("[bold blue]Architect Phase: Generating Cycles[/bold blue]")
 
@@ -49,113 +49,21 @@ class WorkflowService:
             else:
                 session_id_val = final_state["project_session_id"]
                 integration_branch = final_state["integration_branch"]
-                architect_branch = final_state.get("active_branch")  # feat/generate-architecture-*
+
+                # In new strategy, integration_branch IS the feature branch
+                feature_branch = integration_branch
 
                 # Create Manifest with Cycles
                 mgr = StateManager()
                 manifest = mgr.create_manifest(
                     session_id_val,
-                    feature_branch=architect_branch,
+                    feature_branch=feature_branch,
                     integration_branch=integration_branch,
                 )
                 manifest.cycles = [
                     CycleManifest(id=f"{i:02}", status="planned") for i in range(1, cycles + 1)
                 ]
                 mgr.save_manifest(manifest)
-
-                git = GitManager()
-                try:
-                    # Create integration branch from main
-                    await git.create_integration_branch(
-                        session_id_val, branch_name=integration_branch
-                    )
-
-                    # Merge the architect PR branch into integration branch
-                    # This ensures SPEC.md and UAT.md files are available for run-cycle
-                    pr_url = final_state.get("pr_url")
-                    jules_branch = None
-
-                    if pr_url:
-                        # Get the actual PR head branch (Jules creates its own branch)
-                        try:
-                            stdout, _, code = await git.runner.run_command(
-                                [
-                                    git.gh_cmd,
-                                    "pr",
-                                    "view",
-                                    pr_url,
-                                    "--json",
-                                    "headRefName",
-                                    "--jq",
-                                    ".headRefName",
-                                ],
-                                check=False,
-                            )
-                            if code == 0 and stdout.strip():
-                                jules_branch = stdout.strip()
-                                logger.info(f"Jules created branch from PR: {jules_branch}")
-                        except Exception as e:
-                            logger.warning(f"Failed to get PR head branch: {e}")
-
-                    # Fallback: If no PR or failed to get branch from PR, try to find Jules's branch
-                    # Jules creates branches like: feat/generate-architectural-documents-{session_id}
-                    if not jules_branch:
-                        logger.info("No PR found, searching for Jules's branch by session ID...")
-                        # Extract numeric session ID from session_name (e.g., "sessions/8670944109372824194")
-                        if "/" in session_id_val:
-                            numeric_id = session_id_val.split("/")[-1]
-                        else:
-                            numeric_id = session_id_val
-
-                        # Try common Jules branch naming patterns
-                        possible_patterns = [
-                            f"feat/generate-architectural-documents-{numeric_id}",
-                            f"feat/architectural-documentation-{numeric_id}",
-                            f"feat/system-architecture-documentation-{numeric_id}",
-                        ]
-
-                        for pattern in possible_patterns:
-                            try:
-                                stdout, _, code = await git.runner.run_command(
-                                    ["git", "ls-remote", "--heads", "origin", pattern], check=False
-                                )
-                                if code == 0 and stdout.strip():
-                                    jules_branch = pattern
-                                    logger.info(f"Found Jules's branch: {jules_branch}")
-                                    break
-                            except Exception as e:
-                                logger.debug(f"Failed to check branch pattern {pattern}: {e}")
-                                continue
-
-                    # Merge Jules's branch if found
-                    if jules_branch:
-                        try:
-                            # Fetch the branch from origin
-                            await git._run_git(["fetch", "origin", jules_branch])
-
-                            # Merge Jules's branch into integration
-                            logger.info(f"Merging {jules_branch} into {integration_branch}")
-                            await git._run_git(
-                                [
-                                    "merge",
-                                    f"origin/{jules_branch}",
-                                    "--no-ff",
-                                    "-m",
-                                    f"Merge architecture from {jules_branch}",
-                                ]
-                            )
-                            await git._run_git(["push", "origin", integration_branch])
-
-                            logger.info("Architecture has been merged to integration branch.")
-                        except Exception as e:
-                            logger.warning(f"Failed to merge Jules's branch: {e}")
-                    else:
-                        logger.warning(
-                            "Could not find Jules's branch to merge. Integration branch may not have SPEC.md files."
-                        )
-
-                except Exception as e:
-                    logger.warning(f"Could not prepare integration branch: {e}")
 
                 console.print(
                     SuccessMessages.architect_complete(session_id_val, integration_branch)

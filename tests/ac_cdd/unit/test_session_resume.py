@@ -19,6 +19,7 @@ class TestSessionResume:
         # Setup existing manifest
         manifest = ProjectManifest(
             project_session_id="p1",
+            feature_branch="feat/p1",
             integration_branch="dev/p1",
             cycles=[CycleManifest(id="01", status="planned")],
         )
@@ -38,6 +39,7 @@ class TestSessionResume:
         # Manifest exists but no Jules session ID
         manifest = ProjectManifest(
             project_session_id="p1",
+            feature_branch="feat/p1",
             integration_branch="dev/p1",
             cycles=[CycleManifest(id="01", status="planned", jules_session_id=None)],
         )
@@ -60,6 +62,7 @@ class TestSessionResume:
     ) -> None:
         manifest = ProjectManifest(
             project_session_id="p1",
+            feature_branch="feat/p1",
             integration_branch="dev/p1",
             cycles=[CycleManifest(id="01", status="in_progress", jules_session_id="jules-123")],
         )

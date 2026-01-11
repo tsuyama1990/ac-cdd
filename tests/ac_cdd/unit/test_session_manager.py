@@ -15,7 +15,7 @@ class TestSessionManager:
     async def test_load_manifest_success(
         self, mock_read: AsyncMock, manager: SessionManager
     ) -> None:
-        json_data = '{"project_session_id": "p1", "integration_branch": "dev/p1", "cycles": []}'
+        json_data = '{"project_session_id": "p1", "feature_branch": "feat/p1", "integration_branch": "dev/p1", "cycles": []}'
         mock_read.return_value = json_data
 
         manifest = await manager.load_manifest()
@@ -47,7 +47,9 @@ class TestSessionManager:
 
     @patch("ac_cdd_core.services.git_ops.GitManager.save_state_file")
     async def test_save_manifest(self, mock_save: AsyncMock, manager: SessionManager) -> None:
-        manifest = ProjectManifest(project_session_id="p1", integration_branch="dev/p1")
+        manifest = ProjectManifest(
+            project_session_id="p1", feature_branch="feat/p1", integration_branch="dev/p1"
+        )
 
         await manager.save_manifest(manifest, commit_msg="Test update")
 
@@ -60,7 +62,7 @@ class TestSessionManager:
 
     @patch("ac_cdd_core.services.git_ops.GitManager.save_state_file")
     async def test_create_manifest(self, mock_save: AsyncMock, manager: SessionManager) -> None:
-        manifest = await manager.create_manifest("p_new", "dev/p_new")
+        manifest = await manager.create_manifest("p_new", "feat/p_new", "dev/p_new")
 
         assert manifest.project_session_id == "p_new"
         mock_save.assert_awaited_once()
@@ -69,7 +71,7 @@ class TestSessionManager:
     async def test_get_cycle(self, mock_read: AsyncMock, manager: SessionManager) -> None:
         json_data = """
         {
-            "project_session_id": "p1", "integration_branch": "dev/p1",
+            "project_session_id": "p1", "feature_branch": "feat/p1", "integration_branch": "dev/p1",
             "cycles": [{"id": "01", "status": "planned"}]
         }
         """
@@ -89,7 +91,7 @@ class TestSessionManager:
     ) -> None:
         json_data = """
         {
-            "project_session_id": "p1", "integration_branch": "dev/p1",
+            "project_session_id": "p1", "feature_branch": "feat/p1", "integration_branch": "dev/p1",
             "cycles": [{"id": "01", "status": "planned"}]
         }
         """

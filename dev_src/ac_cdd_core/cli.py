@@ -120,8 +120,15 @@ def start_session(
 
 @app.command()
 def resume_session(
-    feature_branch: Annotated[str, typer.Argument(help="Existing feature branch (e.g., feat/generate-architecture-20260110-1640)")],
-    integration_branch: Annotated[str | None, typer.Option("--integration", help="Integration branch")] = None,
+    feature_branch: Annotated[
+        str,
+        typer.Argument(
+            help="Existing feature branch (e.g., feat/generate-architecture-20260110-1640)"
+        ),
+    ],
+    integration_branch: Annotated[
+        str | None, typer.Option("--integration", help="Integration branch")
+    ] = None,
     cycles: Annotated[int, typer.Option("--cycles", help="Number of cycles")] = 8,
 ) -> None:
     """
@@ -172,7 +179,7 @@ def _resume_session(feature_branch: str, integration_branch: str | None, cycles:
         project_session_id=session_id,
         feature_branch=feature_branch,
         integration_branch=integration_branch,
-        cycles=[CycleManifest(id=f"{i:02}", status="planned") for i in range(1, cycles + 1)]
+        cycles=[CycleManifest(id=f"{i:02}", status="planned") for i in range(1, cycles + 1)],
     )
 
     mgr.save_manifest(manifest)

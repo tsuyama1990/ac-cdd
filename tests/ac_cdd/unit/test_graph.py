@@ -65,16 +65,21 @@ async def test_coder_graph_structure(graph_builder: GraphBuilder) -> None:
 
 
 @pytest.mark.asyncio
-async def test_architect_graph_execution(
-    graph_builder: GraphBuilder, mock_jules: MagicMock
-) -> None:
+async def test_architect_graph_execution(services: ServiceContainer, mock_jules: MagicMock) -> None:
     """Test architect graph execution flow."""
-    graph = graph_builder.build_architect_graph()
-    initial_state = CycleState(cycle_id="00", session_id="test-session")
+    with patch("ac_cdd_core.graph_nodes.GitManager") as mock_git_cls:
+        # Configure the mock instance methods as AsyncMock
+        mock_git = mock_git_cls.return_value
+        mock_git.create_feature_branch = AsyncMock()
 
-    config = {"configurable": {"thread_id": "1"}}
+        # Create builder under patch so CycleNodes picks up the mock
+        graph_builder = GraphBuilder(services)
+        graph = graph_builder.build_architect_graph()
 
-    result = await graph.ainvoke(initial_state, config)
+        initial_state = CycleState(cycle_id="00", session_id="test-session")
+        config = {"configurable": {"thread_id": "1"}}
+
+        result = await graph.ainvoke(initial_state, config)
 
     # In CycleNodes.architect_session_node, we return {"status": "architect_completed"}
     # This should merge into CycleState.
@@ -82,7 +87,7 @@ async def test_architect_graph_execution(
 
     # Verify project_session_id has timestamp (session_id in state maps to project_session_id in logic)
     # Actually CycleNodes updates 'project_session_id' key in returned dict
-    assert result["project_session_id"].startswith("architect-cycle-00-")
+    assert result["project_session_id"].startswith("architect-")
 
 
 @pytest.mark.asyncio

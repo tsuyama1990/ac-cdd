@@ -140,18 +140,6 @@ class GitManager:
 
         return sorted(files)
 
-    async def merge_pr(self, pr_url: str) -> None:
-        """Merges a Pull Request using GitHub CLI."""
-        logger.info(f"Merging PR: {pr_url}...")
-        try:
-            await self.runner.run_command(
-                [self.gh_cmd, "pr", "merge", pr_url, "--merge", "--delete-branch"],
-                check=True,
-            )
-            logger.info("PR merged successfully.")
-        except Exception as e:
-            logger.warning(f"Failed to auto-merge PR. Please merge manually. Error: {e}")
-
     async def smart_checkout(self, target: str, is_pr: bool = False, force: bool = False) -> None:
         """Robust checkout that handles local changes."""
         stashed = await self._stash_changes()
@@ -226,7 +214,7 @@ class GitManager:
         """Checks out the Pull Request branch using GitHub CLI."""
         logger.info(f"Checking out PR: {pr_url}...")
         await self.smart_checkout(pr_url, is_pr=True)
-        
+
         # CRITICAL: Pull latest commits after checkout
         # Jules may have updated the PR with new commits
         logger.info("Pulling latest commits from PR...")
@@ -235,7 +223,7 @@ class GitManager:
             logger.info("Successfully pulled latest commits")
         except Exception as e:
             logger.warning(f"Could not pull latest commits: {e}")
-        
+
         logger.info(f"Checked out PR {pr_url} successfully.")
 
     async def checkout_branch(self, branch_name: str, force: bool = False) -> None:
@@ -319,17 +307,17 @@ class GitManager:
     async def create_feature_branch(self, branch_name: str, from_branch: str = "main") -> str:
         """Creates and checks out a new feature branch from the specified base branch."""
         logger.info(f"Creating feature branch: {branch_name} from {from_branch}")
-        
+
         # Ensure we're on the base branch and it's up to date
         await self._run_git(["checkout", from_branch])
         await self._run_git(["pull"])
-        
+
         # Create and checkout the new branch
         await self._run_git(["checkout", "-b", branch_name])
-        
+
         # Push the branch to origin
         await self._run_git(["push", "-u", "origin", branch_name])
-        
+
         logger.info(f"Created and pushed feature branch: {branch_name}")
         return branch_name
 
@@ -356,22 +344,33 @@ class GitManager:
 
         return branch_name
 
-    async def merge_to_integration(self, pr_url: str, integration_branch: str) -> None:
-        """Merges PR to integration branch (not main)."""
-        logger.info(f"Merging PR to integration branch: {integration_branch}")
-        await self.runner.run_command([self.gh_cmd, "pr", "ready", pr_url], check=False)
+    async def merge_pr(self, pr_number: int | str, method: str = "squash") -> None:
+        """
+        Merge PR using gh CLI with auto-merge capability.
 
-        _, stderr, code = await self.runner.run_command(
-            [self.gh_cmd, "pr", "merge", pr_url, "--merge", "--delete-branch"], check=True
-        )
+        Args:
+            pr_number: PR number or URL
+            method: Merge method ('squash', 'merge', or 'rebase')
+        """
+        logger.info(f"Merging PR {pr_number} using method={method}")
+
+        cmd = [
+            self.gh_cmd,
+            "pr",
+            "merge",
+            str(pr_number),
+            f"--{method}",
+            "--auto",  # Supports auto-merge when checks pass
+            "--delete-branch",  # Delete the branch after merge
+        ]
+
+        _, stderr, code = await self.runner.run_command(cmd, check=True)
 
         if code != 0:
-            msg = f"Failed to merge PR {pr_url}: {stderr}"
+            msg = f"Failed to merge PR {pr_number}: {stderr}"
             raise RuntimeError(msg)
 
-        await self._run_git(["checkout", integration_branch])
-        await self._run_git(["pull"])
-        logger.info(f"Merged to {integration_branch} successfully.")
+        logger.info(f"Successfully enabled auto-merge for PR {pr_number}")
 
     async def create_final_pr(self, integration_branch: str, title: str, body: str) -> str:
         """Creates final PR from integration branch to main."""

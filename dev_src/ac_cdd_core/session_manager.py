@@ -56,7 +56,7 @@ class SessionManager:
         manifest = ProjectManifest(
             project_session_id=project_session_id,
             feature_branch=feature_branch,
-            integration_branch=integration_branch
+            integration_branch=integration_branch,
         )
         await self.save_manifest(
             manifest, commit_msg=f"Initialize project state for session {project_session_id}"

@@ -23,6 +23,7 @@ except Exception:
     # If environment loading fails (e.g. in strict docker envs), continue
     # The application will handle missing keys later if they are actually needed
     import logging
+
     logging.debug("Environment loading failed, will use defaults")
 
 # Constants
