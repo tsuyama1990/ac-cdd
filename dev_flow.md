@@ -148,14 +148,16 @@ final_state = await graph.ainvoke(initial_state, config)
    ```
 
 3. **Jules creates branch and PR**
-   - **Starting branch**: `feat/generate-architecture-{timestamp}` (we created this)
-   - **Jules's branch**: `feat/generate-architectural-documents-{session_id}` (Jules creates this)
+   - **Starting branch**: `feat/generate-architecture-{timestamp}` (created by GitManager in step 1)
+   - **Current branch**: `feat/generate-architecture-{timestamp}` (already checked out by create_feature_branch)
+   - **Jules's branch**: `feat/generate-architectural-documents-{session_id}` (Jules creates this from starting branch)
    - **PR**: `feat/generate-architectural-documents-{session_id}` → **`main`** ✅
    - **Files**: All SPEC.md and UAT.md files
    
    **How it works**:
-   - We checkout `feat/generate-architecture-{timestamp}`
-   - Jules uses this as `startingBranch`
+   - `create_feature_branch()` already checked out `feat/generate-architecture-{timestamp}`
+   - `_prepare_git_context()` gets current branch = `feat/generate-architecture-{timestamp}`
+   - Jules receives `startingBranch: feat/generate-architecture-{timestamp}`
    - Jules creates its own branch from this starting point
    - Jules creates PR from its branch to `main` (the base of starting branch)
    
@@ -167,7 +169,7 @@ final_state = await graph.ainvoke(initial_state, config)
 **Output State**:
 ```python
 {
-    "project_session_id": "sessions/xxx",
+    "project_session_id": "sessions/xxx",  # Jules session ID
     "integration_branch": "dev/architect-cycle-00-{timestamp}/integration",
     "active_branch": "feat/generate-architecture-{timestamp}",  # Our feature branch
     "pr_url": "https://github.com/.../pull/123"  # Jules's PR to main
@@ -178,7 +180,10 @@ final_state = await graph.ainvoke(initial_state, config)
 ```
 main
   ↑ (PR #123: feat/generate-architectural-documents-{session_id} → main)
+  
 feat/generate-architecture-{timestamp} (our feature branch, for run-cycle)
+  ← Currently checked out
+  
 feat/generate-architectural-documents-{session_id} (Jules's branch, will be deleted after merge)
 ```
 
@@ -355,28 +360,36 @@ result = await jules.run_session(
 ```
 
 ##### 2.3 Jules creates branch and PR
-- **Current branch**: `feat/generate-architecture-20260111-1044` (we checked out this)
-- **Jules's branch**: `feat/cycle-01-implementation-{session_id}` (Jules creates this)
-- **PR**: `feat/cycle-01-implementation-{session_id}` → `feat/generate-architecture-20260111-1044` ✅
+- **Current branch**: `feat/generate-architecture-20260111-1044` (checked out by workflow.py in step 1)
+- **Jules's branch**: `feat/cycle-01-implementation-{session_id}` (Jules creates this from current branch)
+- **PR**: `feat/cycle-01-implementation-{session_id}` → **`main`** ⚠️ (NOT feature branch!)
 - **Files**: Source code, tests, test logs
 
 **How it works**:
-- We checkout `feat/generate-architecture-20260111-1044` (feature branch)
-- Jules uses this as `startingBranch`
-- Jules creates its own implementation branch
-- Jules creates PR from its branch to the feature branch (the base)
+- workflow.py already checked out `feat/generate-architecture-20260111-1044` (feature branch)
+- `_prepare_git_context()` gets current branch = `feat/generate-architecture-20260111-1044`
+- Jules receives `startingBranch: feat/generate-architecture-20260111-1044`
+- Jules creates its own implementation branch from this starting point
+- Jules creates PR from its branch to **the base of startingBranch** = `main`
 
-**Important**: The PR targets the feature branch because:
-- `feat/generate-architecture-20260111-1044` is the current branch
-- Jules's `automationMode: AUTO_CREATE_PR` creates PR to the base branch
-- Base branch = feature branch (not main!)
-- This allows cycles to accumulate on the feature branch
+**⚠️ CRITICAL LIMITATION**:
+- `feat/generate-architecture-20260111-1044` was created from `main`
+- Jules's `automationMode: AUTO_CREATE_PR` creates PR to the **base** of startingBranch
+- Base of `feat/generate-architecture-20260111-1044` = `main`
+- **Therefore, cycle PRs target `main`, not the feature branch!**
+
+**Workaround**:
+1. Manually change PR target from `main` to `feat/generate-architecture-20260111-1044`
+2. Or: Merge architecture PR to `main` first, then create feature branch from `main` again
+3. Or: Use `gh pr edit <PR_NUMBER> --base feat/generate-architecture-20260111-1044`
+
+**TODO**: Add explicit base branch parameter to Jules API
 
 **Output State**:
 ```python
 {
     "jules_session_name": "sessions/12345",
-    "pr_url": "https://github.com/.../pull/124",  # PR to feature branch
+    "pr_url": "https://github.com/.../pull/124",  # PR to main (needs manual retarget!)
     "status": "ready_for_audit"
 }
 ```
