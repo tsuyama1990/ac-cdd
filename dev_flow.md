@@ -359,38 +359,36 @@ result = await jules.run_session(
 ```
 
 ##### 2.3 Jules creates branch and PR
-- **Current branch**: Depends on what workflow.py checked out
+- **Current branch**: `feat/generate-architecture-20260111-1044` (checked out by workflow.py in step 1)
 - **Jules's branch**: `jules/cycle-01-impl-{session_id}` (Jules creates this from current branch)
-- **PR**: `jules/cycle-01-impl-{session_id}` → **current branch** ✅
+- **PR**: `jules/cycle-01-impl-{session_id}` → **`feat/generate-architecture-20260111-1044`** ✅
 - **Files**: Source code, tests, test logs
 
 **How it works**:
-- workflow.py checks out a branch (could be feature branch OR integration branch)
-- `_prepare_git_context()` gets current branch
-- Jules receives `startingBranch: <current_branch>`
+- workflow.py checks out **feature branch** (Line 245: `await git.checkout_branch(manifest.feature_branch)`)
+- `_prepare_git_context()` gets current branch = `feat/generate-architecture-20260111-1044`
+- Jules receives `startingBranch: feat/generate-architecture-20260111-1044`
 - Jules creates its own implementation branch from this starting point
-- **Jules creates PR to startingBranch itself** (NOT its parent!)
+- **Jules creates PR to startingBranch itself** = `feat/generate-architecture-20260111-1044` ✅
 
-**Evidence from actual PR**:
-- PR #27: `jules/cycle-05-impl-13699060115265162899` → `dev/architect-cycle-00-20260110-1640/integration`
-- startingBranch = `dev/architect-cycle-00-20260110-1640/integration`
-- PR target = `dev/architect-cycle-00-20260110-1640/integration` ✅
-
-**Important**: Jules's behavior:
+**Important**: Jules's PR behavior:
 - `automationMode: AUTO_CREATE_PR` creates PR to **startingBranch itself**
 - NOT to the parent/base of startingBranch
 - This means PR target = whatever branch we checkout before calling Jules
 
-**Current Implementation**:
-- workflow.py checks out **integration branch** (see BRANCH_FLOW_ISSUES.md)
-- Therefore: cycle PRs → integration branch ✅
-- This is different from the intended design (feature branch accumulation)
+**Current Implementation** (as of latest code):
+- workflow.py checks out **feature branch** ✅ (Line 238-251)
+- Therefore: cycle PRs → **feature branch** ✅
+- This matches the intended design (feature branch accumulation)
+
+**Note**: PR #27 evidence shows integration branch, but that was from an older implementation.
+The current code (workflow.py Line 245) correctly checks out feature branch.
 
 **Output State**:
 ```python
 {
     "jules_session_name": "sessions/12345",
-    "pr_url": "https://github.com/.../pull/27",  # PR to integration branch
+    "pr_url": "https://github.com/.../pull/124",  # PR to feature branch
     "status": "ready_for_audit"
 }
 ```
@@ -602,19 +600,19 @@ feat/cycle-01-implementation-{session_id} (Jules's branch, deleted after merge)
 
 ```
 main (production)
-  ↑ (PR from Jules's architecture branch)
   ↑ (Final PR from feature branch - manual)
   
-feat/generate-architectural-documents-{session_id} (Jules's architecture branch)
-  → Creates PR to main
-  → Deleted after merge
-
 feat/generate-architecture-{timestamp} (our feature branch)
+  ↑ (PR from Jules's architecture branch)
   ↑ (PRs from Jules's cycle implementation branches)
-  → Accumulates all cycles
+  → Accumulates architecture + all cycles
   → Eventually merged to main (manual)
+
+jules/generate-architectural-documents-{session_id} (Jules's architecture branch)
+  → Creates PR to feature branch
+  → Deleted after merge
   
-feat/cycle-XX-implementation-{session_id} (Jules's cycle branches)
+jules/cycle-XX-impl-{session_id} (Jules's cycle branches)
   → Creates PR to feature branch
   → Deleted after merge
   
@@ -629,8 +627,8 @@ dev/architect-cycle-00-{timestamp}/integration (integration branch)
 |--------|---------|------------|-----------|----------|
 | `main` | Production code | Manual | - | Permanent |
 | `feat/generate-architecture-*` | **Feature branch** (accumulates all cycles) | GitManager (gen-cycles) | `main` (manual) | Until final merge |
-| `feat/generate-architectural-documents-*` | Jules's architecture branch | Jules (gen-cycles) | `main` | Temporary (deleted after merge) |
-| `feat/cycle-XX-implementation-*` | Jules's cycle implementation | Jules (run-cycle) | Feature branch | Temporary (deleted after merge) |
+| `jules/generate-architectural-documents-*` | Jules's architecture branch | Jules (gen-cycles) | **feature branch** | Temporary (deleted after merge) |
+| `jules/cycle-XX-impl-*` | Jules's cycle implementation | Jules (run-cycle) | **feature branch** | Temporary (deleted after merge) |
 | `dev/architect-cycle-00-*/integration` | Integration branch (future use) | WorkflowService | - | Permanent (unused) |
 
 ### Key Points
@@ -886,14 +884,15 @@ run-cycle:
 1. **gen-cycles**: 
    - GitManager creates feature branch from main
    - Jules generates architecture on feature branch
-   - Jules creates its own branch and PR to main
+   - Jules creates its own branch and PR to **feature branch** ✅
+   - PR merged: architecture files now in feature branch
    - Manifest created with feature_branch reference
    - Integration branch created (optional, unused)
    
 2. **run-cycle**: 
-   - Checkout feature branch
+   - Checkout feature branch (has architecture files)
    - Jules implements cycle on its own branch
-   - Jules creates PR to feature branch (not main!)
+   - Jules creates PR to feature branch
    - Aider reviews code
    - Committee approves/rejects
    - Loop until approved
