@@ -22,7 +22,8 @@ try:
 except Exception:
     # If environment loading fails (e.g. in strict docker envs), continue
     # The application will handle missing keys later if they are actually needed
-    pass
+    import logging
+    logging.debug("Environment loading failed, will use defaults")
 
 # Constants
 PROMPT_FILENAME_MAP = {
@@ -166,7 +167,7 @@ class Settings(BaseSettings):
     sandbox: SandboxConfig = Field(default_factory=SandboxConfig)
     agents: AgentsConfig = Field(default_factory=AgentsConfig)
     reviewer: ReviewerConfig = Field(default_factory=ReviewerConfig)
-    
+
     # Auditor model selection: "smart" or "fast"
     AUDITOR_MODEL_MODE: Literal["smart", "fast"] = "fast"
 

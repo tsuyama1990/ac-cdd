@@ -71,7 +71,7 @@ class CycleNodes(IGraphNodes):
 
         timestamp = datetime.now(UTC).strftime("%Y%m%d-%H%M")
         session_id = f"architect-cycle-{state['cycle_id']}-{timestamp}"
-        
+
         # Create a feature branch for the architect to work on
         # This ensures Jules doesn't work directly on main
         architect_branch = f"feat/generate-architecture-{timestamp}"
@@ -229,7 +229,7 @@ class CycleNodes(IGraphNodes):
             # If successful but no PR (unexpected)
             return {"status": "failed", "error": "Jules failed to produce PR"}
 
-    async def auditor_node(self, state: CycleState) -> dict[str, Any]:
+    async def auditor_node(self, state: CycleState) -> dict[str, Any]:  # noqa: PLR0912, PLR0915, C901
         """Node for Auditor Agent (Aider/LLM)."""
         console.print("[bold magenta]Starting Auditor...[/bold magenta]")
 
@@ -259,16 +259,20 @@ class CycleNodes(IGraphNodes):
                     console.print("[dim]Successfully checked out PR branch[/dim]")
                 except Exception as e:
                     console.print(f"[yellow]Warning: Could not checkout PR: {e}[/yellow]")
-                    console.print("[yellow]Proceeding with current branch (may review wrong code!)[/yellow]")
+                    console.print(
+                        "[yellow]Proceeding with current branch (may review wrong code!)[/yellow]"
+                    )
             else:
-                console.print("[yellow]Warning: No PR URL provided, reviewing current branch[/yellow]")
-            
+                console.print(
+                    "[yellow]Warning: No PR URL provided, reviewing current branch[/yellow]"
+                )
+
             # Get base branch for comparison (feature branch, not main)
             # Feature branch is where we accumulate all cycles
             # We compare to the PREVIOUS state of feature branch (before this cycle's changes)
             base_branch = state.get("feature_branch") or state.get("integration_branch", "main")
             console.print(f"[dim]Comparing changes against base branch: {base_branch}[/dim]")
-            
+
             changed_file_paths = await git.get_changed_files(base_branch=base_branch)
             console.print(
                 f"[dim]Auditor: Found {len(changed_file_paths)} changed files to review[/dim]"
@@ -291,7 +295,7 @@ class CycleNodes(IGraphNodes):
                 if any(f.startswith(prefix) for prefix in included_prefixes)
                 and not any(f.startswith(prefix) for prefix in excluded_prefixes)
             ]
-            
+
             # Filter out build artifacts and gitignored files
             # These are generated files that shouldn't be reviewed
             build_artifact_patterns = [
@@ -306,12 +310,13 @@ class CycleNodes(IGraphNodes):
                 ".mypy_cache/",
                 ".ruff_cache/",
             ]
-            
+
             reviewable_files = [
-                f for f in reviewable_files
+                f
+                for f in reviewable_files
                 if not any(pattern in f for pattern in build_artifact_patterns)
             ]
-            
+
             # Use git check-ignore to filter out .gitignore'd files
             # This catches any other generated files we might have missed
             if reviewable_files:
@@ -320,19 +325,20 @@ class CycleNodes(IGraphNodes):
                     filtered_files = []
                     for file_path in reviewable_files:
                         _, _, code = await git.runner.run_command(
-                            ["git", "check-ignore", "-q", file_path],
-                            check=False
+                            ["git", "check-ignore", "-q", file_path], check=False
                         )
                         if code != 0:  # Not ignored, keep it
                             filtered_files.append(file_path)
-                    
+
                     ignored_count = len(reviewable_files) - len(filtered_files)
                     if ignored_count > 0:
                         console.print(f"[dim]Filtered out {ignored_count} gitignored files[/dim]")
-                    
+
                     reviewable_files = filtered_files
                 except Exception as e:
-                    console.print(f"[yellow]Warning: Could not filter gitignored files: {e}[/yellow]")
+                    console.print(
+                        f"[yellow]Warning: Could not filter gitignored files: {e}[/yellow]"
+                    )
 
             if not reviewable_files:
                 console.print(
@@ -362,11 +368,13 @@ class CycleNodes(IGraphNodes):
             console.print(f"[dim]DEBUG: Final reviewable files: {reviewable_files}[/dim]")
 
             target_files = await self._read_files(reviewable_files)
-            
+
             # DEBUG: Show what files were actually read
             console.print(f"[dim]DEBUG: Successfully read {len(target_files)} files[/dim]")
-            for filepath in target_files.keys():
-                console.print(f"[dim]DEBUG: - {filepath} ({len(target_files[filepath])} chars)[/dim]")
+            for filepath in target_files:
+                console.print(
+                    f"[dim]DEBUG: - {filepath} ({len(target_files[filepath])} chars)[/dim]"
+                )
 
         except Exception as e:
             console.print(f"[yellow]Warning: Could not get changed files from git: {e}[/yellow]")
@@ -397,7 +405,7 @@ class CycleNodes(IGraphNodes):
             reason="AI Audit Complete",
             feedback=audit_feedback,
         )
-        
+
         # IMPORTANT: Return to feature branch after audit
         # This ensures subsequent iterations start from the correct branch
         feature_branch = state.get("feature_branch")

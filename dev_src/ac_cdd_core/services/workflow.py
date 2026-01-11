@@ -9,8 +9,8 @@ from ac_cdd_core.service_container import ServiceContainer
 from ac_cdd_core.services.audit_orchestrator import AuditOrchestrator
 from ac_cdd_core.services.git_ops import GitManager
 from ac_cdd_core.services.jules_client import JulesClient
-from ac_cdd_core.state_manager import StateManager
 from ac_cdd_core.state import CycleState
+from ac_cdd_core.state_manager import StateManager
 from ac_cdd_core.utils import KeepAwake, logger
 from langchain_core.runnables import RunnableConfig
 from rich.console import Console
@@ -24,7 +24,7 @@ class WorkflowService:
         self.services = ServiceContainer.default()
         self.builder = GraphBuilder(self.services)
 
-    async def run_gen_cycles(self, cycles: int, project_session_id: str | None) -> None:
+    async def run_gen_cycles(self, cycles: int, project_session_id: str | None) -> None:  # noqa: PLR0912, PLR0915, C901
         with KeepAwake(reason="Generating Architecture and Cycles"):
             console.rule("[bold blue]Architect Phase: Generating Cycles[/bold blue]")
 
@@ -123,7 +123,8 @@ class WorkflowService:
                                     jules_branch = pattern
                                     logger.info(f"Found Jules's branch: {jules_branch}")
                                     break
-                            except Exception:
+                            except Exception as e:
+                                logger.debug(f"Failed to check branch pattern {pattern}: {e}")
                                 continue
 
                     # Merge Jules's branch if found
