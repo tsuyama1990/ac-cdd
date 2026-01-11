@@ -94,6 +94,7 @@ class CycleNodes(IGraphNodes):
                 "status": "architect_completed",
                 "current_phase": "architect_done",
                 "integration_branch": integration_branch,
+                "active_branch": architect_branch,  # Feature branch for run-cycle
                 "project_session_id": result.get("session_name"),
                 "pr_url": result.get("pr_url"),
             }
