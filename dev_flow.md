@@ -123,9 +123,11 @@ final_state = await graph.ainvoke(initial_state, config)
 **Actor**: Jules (Google AI)
 
 **Actions**:
-1. **Checkout main branch**
+1. **Create feature branch from main**
    ```python
-   await git.checkout_branch("main")
+   architect_branch = f"feat/generate-architecture-{timestamp}"
+   await git.create_feature_branch(architect_branch, from_branch="main")
+   # This does: checkout main → pull → create new branch → checkout new branch → push
    ```
 
 2. **Call Jules to generate architecture**
@@ -141,7 +143,7 @@ final_state = await graph.ainvoke(initial_state, config)
        - dev_documents/system_prompts/CYCLE01/UAT.md
        - ... (CYCLE02-08)
        """,
-       require_plan_approval=True
+       require_plan_approval=False  # Auto-approve for architecture
    )
    ```
 
@@ -227,8 +229,8 @@ await git.create_integration_branch(
 # This step is OPTIONAL and currently for reference only
 # The integration branch is not used in run-cycle
 
-# Get Jules's PR branch
-jules_branch = "feat/generate-architecture-{timestamp}"
+# Get Jules's PR branch (from PR URL or search)
+jules_branch = "feat/generate-architectural-documents-{session_id}"  # Jules's actual branch
 
 # Checkout integration branch
 await git.checkout_branch(integration_branch)
@@ -562,13 +564,21 @@ await git.checkout_branch(manifest.feature_branch)
 
 ```
 main
-  ↓
+  ↑ (PR #123: Jules's architecture PR, may or may not be merged yet)
+  
 feat/generate-architecture-20260111-1044 (feature branch)
-  ↓
-feat/cycle-01-implementation-{session_id} (Jules's PR) → MERGED
-  ↓
+  ↑ (PR #124: feat/cycle-01-implementation-{session_id} → feature branch)
+  ↓ (after merge)
 feat/generate-architecture-20260111-1044 (updated with cycle 01 code)
+
+feat/cycle-01-implementation-{session_id} (Jules's branch, deleted after merge)
 ```
+
+**Key Points**:
+- Feature branch accumulates all cycle changes
+- Each cycle PR is merged into feature branch
+- Jules's implementation branches are deleted after merge
+- Feature branch will eventually be merged to main (manual)
 
 ---
 
@@ -578,22 +588,36 @@ feat/generate-architecture-20260111-1044 (updated with cycle 01 code)
 
 ```
 main (production)
-  ↓
-feat/generate-architecture-{timestamp} (feature branch)
-  ↓
-feat/cycle-XX-implementation-{session_id} (cycle PRs)
-  ↓
-dev/architect-cycle-00-{timestamp}/integration (integration branch, unused for now)
+  ↑ (PR from Jules's architecture branch)
+  ↑ (Final PR from feature branch - manual)
+  
+feat/generate-architectural-documents-{session_id} (Jules's architecture branch)
+  → Creates PR to main
+  → Deleted after merge
+
+feat/generate-architecture-{timestamp} (our feature branch)
+  ↑ (PRs from Jules's cycle implementation branches)
+  → Accumulates all cycles
+  → Eventually merged to main (manual)
+  
+feat/cycle-XX-implementation-{session_id} (Jules's cycle branches)
+  → Creates PR to feature branch
+  → Deleted after merge
+  
+dev/architect-cycle-00-{timestamp}/integration (integration branch)
+  → Created but currently unused
+  → Reserved for future use
 ```
 
 ### Branch Purposes
 
-| Branch | Purpose | Created By | Merged To |
-|--------|---------|------------|-----------|
-| `main` | Production code | Manual | - |
-| `feat/generate-architecture-*` | **Feature branch** (accumulates all cycles) | Jules (gen-cycles) | `main` (manual) |
-| `feat/cycle-XX-implementation-*` | Individual cycle implementation | Jules (run-cycle) | Feature branch (auto) |
-| `dev/architect-cycle-00-*/integration` | Integration branch (future use) | WorkflowService | - |
+| Branch | Purpose | Created By | Merged To | Lifetime |
+|--------|---------|------------|-----------|----------|
+| `main` | Production code | Manual | - | Permanent |
+| `feat/generate-architecture-*` | **Feature branch** (accumulates all cycles) | GitManager (gen-cycles) | `main` (manual) | Until final merge |
+| `feat/generate-architectural-documents-*` | Jules's architecture branch | Jules (gen-cycles) | `main` | Temporary (deleted after merge) |
+| `feat/cycle-XX-implementation-*` | Jules's cycle implementation | Jules (run-cycle) | Feature branch | Temporary (deleted after merge) |
+| `dev/architect-cycle-00-*/integration` | Integration branch (future use) | WorkflowService | - | Permanent (unused) |
 
 ### Key Points
 
@@ -845,16 +869,26 @@ run-cycle:
 
 ### Complete Flow
 
-1. **gen-cycles**: Jules generates architecture → PR → Merge to integration branch → Manifest created
+1. **gen-cycles**: 
+   - GitManager creates feature branch from main
+   - Jules generates architecture on feature branch
+   - Jules creates its own branch and PR to main
+   - Manifest created with feature_branch reference
+   - Integration branch created (optional, unused)
+   
 2. **run-cycle**: 
    - Checkout feature branch
-   - Jules implements cycle → PR to feature branch
+   - Jules implements cycle on its own branch
+   - Jules creates PR to feature branch (not main!)
    - Aider reviews code
    - Committee approves/rejects
    - Loop until approved
+   - PR merged to feature branch
    - Manifest updated
-3. **Repeat**: Run cycles 01-08
-4. **Final**: Manual review of feature branch → main
+   
+3. **Repeat**: Run cycles 01-08, each accumulating on feature branch
+
+4. **Final**: Manual review and merge of feature branch → main
 
 ### Key Innovations
 
