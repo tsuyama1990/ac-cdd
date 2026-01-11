@@ -60,7 +60,8 @@ class CycleState(BaseModel):
 
     # Session tracking
     project_session_id: str | None = None
-    integration_branch: str | None = None
+    feature_branch: str | None = None  # Main development branch
+    integration_branch: str | None = None  # Final integration branch
     is_session_finalized: bool = False
     final_fix: bool = Field(
         default=False, description="Flag indicating final fix before merge (bypass further audits)"
