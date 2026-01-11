@@ -79,9 +79,9 @@ AC-CDD uses a **integration-first** branch strategy where:
 
 ### 3. Jules's Architecture Branch
 
-**Name**: `jules/arch-{short_session_id}`
+**Name**: `jules/arch-{session_id}`
 
-**Example**: `jules/arch-65162899`
+**Example**: `jules/arch-13699060115265162899`
 
 **Purpose**: Architecture document generation
 
@@ -100,9 +100,9 @@ AC-CDD uses a **integration-first** branch strategy where:
 
 ### 4. Jules's Cycle Implementation Branches
 
-**Name**: `jules/c{XX}-{short_session_id}`
+**Name**: `jules/c{XX}-{session_id}`
 
-**Example**: `jules/c01-65162899`, `jules/c02-65162899`
+**Example**: `jules/c01-13699060115265162899`, `jules/c02-13699060115265162899`
 
 **Purpose**: Individual cycle implementation
 
@@ -127,32 +127,32 @@ AC-CDD uses a **integration-first** branch strategy where:
 **Purpose**: Generate architecture and create integration branch
 
 ```
-┌─────────────────────────────────────────────────────┐
-│ 1. Create Integration Branch                       │
-│    main → dev/int-20260111-2130                    │
-└─────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│ 1. Create Integration Branch                               │
+│    main → dev/int-20260111-2130                            │
+└─────────────────────────────────────────────────────────────┘
                     ↓
-┌─────────────────────────────────────────────────────┐
-│ 2. Jules Generates Architecture                    │
-│    - Checkout: dev/int-20260111-2130               │
-│    - Jules creates: jules/arch-65162899            │
-│    - Files: SPEC.md, UAT.md for all cycles        │
-└─────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│ 2. Jules Generates Architecture                            │
+│    - Checkout: dev/int-20260111-2130                       │
+│    - Jules creates: jules/arch-13699060115265162899        │
+│    - Files: SPEC.md, UAT.md for all cycles                │
+└─────────────────────────────────────────────────────────────┘
                     ↓
-┌─────────────────────────────────────────────────────┐
-│ 3. Create PR                                        │
-│    jules/arch-65162899 → dev/int-20260111-2130    │
-└─────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│ 3. Create PR                                                │
+│    jules/arch-13699060115265162899 → dev/int-20260111-2130 │
+└─────────────────────────────────────────────────────────────┘
                     ↓
-┌─────────────────────────────────────────────────────┐
-│ 4. Auto-Merge (after approval)                     │
-│    Architecture files now in integration branch    │
-└─────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│ 4. Auto-Merge (after approval)                             │
+│    Architecture files now in integration branch            │
+└─────────────────────────────────────────────────────────────┘
                     ↓
-┌─────────────────────────────────────────────────────┐
-│ 5. Save Manifest                                    │
-│    integration_branch: dev/int-20260111-2130       │
-└─────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│ 5. Save Manifest                                            │
+│    integration_branch: dev/int-20260111-2130               │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 **Branch State After gen-cycles**:
@@ -163,7 +163,7 @@ dev/int-20260111-2130 (integration branch)
   ← Contains architecture files
   ← Ready for cycle implementations
 
-jules/arch-65162899 (deleted after merge)
+jules/arch-13699060115265162899 (deleted after merge)
 ```
 
 ---
@@ -173,38 +173,38 @@ jules/arch-65162899 (deleted after merge)
 **Purpose**: Implement one cycle
 
 ```
-┌─────────────────────────────────────────────────────┐
-│ 1. Checkout Integration Branch                     │
-│    git checkout dev/int-20260111-2130              │
-└─────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│ 1. Checkout Integration Branch                             │
+│    git checkout dev/int-20260111-2130                      │
+└─────────────────────────────────────────────────────────────┘
                     ↓
-┌─────────────────────────────────────────────────────┐
-│ 2. Jules Implements Cycle                          │
-│    - Starting branch: dev/int-20260111-2130        │
-│    - Jules creates: jules/c01-65162899             │
-│    - Files: Source code, tests, logs               │
-└─────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│ 2. Jules Implements Cycle                                  │
+│    - Starting branch: dev/int-20260111-2130                │
+│    - Jules creates: jules/c01-13699060115265162899         │
+│    - Files: Source code, tests, logs                       │
+└─────────────────────────────────────────────────────────────┘
                     ↓
-┌─────────────────────────────────────────────────────┐
-│ 3. Create PR                                        │
-│    jules/c01-65162899 → dev/int-20260111-2130     │
-└─────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│ 3. Create PR                                                │
+│    jules/c01-13699060115265162899 → dev/int-20260111-2130  │
+└─────────────────────────────────────────────────────────────┘
                     ↓
-┌─────────────────────────────────────────────────────┐
-│ 4. Auditor Reviews Code                            │
-│    - Compare against integration branch            │
-│    - Provide feedback if needed                    │
-└─────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│ 4. Auditor Reviews Code                                    │
+│    - Compare against integration branch                    │
+│    - Provide feedback if needed                            │
+└─────────────────────────────────────────────────────────────┘
                     ↓
-┌─────────────────────────────────────────────────────┐
-│ 5. Auto-Merge (after approval)                     │
-│    Cycle 01 code now in integration branch         │
-└─────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│ 5. Auto-Merge (after approval)                             │
+│    Cycle 01 code now in integration branch                 │
+└─────────────────────────────────────────────────────────────┘
                     ↓
-┌─────────────────────────────────────────────────────┐
-│ 6. Update Manifest                                  │
-│    cycle_01: status = "completed"                  │
-└─────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│ 6. Update Manifest                                          │
+│    cycle_01: status = "completed"                          │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 **Branch State After Cycle 01**:
@@ -213,7 +213,7 @@ dev/int-20260111-2130 (integration branch)
   ← Contains architecture + Cycle 01 code
   ← Ready for Cycle 02
 
-jules/c01-65162899 (deleted after merge)
+jules/c01-13699060115265162899 (deleted after merge)
 ```
 
 ---
@@ -324,24 +324,22 @@ dev/int-20260111-2130 (deleted)
 ### Jules's Branches
 
 **Architecture Branch**:
-- Format: `jules/arch-{short_session_id}`
-- Example: `jules/arch-65162899`
+- Format: `jules/arch-{session_id}`
+- Example: `jules/arch-13699060115265162899`
 
 **Cycle Branches**:
-- Format: `jules/c{XX}-{short_session_id}`
-- Examples: `jules/c01-65162899`, `jules/c02-65162899`
+- Format: `jules/c{XX}-{session_id}`
+- Examples: `jules/c01-13699060115265162899`, `jules/c02-13699060115265162899`
 
-**Session ID Shortening**:
-```python
-# Full session ID: sessions/13699060115265162899
-# Extract last 8 digits: 65162899
-short_id = session_id.split('/')[-1][-8:]
-```
+**Note**:
+- Uses the full numeric session ID (without `sessions/` prefix)
+- Ensures 1:1 mapping with Jules API sessions
+- Avoids any potential collision risks
 
 **Rationale**:
 - `jules/` prefix indicates Jules-created branches
 - `arch` or `c{XX}` clearly indicates purpose
-- Short session ID keeps names manageable
+- Full session ID guarantees uniqueness and traceability
 - Consistent pattern across all Jules branches
 
 ---
