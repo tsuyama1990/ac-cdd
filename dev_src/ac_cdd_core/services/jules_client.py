@@ -21,7 +21,7 @@ import httpx
 from ac_cdd_core.agents import get_manager_agent
 from ac_cdd_core.config import settings
 from ac_cdd_core.services.git_ops import GitManager
-from ac_cdd_core.session_manager import SessionManager
+from ac_cdd_core.state_manager import StateManager
 from ac_cdd_core.utils import logger
 from google.auth.transport.requests import Request as GoogleAuthRequest
 from rich.console import Console
@@ -565,8 +565,8 @@ class JulesClient:
 
         try:
             # 1. Get current cycle information from session manifest
-            mgr = SessionManager()
-            manifest = await mgr.load_manifest()
+            mgr = StateManager()
+            manifest = mgr.load_manifest()
 
             # Find current active cycle (in_progress) or fallback to last cycle if needed
             current_cycle_id: str | None = None
@@ -653,8 +653,8 @@ class JulesClient:
 
     async def _build_plan_review_context(self, plan: dict[str, Any]) -> str:
         """Builds context for plan review including specs and plan content."""
-        mgr = SessionManager()
-        manifest = await mgr.load_manifest()
+        mgr = StateManager()
+        manifest = mgr.load_manifest()
 
         current_cycle_id = None
         if manifest:

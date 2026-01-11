@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 
 from ac_cdd_core.services.git_ops import GitManager
-from ac_cdd_core.session_manager import SessionManager
+from ac_cdd_core.state_manager import StateManager
 from ac_cdd_core.utils import logger
 
 
@@ -40,8 +40,8 @@ class SessionValidator(BaseValidator):
     async def validate(self) -> tuple[bool, str]:
         """Validate session consistency with Git state."""
         # 1. Check if session exists in manifest
-        mgr = SessionManager()
-        manifest = await mgr.load_manifest()
+        mgr = StateManager()
+        manifest = mgr.load_manifest()
 
         if not manifest:
             return False, "Project manifest not found."

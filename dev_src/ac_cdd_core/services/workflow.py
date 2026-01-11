@@ -9,7 +9,7 @@ from ac_cdd_core.service_container import ServiceContainer
 from ac_cdd_core.services.audit_orchestrator import AuditOrchestrator
 from ac_cdd_core.services.git_ops import GitManager
 from ac_cdd_core.services.jules_client import JulesClient
-from ac_cdd_core.session_manager import SessionManager
+from ac_cdd_core.state_manager import StateManager
 from ac_cdd_core.state import CycleState
 from ac_cdd_core.utils import KeepAwake, logger
 from langchain_core.runnables import RunnableConfig
@@ -52,18 +52,16 @@ class WorkflowService:
                 architect_branch = final_state.get("active_branch")  # feat/generate-architecture-*
 
                 # Create Manifest with Cycles
-                mgr = SessionManager()
-                manifest = await mgr.create_manifest(
-                    session_id_val, 
+                mgr = StateManager()
+                manifest = mgr.create_manifest(
+                    session_id_val,
                     feature_branch=architect_branch,
-                    integration_branch=integration_branch
+                    integration_branch=integration_branch,
                 )
                 manifest.cycles = [
                     CycleManifest(id=f"{i:02}", status="planned") for i in range(1, cycles + 1)
                 ]
-                await mgr.save_manifest(
-                    manifest, commit_msg=f"Initialize architecture with {cycles} cycles"
-                )
+                mgr.save_manifest(manifest)
 
                 git = GitManager()
                 try:
@@ -71,25 +69,34 @@ class WorkflowService:
                     await git.create_integration_branch(
                         session_id_val, branch_name=integration_branch
                     )
-                    
+
                     # Merge the architect PR branch into integration branch
                     # This ensures SPEC.md and UAT.md files are available for run-cycle
                     pr_url = final_state.get("pr_url")
                     jules_branch = None
-                    
+
                     if pr_url:
                         # Get the actual PR head branch (Jules creates its own branch)
                         try:
                             stdout, _, code = await git.runner.run_command(
-                                [git.gh_cmd, "pr", "view", pr_url, "--json", "headRefName", "--jq", ".headRefName"],
-                                check=False
+                                [
+                                    git.gh_cmd,
+                                    "pr",
+                                    "view",
+                                    pr_url,
+                                    "--json",
+                                    "headRefName",
+                                    "--jq",
+                                    ".headRefName",
+                                ],
+                                check=False,
                             )
                             if code == 0 and stdout.strip():
                                 jules_branch = stdout.strip()
                                 logger.info(f"Jules created branch from PR: {jules_branch}")
                         except Exception as e:
                             logger.warning(f"Failed to get PR head branch: {e}")
-                    
+
                     # Fallback: If no PR or failed to get branch from PR, try to find Jules's branch
                     # Jules creates branches like: feat/generate-architectural-documents-{session_id}
                     if not jules_branch:
@@ -99,19 +106,18 @@ class WorkflowService:
                             numeric_id = session_id_val.split("/")[-1]
                         else:
                             numeric_id = session_id_val
-                        
+
                         # Try common Jules branch naming patterns
                         possible_patterns = [
                             f"feat/generate-architectural-documents-{numeric_id}",
                             f"feat/architectural-documentation-{numeric_id}",
                             f"feat/system-architecture-documentation-{numeric_id}",
                         ]
-                        
+
                         for pattern in possible_patterns:
                             try:
                                 stdout, _, code = await git.runner.run_command(
-                                    ["git", "ls-remote", "--heads", "origin", pattern],
-                                    check=False
+                                    ["git", "ls-remote", "--heads", "origin", pattern], check=False
                                 )
                                 if code == 0 and stdout.strip():
                                     jules_branch = pattern
@@ -119,25 +125,34 @@ class WorkflowService:
                                     break
                             except Exception:
                                 continue
-                    
+
                     # Merge Jules's branch if found
                     if jules_branch:
                         try:
                             # Fetch the branch from origin
                             await git._run_git(["fetch", "origin", jules_branch])
-                            
+
                             # Merge Jules's branch into integration
                             logger.info(f"Merging {jules_branch} into {integration_branch}")
-                            await git._run_git(["merge", f"origin/{jules_branch}", "--no-ff", "-m", 
-                                              f"Merge architecture from {jules_branch}"])
+                            await git._run_git(
+                                [
+                                    "merge",
+                                    f"origin/{jules_branch}",
+                                    "--no-ff",
+                                    "-m",
+                                    f"Merge architecture from {jules_branch}",
+                                ]
+                            )
                             await git._run_git(["push", "origin", integration_branch])
-                            
-                            logger.info(f"Architecture has been merged to integration branch.")
+
+                            logger.info("Architecture has been merged to integration branch.")
                         except Exception as e:
                             logger.warning(f"Failed to merge Jules's branch: {e}")
                     else:
-                        logger.warning("Could not find Jules's branch to merge. Integration branch may not have SPEC.md files.")
-                        
+                        logger.warning(
+                            "Could not find Jules's branch to merge. Integration branch may not have SPEC.md files."
+                        )
+
                 except Exception as e:
                     logger.warning(f"Could not prepare integration branch: {e}")
 
@@ -169,8 +184,8 @@ class WorkflowService:
     async def _run_all_cycles(
         self, resume: bool, auto: bool, start_iter: int, project_session_id: str | None
     ) -> None:
-        mgr = SessionManager()
-        manifest = await mgr.load_manifest()
+        mgr = StateManager()
+        manifest = mgr.load_manifest()
 
         if manifest:
             cycles_to_run = [c.id for c in manifest.cycles if c.status != "completed"]
@@ -178,11 +193,15 @@ class WorkflowService:
             cycles_to_run = settings.default_cycles
 
         console.print(f"[bold cyan]Running ALL Planned Cycles: {cycles_to_run}[/bold cyan]")
-        
+
         for idx, cid in enumerate(cycles_to_run, 1):
-            console.print(f"[bold yellow]Starting Cycle {cid} ({idx}/{len(cycles_to_run)})[/bold yellow]")
+            console.print(
+                f"[bold yellow]Starting Cycle {cid} ({idx}/{len(cycles_to_run)})[/bold yellow]"
+            )
             await self._run_single_cycle(str(cid), resume, auto, start_iter, project_session_id)
-            console.print(f"[bold green]Completed Cycle {cid} ({idx}/{len(cycles_to_run)})[/bold green]")
+            console.print(
+                f"[bold green]Completed Cycle {cid} ({idx}/{len(cycles_to_run)})[/bold green]"
+            )
 
     async def _run_single_cycle(
         self,
@@ -202,8 +221,8 @@ class WorkflowService:
             if auto:
                 os.environ["AC_CDD_AUTO_APPROVE"] = "1"
 
-            mgr = SessionManager()
-            manifest = await mgr.load_manifest()
+            mgr = StateManager()
+            manifest = mgr.load_manifest()
 
             # Fallback if manifest doesn't exist (shouldn't happen in proper flow)
             pid = project_session_id
@@ -211,11 +230,10 @@ class WorkflowService:
             if manifest:
                 pid = pid or manifest.project_session_id
                 ib = manifest.integration_branch
-
-            if not pid:
+            else:
                 console.print("[red]No active session found. Run gen-cycles first.[/red]")
                 sys.exit(1)
-            
+
             # CRITICAL: Checkout feature branch before starting coder session
             # This is the main development branch where all cycles accumulate
             fb = manifest.feature_branch if manifest else None
@@ -252,7 +270,7 @@ class WorkflowService:
 
             # Update status to completed
             if manifest:
-                await mgr.update_cycle_state(cycle_id, status="completed")
+                mgr.update_cycle_state(cycle_id, status="completed")
 
         except Exception:
             console.print(f"[bold red]Cycle {cycle_id} execution failed.[/bold red]")
@@ -314,8 +332,8 @@ class WorkflowService:
         console.rule("[bold cyan]Finalizing Development Session[/bold cyan]")
         ensure_api_key()
 
-        mgr = SessionManager()
-        manifest = await mgr.load_manifest()
+        mgr = StateManager()
+        manifest = mgr.load_manifest()
 
         sid = project_session_id or (manifest.project_session_id if manifest else None)
         integration_branch = manifest.integration_branch if manifest else None
