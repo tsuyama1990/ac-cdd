@@ -154,7 +154,7 @@ class JulesSessionNodes:
         state.status = "monitoring"
         return state
 
-    async def validate_completion(self, state: JulesSessionState) -> JulesSessionState:  # noqa: C901
+    async def validate_completion(self, state: JulesSessionState) -> JulesSessionState:
         """Validate if COMPLETED state is genuine or if work is still ongoing."""
         try:
             async with httpx.AsyncClient() as client:
@@ -179,38 +179,10 @@ class JulesSessionNodes:
                         state.status = "checking_pr"
                         return state
 
-                    # Otherwise, check last 5 activities for ongoing work indicators
-                    recent_activities = activities[-5:] if len(activities) >= 5 else activities
-
-                    has_ongoing_work = False
-                    for activity in recent_activities:
-                        # Check for inquiry (question from Jules)
-                        if "inquiryAsked" in activity:
-                            has_ongoing_work = True
-                            logger.info(
-                                "Found recent inquiry - session may not be truly complete"
-                            )
-                            break
-                        # Check for work-in-progress messages
-                        if "agentMessaged" in activity:
-                            msg = activity["agentMessaged"].get("agentMessage", "")
-                            if any(
-                                keyword in msg.lower()
-                                for keyword in ["will now", "proceeding", "next step", "begin"]
-                            ):
-                                has_ongoing_work = True
-                                logger.info(
-                                    "Found work continuation indicator - session may not be truly complete"
-                                )
-                                break
-
-                    if has_ongoing_work:
-                        logger.info(
-                            "Session marked COMPLETED but has ongoing work indicators. Returning to monitoring."
-                        )
-                        state.status = "monitoring"
-                        state.completion_validated = False
-                        return state
+                    # Logic removed: Checking for ongoing work indicators via keywords caused infinite loops
+                    # in resume mode (e.g. "next step" in past messages).
+                    # If Jules API says COMPLETED, we should trust it and proceed to PR check.
+                    # If PR is missing, check_pr will handle it by requesting PR creation.
 
         except Exception as e:
             logger.warning(f"Failed to validate completion: {e}")
