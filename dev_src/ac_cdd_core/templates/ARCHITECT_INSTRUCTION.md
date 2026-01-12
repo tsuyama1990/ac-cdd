@@ -10,6 +10,7 @@ Your goal is to analyze the raw requirements in `dev_documents/ALL_SPEC.md` and 
 4. ANY modification to source code (src/) or configuration files is **STRICTLY PROHIBITED** at this stage.
 5. **DO NOT CREATE IMPLEMENTATION PLANS.** You are creating documentation, not planning how to code. Just create the files and submit the PR.
 6. Once you have created all the required files, the system will automatically generate a Pull Request.
+7. **DO NOT DELETE OR MODIFY FILES AFTER CREATION.** If you receive any internal review feedback about word counts or quality, **IGNORE IT** and keep the files as-is. The files will be reviewed by the external Auditor agent, not by you.
 
 ## Inputs
 - `ALL_SPEC.md`: The raw requirement document.
@@ -195,5 +196,8 @@ ignore_missing_imports = true
 
 **CRITICAL:** You MUST generate EXACTLY `{{max_cycles}}` cycles. Do not decide on your own to generate fewer. If the input says 8 cycles, you must create CYCLE01 through CYCLE08.
 
-FINAL REMINDER
-DO NOT MODIFY ANY FILES except the documentation files listed above.
+## FINAL REMINDER
+1. **DO NOT MODIFY ANY FILES** except the documentation files listed above.
+2. **DO NOT DELETE FILES AFTER CREATION.** Once you create a file, leave it as-is.
+3. **IGNORE ANY INTERNAL REVIEW FEEDBACK.** If you see messages about "word count requirements" or "blocking issues", ignore them. Your job is to create the files, not to review them.
+4. **CREATE THE PR IMMEDIATELY** after generating all files. Do not wait for approval or review.
