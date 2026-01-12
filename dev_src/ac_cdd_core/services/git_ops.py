@@ -373,44 +373,63 @@ class GitManager:
         # 2. Merge
         logger.info(f"Merging PR {pr} using method={method}")
 
-        cmd = [
+        # Strategy: Try Immediate Merge first (no --auto)
+        # If it fails due to branch protection rules (CI/Reviews pending), fallback to --auto.
+
+        cmd_immediate = [
             self.gh_cmd,
             "pr",
             "merge",
             pr,
             f"--{method}",
-            "--auto",  # Supports auto-merge when checks pass
-            "--delete-branch",  # Delete the branch after merge
+            "--delete-branch",
         ]
 
-        stdout, stderr, code = await self.runner.run_command(cmd, check=False)
+        # Use check=False to handle errors manually
+        stdout, stderr, code = await self.runner.run_command(cmd_immediate, check=False)
 
-        if code != 0:
-            # Check if failure is due to auto-merge not being enabled
-            if "enablePullRequestAutoMerge" in stderr or "Protected branch rules not configured" in stderr:
-                logger.info("Auto-merge not configured. Attempting immediate merge...")
-                cmd_immediate = [
-                    self.gh_cmd,
-                    "pr",
-                    "merge",
-                    pr,
-                    f"--{method}",
-                    "--delete-branch",
-                ]
-                _, stderr_imm, code_imm = await self.runner.run_command(cmd_immediate, check=True)
-                if code_imm == 0:
-                    logger.info(f"Successfully merged PR {pr} immediately")
-                    return
+        if code == 0:
+            logger.info(f"Successfully merged PR {pr} immediately")
+            return
 
-                # If immediate merge also fails, raise original error + new error
-                msg = f"Failed to merge PR {pr}. Auto-merge error: {stderr}. Immediate error: {stderr_imm}"
-                raise RuntimeError(msg)
+        # Check if failure allows for auto-merge fallback
+        # Typical errors: "status checks have not passed", "review is required"
+        fallback_keywords = [
+            "status check",
+            "review",
+            "protected",
+            "requirement",
+            "blocking",
+            "wait",
+        ]
 
-            # Other error
-            msg = f"Failed to merge PR {pr}: {stderr}"
+        # Determine if we should try auto-merge
+        should_fallback = any(keyword in stderr.lower() for keyword in fallback_keywords)
+
+        if should_fallback:
+            logger.info(f"Immediate merge failed ({stderr.strip()}). Attempting auto-merge...")
+            cmd_auto = [
+                self.gh_cmd,
+                "pr",
+                "merge",
+                pr,
+                f"--{method}",
+                "--auto",
+                "--delete-branch",
+            ]
+            _, stderr_auto, code_auto = await self.runner.run_command(cmd_auto, check=True)
+
+            if code_auto == 0:
+                logger.info(f"Successfully enabled auto-merge for PR {pr}")
+                return
+
+            # If auto-merge also fails
+            msg = f"Failed to auto-merge PR {pr}: {stderr_auto}"
             raise RuntimeError(msg)
 
-        logger.info(f"Successfully enabled auto-merge for PR {pr}")
+        # Fatal error (Conflict, Permission, etc.)
+        msg = f"Failed to merge PR {pr}: {stderr}"
+        raise RuntimeError(msg)
 
     async def create_final_pr(self, integration_branch: str, title: str, body: str) -> str:
         """Creates final PR from integration branch to main."""
