@@ -28,6 +28,34 @@ class _WorkflowServiceHolder:
         return cls._instance
 
 
+def _is_docker_environment() -> bool:
+    """Detect if running inside a Docker container."""
+    import os
+    from pathlib import Path
+
+    # Method 1: Check for /.dockerenv file (most reliable)
+    if Path("/.dockerenv").exists():
+        return True
+
+    # Method 2: Check cgroup for docker
+    try:
+        with Path("/proc/self/cgroup").open() as f:
+            if "docker" in f.read():
+                return True
+    except (FileNotFoundError, PermissionError):
+        pass
+
+    # Method 3: Check environment variable
+    return os.environ.get("DOCKER_CONTAINER") == "true"
+
+
+def _get_command_prefix() -> str:
+    """Get the appropriate command prefix based on environment."""
+    if _is_docker_environment():
+        return "docker-compose run --rm ac-cdd ac-cdd"
+    return "uv run manage.py"
+
+
 def check_environment() -> None:
     """Check that all required tools and keys are present."""
     if not utils.check_api_key():
@@ -55,6 +83,9 @@ def init() -> None:
     # Don't check environment yet - .env doesn't exist
     ProjectManager().initialize_project(str(settings.paths.templates))
 
+    # Get appropriate command prefix
+    cmd = _get_command_prefix()
+
     # Show next steps
     console.print("\n[bold green]✓ Project Structure Created![/bold green]\n")
     console.print("[bold cyan]Next Steps:[/bold cyan]")
@@ -62,11 +93,11 @@ def init() -> None:
     console.print("     [yellow]cp .ac_cdd/.env.example .ac_cdd/.env[/yellow]")
     console.print("     Then edit [yellow].ac_cdd/.env[/yellow] and add your API keys\n")
     console.print("  2. Verify your configuration:")
-    console.print("     [yellow]uv run manage.py env-verify[/yellow]\n")
+    console.print(f"     [yellow]{cmd} env-verify[/yellow]\n")
     console.print("  3. Define your project requirements:")
     console.print("     Edit [yellow]dev_documents/ALL_SPEC.md[/yellow]\n")
     console.print("  4. Generate development cycles:")
-    console.print("     [yellow]uv run manage.py gen-cycles[/yellow]\n")
+    console.print(f"     [yellow]{cmd} gen-cycles[/yellow]\n")
 
 
 @app.command()
@@ -353,11 +384,13 @@ def env_verify() -> None:  # noqa: PLR0915
         )
         console.print(panel)
         raise typer.Exit(code=1)
+
+    cmd = _get_command_prefix()
     panel = Panel(
         "[green]All required API keys are configured![/green]\n"
         "[green]Model configuration is valid![/green]\n\n"
         "You're ready to start development!\n"
-        "Next step: [yellow]uv run manage.py gen-cycles[/yellow]",
+        f"Next step: [yellow]{cmd} gen-cycles[/yellow]",
         title="[bold green]✓ Configuration Valid[/bold green]",
         border_style="green",
     )
