@@ -12,6 +12,7 @@ from .services.audit_orchestrator import AuditOrchestrator
 from .services.git_ops import GitManager
 from .services.jules_client import JulesClient
 from .services.llm_reviewer import LLMReviewer
+from .services.project import ProjectManager
 from .session_manager import SessionManager
 from .state import CycleState
 
@@ -96,6 +97,15 @@ class CycleNodes(IGraphNodes):
                 )
                 await self.git.merge_pr(pr_number)
                 console.print("[bold green]Architecture merged successfully![/bold green]")
+
+                # Fix permissions for merged files
+                try:
+                    # Fix dev_documents path
+                    docs_dir = Path(settings.paths.documents_dir)
+                    ProjectManager()._fix_permissions(docs_dir)
+                except Exception as e:
+                    console.print(f"[yellow]Warning: Could not fix permissions: {e}[/yellow]")
+
             except Exception as e:
                 console.print(f"[bold red]Failed to auto-merge Architecture PR: {e}[/bold red]")
                 # We don't fail the cycle here, but manual intervention will be needed
