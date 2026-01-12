@@ -159,6 +159,39 @@ FAST_MODEL=openrouter/nousresearch/hermes-3-llama-3.1-405b:free
             gitignore_path.write_text("\n".join(gitignore_entries) + "\n", encoding="utf-8")
             logger.info("✓ Created .gitignore")
 
+        # Fix permissions if running with elevated privileges
+        self._fix_permissions(docs_dir, env_example_path.parent, gitignore_path)
+
+    def _fix_permissions(self, *paths: Path) -> None:
+        """Fix file ownership to current user if created with elevated privileges."""
+        import os
+        import pwd
+
+        # Get the actual user (not root if using sudo)
+        actual_user = os.environ.get("SUDO_USER") or os.environ.get("USER")
+        if not actual_user or actual_user == "root":
+            return  # Can't determine actual user or already root
+
+        try:
+            # Get user's UID and GID
+            pw_record = pwd.getpwnam(actual_user)
+            uid = pw_record.pw_uid
+            gid = pw_record.pw_gid
+
+            # Fix ownership for all created paths
+            for path in paths:
+                if path.exists():
+                    # Recursively fix ownership
+                    for item in [path, *list(path.rglob("*"))]:
+                        try:
+                            os.chown(item, uid, gid)
+                        except (PermissionError, OSError) as e:
+                            logger.debug(f"Could not fix ownership for {item}: {e}")
+
+            logger.info(f"✓ Fixed file ownership for user: {actual_user}")
+        except Exception as e:
+            logger.debug(f"Could not fix permissions: {e}")
+
     def _copy_default_templates(self, system_prompts_dir: Path) -> None:
         """Copy default instruction templates to system_prompts directory."""
         # Define template files to copy

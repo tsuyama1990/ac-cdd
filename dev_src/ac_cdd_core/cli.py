@@ -42,6 +42,16 @@ def check_environment() -> None:
 @app.command()
 def init() -> None:
     """Initialize a new AC-CDD project structure and create .env template."""
+    import os
+
+    # Warn if running with sudo
+    if os.geteuid() == 0:
+        console.print("[bold red]⚠ WARNING: Running with sudo/root privileges![/bold red]")
+        console.print("[yellow]This may create files with incorrect ownership.[/yellow]")
+        console.print("[yellow]Please run without sudo: uv run manage.py init[/yellow]\n")
+        if not typer.confirm("Continue anyway?"):
+            raise typer.Abort()
+
     # Don't check environment yet - .env doesn't exist
     ProjectManager().initialize_project(str(settings.paths.templates))
 
