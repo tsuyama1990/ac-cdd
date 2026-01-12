@@ -383,9 +383,30 @@ class GitManager:
             "--delete-branch",  # Delete the branch after merge
         ]
 
-        _, stderr, code = await self.runner.run_command(cmd, check=True)
+        stdout, stderr, code = await self.runner.run_command(cmd, check=False)
 
         if code != 0:
+            # Check if failure is due to auto-merge not being enabled
+            if "enablePullRequestAutoMerge" in stderr or "Protected branch rules not configured" in stderr:
+                logger.info("Auto-merge not configured. Attempting immediate merge...")
+                cmd_immediate = [
+                    self.gh_cmd,
+                    "pr",
+                    "merge",
+                    pr,
+                    f"--{method}",
+                    "--delete-branch",
+                ]
+                _, stderr_imm, code_imm = await self.runner.run_command(cmd_immediate, check=True)
+                if code_imm == 0:
+                    logger.info(f"Successfully merged PR {pr} immediately")
+                    return
+
+                # If immediate merge also fails, raise original error + new error
+                msg = f"Failed to merge PR {pr}. Auto-merge error: {stderr}. Immediate error: {stderr_imm}"
+                raise RuntimeError(msg)
+
+            # Other error
             msg = f"Failed to merge PR {pr}: {stderr}"
             raise RuntimeError(msg)
 
