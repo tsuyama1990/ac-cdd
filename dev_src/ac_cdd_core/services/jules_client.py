@@ -468,19 +468,28 @@ class JulesClient:
         final_state = await graph.ainvoke(initial_state, config)
 
         # Handle final state
-        if final_state.status == "success":
+        # LangGraph may return dict or object
+        def _get(obj: Any, key: str) -> Any:
+            return obj.get(key) if isinstance(obj, dict) else getattr(obj, key, None)
+
+        status = _get(final_state, "status")
+
+        if status == "success":
             return {
                 "status": "success",
-                "pr_url": final_state.pr_url,
-                "raw": final_state.raw_data,
+                "pr_url": _get(final_state, "pr_url"),
+                "raw": _get(final_state, "raw_data"),
             }
-        if final_state.status == "failed":
-            raise JulesSessionError(final_state.error or "Session failed")
-        if final_state.status == "timeout":
-            raise JulesTimeoutError(
-                final_state.error or "Timed out waiting for Jules to complete"
-            )
-        msg = f"Unexpected final status: {final_state.status}"
+
+        error_msg = _get(final_state, "error") or "Session failed"
+
+        if status == "failed":
+            raise JulesSessionError(error_msg)
+        if status == "timeout":
+            msg = f"Session timed out. Last error: {error_msg}"
+            raise JulesTimeoutError(msg)
+
+        msg = f"Session ended in unexpected state: {status}"
         raise JulesSessionError(msg)
 
     async def wait_for_completion_legacy(
