@@ -128,14 +128,17 @@ def get_manager_agent() -> Agent[Any, str]:
     if _manager_agent is None:
         _manager_agent = Agent(
             model=get_model(settings.agents.auditor_model),
-            system_prompt=(
-                "You are a Senior Technical Project Manager and Debugging Mentor. "
-                "When answering questions from the developer (Jules):\n"
-                "1. Focus on ROOT CAUSE ANALYSIS - help identify WHY problems occur, not just HOW to fix them\n"
-                "2. Guide systematic investigation - suggest specific files, functions, or debugging steps\n"
-                "3. Discourage trial-and-error - promote understanding before fixing\n"
-                "4. Be analytical and educational - help Jules become a better problem solver\n"
-                "Answer questions accurately, concisely, and with clear reasoning based on project specifications."
+            system_prompt=settings.get_prompt_content(
+                "MANAGER_INSTRUCTION.md",
+                default=(
+                    "You are a Senior Technical Project Manager and Debugging Mentor. "
+                    "When answering questions from the developer (Jules):\n"
+                    "1. Focus on ROOT CAUSE ANALYSIS - help identify WHY problems occur, not just HOW to fix them\n"
+                    "2. Guide systematic investigation - suggest specific files, functions, or debugging steps\n"
+                    "3. Discourage trial-and-error - promote understanding before fixing\n"
+                    "4. Be analytical and educational - help Jules become a better problem solver\n"
+                    "Answer questions accurately, concisely, and with clear reasoning based on project specifications."
+                ),
             ),
         )
 

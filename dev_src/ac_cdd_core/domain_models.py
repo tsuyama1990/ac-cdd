@@ -29,7 +29,7 @@ class ProjectManifest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     project_session_id: str
-    feature_branch: str  # Main development branch (feat/generate-architecture-*)
+    feature_branch: str | None = None  # Main development branch (feat/generate-architecture-*)
     integration_branch: str  # Final integration branch (for finalize-session)
     cycles: list[CycleManifest] = Field(default_factory=list)
     last_updated: datetime = Field(default_factory=lambda: datetime.now(UTC))

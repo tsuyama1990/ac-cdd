@@ -167,6 +167,9 @@ FAST_MODEL=openrouter/nousresearch/hermes-3-llama-3.1-405b:free
             "AUDITOR_INSTRUCTION.md",
             "CODER_INSTRUCTION.md",
             "UAT_DESIGN.md",
+            "MANAGER_INSTRUCTION.md",
+            "MANAGER_INQUIRY_PROMPT.md",
+            "PLAN_REVIEW_PROMPT.md",
         ]
 
         # Source directory: package templates (always available)

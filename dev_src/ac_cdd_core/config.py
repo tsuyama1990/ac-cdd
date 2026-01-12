@@ -72,6 +72,7 @@ class JulesConfig(BaseModel):
     timeout_seconds: int = 7200
     polling_interval_seconds: int = 120
     base_url: str = "https://jules.googleapis.com/v1alpha"
+    wait_for_pr_timeout_seconds: int = 900
 
 
 class ToolsConfig(BaseModel):

@@ -299,16 +299,33 @@ class CycleNodes(IGraphNodes):
                 f for f in changed_file_paths if Path(f).suffix in reviewable_extensions
             ]
 
-            # CRITICAL: ONLY review application code (src/, tests/)
+            # CRITICAL: ONLY review application code
             # The Auditor should ONLY review what Jules was asked to create
             # NOT framework files (dev_src/, dev_documents/, pyproject.toml, tests/ac_cdd/, etc.)
-            included_prefixes = ("src/", "tests/")
-            excluded_prefixes = ("tests/ac_cdd/",)  # Framework tests
+
+            # Excluded patterns (framework, config, docs)
+            excluded_patterns = [
+                "dev_src/",
+                "dev_documents/",
+                "tests/ac_cdd/",
+                ".github/",
+                "pyproject.toml",
+                "setup.py",
+                "setup.cfg",
+                "README.md",
+                "LICENSE",
+                ".gitignore",
+                "Dockerfile",
+                "docker-compose",
+                ".env",
+            ]
+
+            # Include Python files and test files, but exclude framework/config
             reviewable_files = [
                 f
                 for f in reviewable_files
-                if any(f.startswith(prefix) for prefix in included_prefixes)
-                and not any(f.startswith(prefix) for prefix in excluded_prefixes)
+                if (f.endswith(".py") or f.startswith("tests/"))
+                and not any(f.startswith(pattern) or pattern in f for pattern in excluded_patterns)
             ]
 
             # Filter out build artifacts and gitignored files

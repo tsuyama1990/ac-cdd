@@ -151,6 +151,8 @@ class WorkflowService:
                 git = GitManager()
                 try:
                     await git.checkout_branch(fb)
+                    # Ensure we have latest changes (e.g. from Architecture PR merge)
+                    await git.pull_changes()
                     logger.info(f"Successfully checked out feature branch: {fb}")
                 except Exception as e:
                     logger.warning(f"Could not checkout feature branch: {e}")

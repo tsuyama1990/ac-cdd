@@ -347,18 +347,37 @@ class GitManager:
     async def merge_pr(self, pr_number: int | str, method: str = "squash") -> None:
         """
         Merge PR using gh CLI with auto-merge capability.
+        Automatically converts Draft PRs to Ready before merging.
 
         Args:
             pr_number: PR number or URL
             method: Merge method ('squash', 'merge', or 'rebase')
         """
-        logger.info(f"Merging PR {pr_number} using method={method}")
+        pr = str(pr_number)
+
+        # 1. Check if Draft and mark ready if needed
+        try:
+            stdout, _, code = await self.runner.run_command(
+                [self.gh_cmd, "pr", "view", pr, "--json", "isDraft", "--jq", ".isDraft"],
+                check=False,
+            )
+            if code == 0 and stdout.strip() == "true":
+                logger.info(f"PR {pr} is a draft. Marking as ready for review...")
+                await self.runner.run_command(
+                    [self.gh_cmd, "pr", "ready", pr], check=True
+                )
+        except Exception as e:
+            logger.warning(f"Failed to check/update PR draft status: {e}")
+            # Continue to merge attempt anyway
+
+        # 2. Merge
+        logger.info(f"Merging PR {pr} using method={method}")
 
         cmd = [
             self.gh_cmd,
             "pr",
             "merge",
-            str(pr_number),
+            pr,
             f"--{method}",
             "--auto",  # Supports auto-merge when checks pass
             "--delete-branch",  # Delete the branch after merge
@@ -367,10 +386,10 @@ class GitManager:
         _, stderr, code = await self.runner.run_command(cmd, check=True)
 
         if code != 0:
-            msg = f"Failed to merge PR {pr_number}: {stderr}"
+            msg = f"Failed to merge PR {pr}: {stderr}"
             raise RuntimeError(msg)
 
-        logger.info(f"Successfully enabled auto-merge for PR {pr_number}")
+        logger.info(f"Successfully enabled auto-merge for PR {pr}")
 
     async def create_final_pr(self, integration_branch: str, title: str, body: str) -> str:
         """Creates final PR from integration branch to main."""

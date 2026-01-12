@@ -416,7 +416,77 @@ class JulesClient:
     async def wait_for_completion(
         self, session_name: str, require_plan_approval: bool = False
     ) -> dict[str, Any]:
-        """Polls for PR creation and handles user interaction (Human-in-the-loop)."""
+        """Wait for Jules session completion using LangGraph state management.
+        This method uses LangGraph to manage the complex state transitions of:
+        - Monitoring session progress
+        - Handling inquiries (questions from Jules)
+        - Validating completion state
+        - Checking for PR creation
+        - Requesting manual PR creation if needed
+        - Waiting for PR with state re-validation
+        """
+        if self.api_client.api_key == "dummy_jules_key" and not self._is_httpx_mocked():
+            return {"status": "success", "pr_url": "https://github.com/dummy/pr/1"}
+
+        from ac_cdd_core.jules_session_graph import build_jules_session_graph
+        from ac_cdd_core.jules_session_state import JulesSessionState
+        from langchain_core.runnables import RunnableConfig
+
+        self.console.print(
+            f"[bold green]Jules is working... (Session: {session_name})[/bold green]"
+        )
+        self.console.print(
+            "[dim]Type your message and press Enter at any time to chat with Jules.[/dim]"
+        )
+
+        session_url = self._get_session_url(session_name)
+
+        # Initialize processed IDs
+        processed_ids: set[str] = set()
+        await self._initialize_processed_ids(session_url, processed_ids)
+
+        # Build graph
+        graph = build_jules_session_graph(self)
+
+        # Create initial state
+        initial_state = JulesSessionState(
+            session_url=session_url,
+            session_name=session_name,
+            start_time=asyncio.get_event_loop().time(),
+            timeout_seconds=self.timeout,
+            poll_interval=self.poll_interval,
+            require_plan_approval=require_plan_approval,
+            fallback_max_wait=settings.jules.wait_for_pr_timeout_seconds,
+            processed_activity_ids=processed_ids,
+        )
+
+        # Run graph
+        config = RunnableConfig(
+            configurable={"thread_id": f"jules-{session_name}"}, recursion_limit=200
+        )
+
+        final_state = await graph.ainvoke(initial_state, config)
+
+        # Handle final state
+        if final_state.status == "success":
+            return {
+                "status": "success",
+                "pr_url": final_state.pr_url,
+                "raw": final_state.raw_data,
+            }
+        if final_state.status == "failed":
+            raise JulesSessionError(final_state.error or "Session failed")
+        if final_state.status == "timeout":
+            raise JulesTimeoutError(
+                final_state.error or "Timed out waiting for Jules to complete"
+            )
+        msg = f"Unexpected final status: {final_state.status}"
+        raise JulesSessionError(msg)
+
+    async def wait_for_completion_legacy(
+        self, session_name: str, require_plan_approval: bool = False
+    ) -> dict[str, Any]:
+        """Legacy polling-based implementation (kept for reference/fallback)."""
         if self.api_client.api_key == "dummy_jules_key" and not self._is_httpx_mocked():
             return {"status": "success", "pr_url": "https://github.com/dummy/pr/1"}
 
@@ -481,6 +551,7 @@ class JulesClient:
                     logger.warning(f"Polling loop unexpected error: {e}")
 
                 await self._sleep(self.poll_interval)
+
 
     def _get_session_url(self, session_name: str) -> str:
         if session_name.startswith("sessions/"):
@@ -588,36 +659,15 @@ class JulesClient:
             return question
 
         full_context = "\n".join(context_parts)
-        full_context += (
-            "\n\n---\n"
-            "**Instructions for Answering Jules' Question**:\n\n"
-            "**CRITICAL: Focus on ROOT CAUSE ANALYSIS, not trial-and-error.**\n\n"
-            "When Jules asks a question (especially about errors or blockers):\n\n"
-            "1. **Diagnose the Root Cause**:\n"
-            "   - Analyze the error message, stack trace, or symptom carefully\n"
-            "   - Identify the UNDERLYING cause, not just the surface symptom\n"
-            "   - Consider: What assumption is wrong? What constraint is violated?\n"
-            "   - Ask: 'WHY is this happening?' not just 'HOW to fix it?'\n\n"
-            "2. **Guide Jules to Investigate**:\n"
-            "   - Suggest specific files, functions, or variables to examine\n"
-            "   - Recommend adding debug logging or print statements to verify assumptions\n"
-            "   - Propose hypothesis testing: 'If X is the cause, then Y should happen'\n\n"
-            "3. **Provide Targeted Solutions**:\n"
-            "   - Once the root cause is identified, suggest a precise fix\n"
-            "   - Explain WHY the solution addresses the root cause\n"
-            "   - Reference SPEC.md requirements if the issue relates to specifications\n\n"
-            "4. **Discourage Trial-and-Error**:\n"
-            "   - Do NOT suggest 'try this and see if it works' without analysis\n"
-            "   - Do NOT provide multiple random solutions to test\n"
-            "   - Instead, guide Jules to understand the problem first, then fix it\n\n"
-            "**Example Response Structure**:\n"
-            "```\n"
-            "Based on the error [X], the root cause is likely [Y] because [reason].\n"
-            "To verify this hypothesis, check [specific file/function/variable].\n"
-            "If confirmed, the fix is [precise solution] because [explanation].\n"
-            "```\n\n"
-            "Be detailed, analytical, and educational. Help Jules become a better debugger."
+        instruction = settings.get_prompt_content(
+            "MANAGER_INQUIRY_PROMPT.md",
+            default=(
+                "**Instructions for Answering Jules' Question**:\n"
+                "Focus on ROOT CAUSE ANALYSIS. Diagnose the underlying cause, "
+                "guide investigation, and provide targeted solutions."
+            ),
         )
+        full_context += f"\n\n---\n{instruction}"
 
         return full_context
 
@@ -674,12 +724,17 @@ class JulesClient:
         plan_text = json.dumps(plan_steps, indent=2)
         context_parts.append(f"# GENERATED PLAN TO REVIEW\n{plan_text}\n")
 
-        intro = (
-            "Jules has generated an implementation plan. Please review it against the specifications.\n"
-            "If the plan is acceptable, reply with just 'APPROVE' (single word).\n"
-            "If there are issues, reply with specific feedback to correct the plan.\n"
-            "Do NOT approve if the plan is missing critical steps or violates requirements.\n"
-        )
+        intro = str(
+            settings.get_prompt_content(
+                "PLAN_REVIEW_PROMPT.md",
+                default=(
+                    "Jules has generated an implementation plan. Please review it against the specifications.\n"
+                    "If the plan is acceptable, reply with just 'APPROVE' (single word).\n"
+                    "If there are issues, reply with specific feedback to correct the plan.\n"
+                    "Do NOT approve if the plan is missing critical steps or violates requirements."
+                ),
+            )
+        ) + "\n"
         return intro + "\n".join(context_parts)
 
     async def _handle_plan_approval(
@@ -738,17 +793,13 @@ class JulesClient:
         max_rejections: int,
         require_plan_approval: bool = True,
     ) -> None:
+        # States where we should check for inquiries (based on Jules API spec)
         active_states = [
             "AWAITING_USER_FEEDBACK",
-            "AWAITING_USER_INPUT",
             "AWAITING_PLAN_APPROVAL",
-            "AWAITING_USER_PLAN_APPROVAL",
             "COMPLETED",
-            "SUCCEEDED",
-            "NEEDS_MORE_INFORMATION",
             "PLANNING",
             "IN_PROGRESS",
-            "RUNNING",
         ]
         if state not in active_states:
             return
@@ -800,7 +851,8 @@ class JulesClient:
     async def _check_success_state(  # noqa: C901
         self, client: httpx.AsyncClient, session_url: str, data: dict[str, Any], state: str
     ) -> dict[str, Any] | None:
-        if state not in ["SUCCEEDED", "COMPLETED"]:
+        # Only COMPLETED state exists in Jules API (not SUCCEEDED)
+        if state != "COMPLETED":
             return None
 
         # First check session outputs
@@ -831,7 +883,7 @@ class JulesClient:
             logger.debug(f"Failed to check activities for PR: {e}")
 
         # If session is COMPLETED but no PR found, try to create PR manually
-        if state in ["SUCCEEDED", "COMPLETED"]:
+        if state == "COMPLETED":
             self.console.print("[yellow]Session Completed but NO PR found.[/yellow]")
             self.console.print("[cyan]Attempting to create PR manually...[/cyan]")
 
@@ -961,7 +1013,7 @@ class JulesClient:
         )
         return self.api_client.approve_plan(session_id_path, plan_id)
 
-    async def _create_manual_pr(self, session_url: str) -> str | None:
+    async def _create_manual_pr(self, session_url: str) -> str | None:  # noqa: C901
         """
         Ask Jules to commit changes and create PR when auto-PR creation fails.
 
@@ -988,16 +1040,17 @@ class JulesClient:
             # Poll for PR creation (max 5 minutes)
             import asyncio
 
-            max_wait = 300  # 5 minutes
-            poll_interval = 10  # 10 seconds
+            max_wait = settings.jules.wait_for_pr_timeout_seconds
+            poll_interval = 10
             elapsed = 0
+            processed_fallback_ids: set[str] = set()
 
             async with httpx.AsyncClient() as client:
                 while elapsed < max_wait:
                     await asyncio.sleep(poll_interval)
                     elapsed += poll_interval
 
-                    # Check for PR in activities
+                    # Check for PR and new activities
                     act_url = f"{session_url}/activities"
                     try:
                         act_resp = await client.get(
@@ -1006,17 +1059,28 @@ class JulesClient:
                         if act_resp.status_code == httpx.codes.OK:
                             activities = act_resp.json().get("activities", [])
                             for activity in activities:
+                                # Check for PR
                                 if "pullRequest" in activity:
                                     pr_url: str | None = activity["pullRequest"].get("url")
                                     if pr_url:
+                                        self.console.print(f"[bold green]PR Created: {pr_url}[/bold green]")
                                         return pr_url
+
+                                # Log new activities to show progress
+                                act_id = activity.get("name", activity.get("id"))
+                                if act_id and act_id not in processed_fallback_ids:
+                                    msg = self._extract_activity_message(activity)
+                                    if msg:
+                                        self.console.print(f"[dim]Jules: {msg}[/dim]")
+                                    processed_fallback_ids.add(act_id)
+
                     except Exception as e:
-                        logger.debug(f"Error checking for PR: {e}")
+                        logger.debug(f"Error checking for PR/activities: {e}")
 
                     if elapsed % 30 == 0:  # Progress update every 30 seconds
-                        self.console.print(f"[dim]Still waiting... ({elapsed}s elapsed)[/dim]")
+                        self.console.print(f"[dim]Still waiting for PR... ({elapsed}/{max_wait}s elapsed)[/dim]")
 
-                logger.warning("Timeout waiting for Jules to create PR")
+                logger.warning(f"Timeout ({max_wait}s) waiting for Jules to create PR")
                 return None
 
         except Exception as e:

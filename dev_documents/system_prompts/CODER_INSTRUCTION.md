@@ -9,7 +9,7 @@ Your goal is to implement and **VERIFY** the features for **CYCLE {{cycle_id}}**
     - **Write Tests Second**: Write tests based on the defined schemas (TDD).
     - **Implement Logic Last**: Implement the functions to satisfy the tests.
 2.  **PROOF OF WORK**: The remote CI system will NOT run heavy tests. **YOU are responsible for running tests in your local environment.**
-3.  **CHECK RUFF & REFACTOR CODES BEFORE PR**: You MUST refactor codes, and run `uv run ruff check .`, `uv run ruff format .` and `uv run mypy .` before PR.
+3.  **INCREMENTAL LINTING & TYPE CHECKING**: After creating or modifying EACH file, immediately run `uv run ruff check .`, `uv run ruff format .`, and `uv run mypy .` to fix issues incrementally. **DO NOT** wait until the end - this prevents massive conflicts and code collapse from accumulated linting errors.
 
 ## Inputs
 - `dev_documents/system_prompts/SYSTEM_ARCHITECTURE.md`
@@ -21,6 +21,19 @@ Your goal is to implement and **VERIFY** the features for **CYCLE {{cycle_id}}**
 - **CONFIGURATION**:
     - **DO NOT** overwrite `pyproject.toml`, `uv.lock`, `README.md` with templates (e.g. do not reset the file).
     - **DO** append or add new dependencies/settings to `pyproject.toml` if necessary for the feature.
+- **.gitignore MAINTENANCE**:
+    - **CRITICAL**: Update `.gitignore` to exclude build artifacts and cache files.
+    - **Required entries** (add if missing):
+        - `__pycache__/` (Python cache directories)
+        - `*.pyc`, `*.pyo`, `*.pyd` (compiled Python files)
+        - `.pytest_cache/` (pytest cache)
+        - `.mypy_cache/` (mypy cache)
+        - `.ruff_cache/` (ruff cache)
+        - `*.egg-info/` (package metadata)
+        - `.env`, `.env.local` (environment variables)
+        - `.venv/`, `venv/`, `env/` (virtual environments)
+        - `.DS_Store` (macOS)
+    - **DO NOT** exclude `__init__.py` files (they are required for Python packages).
 - **SOURCE CODE**: Place your code in `src/` (or `dev_src/` if instructed).
 
 ## Tasks
@@ -54,25 +67,16 @@ Your goal is to implement and **VERIFY** the features for **CYCLE {{cycle_id}}**
 - Ensure all functions have Type Hints matching your Schemas.
 
 ### 4. Verification & Proof of Work
-- **Run Tests**: Execute `pytest` in your environment. Fix ANY failures.
-- **Linting**: Run `uv run ruff check --fix .` and `uv run ruff format .`.
+- **Run Tests**: Execute `pytest` immediately after generating the implementation file to verify it satisfies the TDD requirements. Fix ANY failures before proceeding. Do not wait until the end; check the test status frequently for each file generated.
+- **Linting**: Immediately after generating or modifying a single file, run `uv run ruff check .`, `uv run ruff format .`, and `uv run mypy .` targeting the entire project, and fix any linting errors. Since we impose stringent linting conditions, you must apply these commands incrementally to avoid code collapse or massive conflicts that would occur if run in batch at the end.
 - **Generate Log**: Save the output of your test run to a file.
-  - Command: `pytest > dev_documents/CYCLE{{cycle_id}}/test_execution_log.txt`
+  - Command (Safe): `python -c "import subprocess; from pathlib import Path; p = Path('dev_documents/CYCLE{{cycle_id}}'); p.mkdir(parents=True, exist_ok=True); res = subprocess.run(['pytest'], capture_output=True, text=True); (p / 'test_execution_log.txt').write_text(res.stdout + res.stderr); print(f'✓ Log saved: {p / \"test_execution_log.txt\"}')"`
   - **NOTE**: The Auditor will check this file. It must show passing tests.
 
 ## Output Rules
 - **Create all source and test files.**
 - **Create the Log File**: `dev_documents/CYCLE{{cycle_id}}/test_execution_log.txt`
-- **Update Session Report**:
+  - This file must show passing tests for the Auditor to verify.
+  - Command (Safe): `python -c "import subprocess; from pathlib import Path; p = Path('dev_documents/CYCLE{{cycle_id}}'); p.mkdir(parents=True, exist_ok=True); res = subprocess.run(['pytest'], capture_output=True, text=True); (p / 'test_execution_log.txt').write_text(res.stdout + res.stderr); print(f'✓ Log saved: {p / \"test_execution_log.txt\"}')"`
 
-`dev_documents/CYCLE{{cycle_id}}/session_report.json` Content:
-```json
-{
-  "status": "implemented",
-  "cycle_id": "{{cycle_id}}",
-  "test_result": "passed",
-  "test_log_path": "dev_documents/CYCLE{{cycle_id}}/test_execution_log.txt",
-  "notes": "Schema-First implementation complete. Tests verified locally."
-}
-
-```
+**Note**: Project state is automatically tracked in the manifest. You don't need to create any status files.
