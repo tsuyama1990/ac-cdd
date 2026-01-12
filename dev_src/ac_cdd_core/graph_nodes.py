@@ -166,8 +166,14 @@ class CycleNodes(IGraphNodes):
         mgr = SessionManager()
         cycle_manifest = await mgr.get_cycle(cycle_id)
 
-        # 1. Try Resume if session ID exists
-        if cycle_manifest and cycle_manifest.jules_session_id and state.get("resume_mode", False):
+        # 1. Try Resume if session ID exists, but ONLY if we are not in a retry loop.
+        # If status is 'retry_fix', we need to send feedback (handled below), not just resume.
+        if (
+            cycle_manifest
+            and cycle_manifest.jules_session_id
+            and state.get("resume_mode", False)
+            and state.get("status") != "retry_fix"
+        ):
             try:
                 console.print(
                     f"[bold blue]Resuming Jules Session: {cycle_manifest.jules_session_id}[/bold blue]"
