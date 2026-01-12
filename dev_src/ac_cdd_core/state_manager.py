@@ -62,6 +62,13 @@ class StateManager:
             # Write to file
             self.STATE_FILE.write_text(manifest.model_dump_json(indent=2))
 
+            # Fix permissions to allow host user editing (essential for Docker usage)
+            try:
+                self.STATE_FILE.chmod(0o666)
+            except Exception:
+                # Ignore permission errors (e.g. on Windows or if not owned)
+                pass
+
             logger.debug(f"Saved manifest to {self.STATE_FILE}")
         except Exception:
             logger.exception("Failed to save manifest")
