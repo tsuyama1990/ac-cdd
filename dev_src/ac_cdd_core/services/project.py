@@ -162,23 +162,57 @@ FAST_MODEL=openrouter/nousresearch/hermes-3-llama-3.1-405b:free
         # Fix permissions if running with elevated privileges
         self._fix_permissions(docs_dir, env_example_path.parent, gitignore_path)
 
-    def _fix_permissions(self, *paths: Path) -> None:
+    def _fix_permissions(self, *paths: Path) -> None:  # noqa: C901, PLR0912
         """Fix file ownership to current user if created with elevated privileges."""
         import os
         import pwd
 
-        # Get the actual user (not root if using sudo)
-        actual_user = os.environ.get("SUDO_USER") or os.environ.get("USER")
-        if not actual_user or actual_user == "root":
-            return  # Can't determine actual user or already root
+        # Determine target UID and GID
+        uid: int | None = None
+        gid: int | None = None
+        target_user: str | None = None
 
+        # Priority 1: Docker environment (HOST_UID/HOST_GID from docker-compose.yml)
+        if "HOST_UID" in os.environ and "HOST_GID" in os.environ:
+            try:
+                uid = int(os.environ["HOST_UID"])
+                gid = int(os.environ["HOST_GID"])
+                target_user = f"host user (UID={uid})"
+                logger.info(f"Detected Docker environment: HOST_UID={uid}, HOST_GID={gid}")
+            except ValueError:
+                logger.debug("Invalid HOST_UID/HOST_GID values")
+
+        # Priority 2: sudo environment (SUDO_USER)
+        if uid is None and "SUDO_USER" in os.environ:
+            actual_user = os.environ["SUDO_USER"]
+            try:
+                pw_record = pwd.getpwnam(actual_user)
+                uid = pw_record.pw_uid
+                gid = pw_record.pw_gid
+                target_user = actual_user
+                logger.info(f"Detected sudo environment: user={actual_user}")
+            except KeyError:
+                logger.debug(f"User {actual_user} not found")
+
+        # Priority 3: Current user (if not root)
+        if uid is None:
+            current_user = os.environ.get("USER")
+            if current_user and current_user != "root":
+                try:
+                    pw_record = pwd.getpwnam(current_user)
+                    uid = pw_record.pw_uid
+                    gid = pw_record.pw_gid
+                    target_user = current_user
+                except KeyError:
+                    pass
+
+        # If we couldn't determine a non-root user, skip
+        if uid is None or gid is None or uid == 0:
+            logger.debug("Running as root without HOST_UID/SUDO_USER - skipping permission fix")
+            return
+
+        # Fix ownership for all created paths
         try:
-            # Get user's UID and GID
-            pw_record = pwd.getpwnam(actual_user)
-            uid = pw_record.pw_uid
-            gid = pw_record.pw_gid
-
-            # Fix ownership for all created paths
             for path in paths:
                 if path.exists():
                     # Recursively fix ownership
@@ -188,7 +222,7 @@ FAST_MODEL=openrouter/nousresearch/hermes-3-llama-3.1-405b:free
                         except (PermissionError, OSError) as e:
                             logger.debug(f"Could not fix ownership for {item}: {e}")
 
-            logger.info(f"✓ Fixed file ownership for user: {actual_user}")
+            logger.info(f"✓ Fixed file ownership for {target_user}")
         except Exception as e:
             logger.debug(f"Could not fix permissions: {e}")
 
