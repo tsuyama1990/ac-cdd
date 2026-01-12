@@ -363,9 +363,7 @@ class GitManager:
             )
             if code == 0 and stdout.strip() == "true":
                 logger.info(f"PR {pr} is a draft. Marking as ready for review...")
-                await self.runner.run_command(
-                    [self.gh_cmd, "pr", "ready", pr], check=True
-                )
+                await self.runner.run_command([self.gh_cmd, "pr", "ready", pr], check=True)
         except Exception as e:
             logger.warning(f"Failed to check/update PR draft status: {e}")
             # Continue to merge attempt anyway

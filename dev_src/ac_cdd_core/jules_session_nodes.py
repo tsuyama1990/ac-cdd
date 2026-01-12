@@ -31,9 +31,7 @@ class JulesSessionNodes:
         try:
             async with httpx.AsyncClient() as client:
                 # Fetch session state
-                response = await client.get(
-                    state.session_url, headers=self.client._get_headers()
-                )
+                response = await client.get(state.session_url, headers=self.client._get_headers())
                 response.raise_for_status()
                 data = response.json()
 
@@ -170,7 +168,9 @@ class JulesSessionNodes:
                     for activity in activities:
                         if "sessionCompleted" in activity:
                             has_session_completed = True
-                            logger.info("Found sessionCompleted activity - session is genuinely complete")
+                            logger.info(
+                                "Found sessionCompleted activity - session is genuinely complete"
+                            )
                             break
 
                     # If sessionCompleted exists, it's genuinely complete
@@ -188,7 +188,9 @@ class JulesSessionNodes:
             logger.warning(f"Failed to validate completion: {e}")
 
         # If no sessionCompleted found and no ongoing work, proceed cautiously to PR check
-        logger.info("No sessionCompleted activity found, but no ongoing work detected. Proceeding to PR check.")
+        logger.info(
+            "No sessionCompleted activity found, but no ongoing work detected. Proceeding to PR check."
+        )
         state.completion_validated = True
         state.status = "checking_pr"
         return state
@@ -262,9 +264,7 @@ class JulesSessionNodes:
 
         # Check timeout
         if state.fallback_elapsed_seconds >= state.fallback_max_wait:
-            logger.warning(
-                f"Timeout ({state.fallback_max_wait}s) waiting for Jules to create PR"
-            )
+            logger.warning(f"Timeout ({state.fallback_max_wait}s) waiting for Jules to create PR")
             state.status = "timeout"
             state.error = f"Timeout waiting for PR after {state.fallback_max_wait}s"
             return state

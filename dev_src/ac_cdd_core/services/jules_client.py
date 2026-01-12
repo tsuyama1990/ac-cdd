@@ -561,7 +561,6 @@ class JulesClient:
 
                 await self._sleep(self.poll_interval)
 
-
     def _get_session_url(self, session_name: str) -> str:
         if session_name.startswith("sessions/"):
             return f"{self.base_url}/{session_name}"
@@ -733,17 +732,20 @@ class JulesClient:
         plan_text = json.dumps(plan_steps, indent=2)
         context_parts.append(f"# GENERATED PLAN TO REVIEW\n{plan_text}\n")
 
-        intro = str(
-            settings.get_prompt_content(
-                "PLAN_REVIEW_PROMPT.md",
-                default=(
-                    "Jules has generated an implementation plan. Please review it against the specifications.\n"
-                    "If the plan is acceptable, reply with just 'APPROVE' (single word).\n"
-                    "If there are issues, reply with specific feedback to correct the plan.\n"
-                    "Do NOT approve if the plan is missing critical steps or violates requirements."
-                ),
+        intro = (
+            str(
+                settings.get_prompt_content(
+                    "PLAN_REVIEW_PROMPT.md",
+                    default=(
+                        "Jules has generated an implementation plan. Please review it against the specifications.\n"
+                        "If the plan is acceptable, reply with just 'APPROVE' (single word).\n"
+                        "If there are issues, reply with specific feedback to correct the plan.\n"
+                        "Do NOT approve if the plan is missing critical steps or violates requirements."
+                    ),
+                )
             )
-        ) + "\n"
+            + "\n"
+        )
         return intro + "\n".join(context_parts)
 
     async def _handle_plan_approval(
@@ -1072,7 +1074,9 @@ class JulesClient:
                                 if "pullRequest" in activity:
                                     pr_url: str | None = activity["pullRequest"].get("url")
                                     if pr_url:
-                                        self.console.print(f"[bold green]PR Created: {pr_url}[/bold green]")
+                                        self.console.print(
+                                            f"[bold green]PR Created: {pr_url}[/bold green]"
+                                        )
                                         return pr_url
 
                                 # Log new activities to show progress
@@ -1087,7 +1091,9 @@ class JulesClient:
                         logger.debug(f"Error checking for PR/activities: {e}")
 
                     if elapsed % 30 == 0:  # Progress update every 30 seconds
-                        self.console.print(f"[dim]Still waiting for PR... ({elapsed}/{max_wait}s elapsed)[/dim]")
+                        self.console.print(
+                            f"[dim]Still waiting for PR... ({elapsed}/{max_wait}s elapsed)[/dim]"
+                        )
 
                 logger.warning(f"Timeout ({max_wait}s) waiting for Jules to create PR")
                 return None
