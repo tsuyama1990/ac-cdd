@@ -1,5 +1,6 @@
 """State management using local JSON file."""
 
+import contextlib
 import json
 import logging
 from datetime import UTC, datetime
@@ -20,7 +21,10 @@ class StateManager:
     file-based solution that is easier to debug and faster to access.
     """
 
-    STATE_FILE = Path(".ac_cdd/project_state.json")
+    def __init__(self, project_root: str = ".") -> None:
+        self.root = Path(project_root)
+        self.STATE_DIR = self.root / ".ac_cdd"
+        self.STATE_FILE = self.STATE_DIR / "project_state.json"
 
     def load_manifest(self) -> ProjectManifest | None:
         """
@@ -63,11 +67,8 @@ class StateManager:
             self.STATE_FILE.write_text(manifest.model_dump_json(indent=2))
 
             # Fix permissions to allow host user editing (essential for Docker usage)
-            try:
+            with contextlib.suppress(Exception):
                 self.STATE_FILE.chmod(0o666)
-            except Exception:
-                # Ignore permission errors (e.g. on Windows or if not owned)
-                pass
 
             logger.debug(f"Saved manifest to {self.STATE_FILE}")
         except Exception:

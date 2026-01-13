@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+import os
 import tempfile
 from pathlib import Path
 
@@ -242,6 +243,14 @@ class GitManager:
 
     async def push_branch(self, branch: str) -> None:
         """Pushes the specified branch to origin."""
+        # Ensure authentication is set up if using GITHUB_TOKEN
+        if os.environ.get("GITHUB_TOKEN"):
+            try:
+                # This configures git to use 'gh' as the credential helper
+                await self.runner.run_command([self.gh_cmd, "auth", "setup-git"], check=False)
+            except Exception as e:
+                logger.debug(f"Failed to setup gh auth: {e}")
+
         logger.info(f"Pushing branch {branch} to origin...")
         await self._run_git(["push", "-u", "origin", branch])
 

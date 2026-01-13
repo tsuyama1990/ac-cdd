@@ -162,7 +162,7 @@ FAST_MODEL=openrouter/nousresearch/hermes-3-llama-3.1-405b:free
         # Fix permissions if running with elevated privileges
         self._fix_permissions(docs_dir, env_example_path.parent, gitignore_path)
 
-    def _fix_permissions(self, *paths: Path) -> None:  # noqa: C901, PLR0912
+    def _fix_permissions(self, *paths: Path) -> None:  # noqa: C901, PLR0912, PLR0915
         """Fix file ownership to current user if created with elevated privileges."""
         import os
         import pwd
