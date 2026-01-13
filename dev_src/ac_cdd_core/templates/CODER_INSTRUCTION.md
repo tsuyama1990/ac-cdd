@@ -19,7 +19,7 @@ Your goal is to implement and **VERIFY** the features for **CYCLE {{cycle_id}}**
 ## Constraints & Environment
 - **EXISTING PROJECT**: You are working within an EXISTING project.
 - **CONFIGURATION**:
-    - **DO NOT** overwrite `pyproject.toml`, `uv.lock`, `README.md` with templates (e.g. do not reset the file).
+    - **DO NOT** overwrite `pyproject.toml`, and `uv.lock` with templates (e.g. do not reset the file).
     - **DO** append or add new dependencies/settings to `pyproject.toml` if necessary for the feature.
 - **.gitignore MAINTENANCE**:
     - **CRITICAL**: Update `.gitignore` to exclude build artifacts and cache files.
@@ -73,6 +73,9 @@ Your goal is to implement and **VERIFY** the features for **CYCLE {{cycle_id}}**
 - **Generate Log**: Save the output of your test run to a file.
   - Command (Safe): `python -c "import subprocess; from pathlib import Path; p = Path('dev_documents/CYCLE{{cycle_id}}'); p.mkdir(parents=True, exist_ok=True); res = subprocess.run(['pytest'], capture_output=True, text=True); (p / 'test_execution_log.txt').write_text(res.stdout + res.stderr); print(f'✓ Log saved: {p / \"test_execution_log.txt\"}')"`
   - **NOTE**: The Auditor will check this file. It must show passing tests.
+
+### 5. Update README.md
+- **Update**: Update `README.md` to reflect the changes you have made.
 
 ## Output Rules
 - **Create all source and test files.**
