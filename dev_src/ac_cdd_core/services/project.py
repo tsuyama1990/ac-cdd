@@ -206,42 +206,36 @@ FAST_MODEL=openrouter/nousresearch/hermes-3-llama-3.1-405b:free
                 except KeyError:
                     pass
 
-        # If we couldn't determine a non-root user, fallback to permissive permissions (chmod 666/777)
-        # This is essential for Docker environments where HOST_UID is not passed.
-        if uid is None or gid is None or uid == 0:
-            logger.debug(
-                "Running as root without HOST_UID/SUDO_USER - setting permissive permissions"
-            )
+        # 1. Try to fix ownership (chown) if we have a target user
+        if uid is not None and gid is not None and uid != 0:
             try:
                 for path in paths:
                     if path.exists():
                         for item in [path, *list(path.rglob("*"))]:
                             try:
-                                if item.is_dir():
-                                    item.chmod(0o777)
-                                else:
-                                    item.chmod(0o666)
+                                os.chown(item, uid, gid)
                             except (PermissionError, OSError) as e:
-                                logger.debug(f"Could not relax permissions for {item}: {e}")
-                logger.info("✓ Set permissive file permissions (rw-rw-rw-)")
+                                logger.debug(f"Could not fix ownership for {item}: {e}")
+                logger.info(f"✓ Fixed file ownership for {target_user}")
             except Exception as e:
-                logger.debug(f"Could not fix permissions via chmod: {e}")
-            return
+                logger.debug(f"Could not chown: {e}")
 
-        # Fix ownership for all created paths
+        # 2. ALWAYS relax permissions (chmod 666/777) as a safety net
+        # This ensures Docker-created files are editable even if chown failed or if mapping is weird
         try:
             for path in paths:
                 if path.exists():
-                    # Recursively fix ownership
                     for item in [path, *list(path.rglob("*"))]:
                         try:
-                            os.chown(item, uid, gid)
+                            if item.is_dir():
+                                item.chmod(0o777)
+                            else:
+                                item.chmod(0o666)
                         except (PermissionError, OSError) as e:
-                            logger.debug(f"Could not fix ownership for {item}: {e}")
-
-            logger.info(f"✓ Fixed file ownership for {target_user}")
+                            logger.debug(f"Could not relax permissions for {item}: {e}")
+            logger.debug("✓ Set permissive file permissions (rw-rw-rw-)")
         except Exception as e:
-            logger.debug(f"Could not fix permissions: {e}")
+            logger.debug(f"Could not fix permissions via chmod: {e}")
 
     def _copy_default_templates(self, system_prompts_dir: Path) -> None:
         """Copy default instruction templates to system_prompts directory."""
