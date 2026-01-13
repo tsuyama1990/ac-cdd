@@ -206,9 +206,26 @@ FAST_MODEL=openrouter/nousresearch/hermes-3-llama-3.1-405b:free
                 except KeyError:
                     pass
 
-        # If we couldn't determine a non-root user, skip
+        # If we couldn't determine a non-root user, fallback to permissive permissions (chmod 666/777)
+        # This is essential for Docker environments where HOST_UID is not passed.
         if uid is None or gid is None or uid == 0:
-            logger.debug("Running as root without HOST_UID/SUDO_USER - skipping permission fix")
+            logger.debug(
+                "Running as root without HOST_UID/SUDO_USER - setting permissive permissions"
+            )
+            try:
+                for path in paths:
+                    if path.exists():
+                        for item in [path, *list(path.rglob("*"))]:
+                            try:
+                                if item.is_dir():
+                                    item.chmod(0o777)
+                                else:
+                                    item.chmod(0o666)
+                            except (PermissionError, OSError) as e:
+                                logger.debug(f"Could not relax permissions for {item}: {e}")
+                logger.info("✓ Set permissive file permissions (rw-rw-rw-)")
+            except Exception as e:
+                logger.debug(f"Could not fix permissions via chmod: {e}")
             return
 
         # Fix ownership for all created paths
