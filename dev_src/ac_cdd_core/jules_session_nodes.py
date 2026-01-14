@@ -50,6 +50,11 @@ class JulesSessionNodes:
                 # Process inquiries (questions and plan approvals)
                 await self._process_inquiries_in_monitor(state, client)
 
+                # CRITICAL FIX: If an inquiry was detected, return immediately to handle it.
+                # Do NOT let "COMPLETED" status overwrite a pending question.
+                if state.status == "inquiry_detected":
+                    return state
+
                 # Check for completion (only COMPLETED state exists in Jules API)
                 if state.jules_state == "COMPLETED":
                     state.status = "validating_completion"
@@ -219,7 +224,13 @@ class JulesSessionNodes:
                 if resp.status_code == httpx.codes.OK:
                     activities = resp.json().get("activities", [])
                     for activity in activities:
+                        # Check for PR
                         if "pullRequest" in activity:
+                            # Skip already processed activities (stale PRs)
+                            act_id = activity.get("name", activity.get("id"))
+                            if act_id and act_id in state.processed_activity_ids:
+                                continue
+
                             pr_url = activity["pullRequest"].get("url")
                             if pr_url:
                                 console.print(f"\n[bold green]PR Created: {pr_url}[/bold green]")
@@ -295,6 +306,11 @@ class JulesSessionNodes:
                     for activity in activities:
                         # Check for PR
                         if "pullRequest" in activity:
+                            # CRITICAL FIX: Ignore already processed activities (stale PRs)
+                            act_id = activity.get("name", activity.get("id"))
+                            if act_id and act_id in state.processed_activity_ids:
+                                continue
+
                             pr_url = activity["pullRequest"].get("url")
                             if pr_url:
                                 console.print(f"[bold green]PR Created: {pr_url}[/bold green]")

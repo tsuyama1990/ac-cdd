@@ -13,7 +13,7 @@ from .services.git_ops import GitManager
 from .services.jules_client import JulesClient
 from .services.llm_reviewer import LLMReviewer
 from .services.project import ProjectManager
-from .session_manager import SessionManager
+from .state_manager import StateManager
 from .state import CycleState
 
 console = Console()
@@ -162,9 +162,9 @@ class CycleNodes(IGraphNodes):
         cycle_id = state.get("cycle_id")
         iteration = state.get("iteration_count")
 
-        # Resume Logic using SessionManager
-        mgr = SessionManager()
-        cycle_manifest = await mgr.get_cycle(cycle_id)
+        # Resume Logic using StateManager
+        mgr = StateManager()
+        cycle_manifest = mgr.get_cycle(cycle_id)
 
         # 1. Try Resume if session ID exists, but ONLY if we are not in a retry loop.
         # If status is 'retry_fix', we need to send feedback (handled below), not just resume.
@@ -233,7 +233,7 @@ class CycleNodes(IGraphNodes):
 
             # 2. Persist Session ID IMMEDIATELY for Hot Resume
             if result.get("session_name"):
-                await mgr.update_cycle_state(
+                mgr.update_cycle_state(
                     cycle_id, jules_session_id=result["session_name"], status="in_progress"
                 )
 

@@ -274,6 +274,13 @@ class Settings(BaseSettings):
         if not p.exists():
             p = Path.cwd() / "dev_documents"
 
+        # Explicitly look for the main spec file only
+        # User feedback: "ALL_SPEC.md だけでいいんじゃない？" - Strict filtering prevents noise
+        spec_file = p / self.filename_spec
+        if spec_file.exists():
+            return [str(spec_file)]
+
+        # Fallback: if main spec missing, include all MDs (legacy behavior)
         if p.exists():
             return [str(f) for f in p.glob("*.md")]
         return []
