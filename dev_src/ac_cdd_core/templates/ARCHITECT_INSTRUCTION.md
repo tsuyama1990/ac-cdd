@@ -196,6 +196,55 @@ ignore_missing_imports = true
 
 **CRITICAL:** You MUST generate EXACTLY `{{max_cycles}}` cycles. Do not decide on your own to generate fewer. If the input says 8 cycles, you must create CYCLE01 through CYCLE08.
 
+#### 5. `README.md` Generation
+
+You must generate a comprehensive `README.md` file in the project root.
+This file acts as the landing page for the project. It must be written based on the `ALL_SPEC.md` and the `SYSTEM_ARCHITECTURE.md` you just designed.
+
+**Required `README.md` Structure:**
+
+1.  **Project Title & Description**
+    * Project Name.
+    * A concise "Elevator Pitch" (1-2 sentences explaining *what* this solves).
+    * Status badges (use placeholders like `![Build Status](...)`).
+
+2.  **Key Features**
+    * Highlight 3-5 core features derived from `ALL_SPEC.md`.
+    * Focus on value propositions (e.g., "Automated X," "Zero-config Y").
+
+3.  **Architecture Overview**
+    * A brief summary of the system design.
+    * **IMPORTANT**: Include a Mermaid diagram representing the high-level architecture (copy or simplify the one from `SYSTEM_ARCHITECTURE.md`).
+
+4.  **Prerequisites**
+    * List required tools (e.g., Python 3.12+, uv, Docker, API Keys).
+
+5.  **Installation & Setup**
+    * Step-by-step commands to initialize the project.
+    * Example:
+        ```bash
+        git clone ...
+        uv sync
+        cp .env.example .env
+        ```
+
+6.  **Usage**
+    * Provide the primary commands to run the system.
+    * Include a "Quick Start" example.
+
+7.  **Development Workflow**
+    * Explain how to run tests (e.g., `pytest`).
+    * Explain how to run linters (e.g., `ruff check`).
+    * Mention the cycle-based development flow if applicable.
+
+8.  **Project Structure**
+    * A brief tree view of the critical directories (e.g., `src/`, `dev_documents/`, `tests/`).
+
+9.  **License**
+    * State the license (default to MIT or proprietary as per spec).
+
+**Note:** Since implementation details might change, keep the "Usage" and "Installation" sections generic but accurate based on your architectural decisions (e.g., if you decided to use `uv`, strictly write `uv` commands).
+
 ## FINAL REMINDER
 1. **DO NOT MODIFY ANY FILES** except the documentation files listed above.
 2. **DO NOT DELETE FILES AFTER CREATION.** Once you create a file, leave it as-is.
