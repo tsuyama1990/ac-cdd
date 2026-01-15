@@ -10,6 +10,11 @@ Your goal is to implement and **VERIFY** the features for **CYCLE {{cycle_id}}**
     - **Implement Logic Last**: Implement the functions to satisfy the tests.
 2.  **PROOF OF WORK**: The remote CI system will NOT run heavy tests. **YOU are responsible for running tests in your local environment.**
 3.  **INCREMENTAL LINTING & TYPE CHECKING**: After creating or modifying EACH file, immediately run `uv run ruff check .`, `uv run ruff format .`, and `uv run mypy .` to fix issues incrementally. **DO NOT** wait until the end - this prevents massive conflicts and code collapse from accumulated linting errors.
+4.  **DEPENDENCY CONFLICT PROTOCOL (NO MOCKS ALLOWED)**:
+    - **Trigger**: If `uv pip install` or `uv sync` fails due to version conflicts (e.g., `icet` not supporting Python 3.12).
+    - **Action**: You are **AUTHORIZED** to downgrade the `requires-python` version in `pyproject.toml` (e.g., change `">=3.12"` to `">=3.10"`).
+    - **Prohibition**: DO NOT implement "Mock" classes to bypass dependency errors. You must solve the environment issue.
+    - **Verification**: After downgrading, run `uv lock` again to confirm resolution.
 
 ## Inputs
 - `dev_documents/system_prompts/SYSTEM_ARCHITECTURE.md`
@@ -35,8 +40,21 @@ Your goal is to implement and **VERIFY** the features for **CYCLE {{cycle_id}}**
         - `.DS_Store` (macOS)
     - **DO NOT** exclude `__init__.py` files (they are required for Python packages).
 - **SOURCE CODE**: Place your code in `src/` (or `dev_src/` if instructed).
+- **LIBRARIES & TYPING**:
+    - **ASE & icet**: These libraries often lack complete type stubs.
+    - **Critical**: If you encounter `Call to untyped function` errors (e.g., with `atoms.copy()` or `generate_sqs`), **YOU MUST USE `# type: ignore[no-untyped-call]`**.
+    - **Do NOT** struggle with wrapping these calls endlessly. Ignore the typing error for external untyped libraries and proceed.
+    - Example: `atoms = atoms.copy()  # type: ignore[no-untyped-call]`
 
 ## Tasks
+
+### 0. Phase 0: Review & Refine Specification
+**Before starting any new implementation, you must ensure the specification is optimal.**
+- **Review Existing Code**: Analyze the current codebase to understand existing patterns, utilities, and architectural decisions.
+- **Refine SPEC.md**:
+  - Update `SPEC.md` to fix any inconsistencies with the current codebase.
+  - Optimize the design architecture if you discover a better approach based on the existing implementation.
+  - Ensure logical consistency before writing a single line of new code.
 
 ### 1. Phase 1: Blueprint Realization (Schema Implementation)
 **Before writing logic or tests, you MUST implement the Data Models.**
@@ -67,14 +85,49 @@ Your goal is to implement and **VERIFY** the features for **CYCLE {{cycle_id}}**
 - Ensure all functions have Type Hints matching your Schemas.
 - If the schemas and tests are not met and reasonable, fix them. Stop implementations first and 
 
-### 4. Verification & Proof of Work
+### 4. Phase 4: Iterative Code Review (Jules Code Review)
+**Before finalizing your code, you MUST perform a self-review loop consisting of at least 5 distinct iterations.**
+This is effectively a self-refinement process. You must not assume your first draft is perfect.
+
+**Perform the following 5 Review Cycles:**
+
+1.  **Iteration 1: Syntax & Static Analysis**
+    - Run `ruff check` and `mypy` again.
+    - **Self-Critique**: "Are there any lingering type errors or huge complexity warnings?"
+    - **Action**: Fix typos, unused imports, vague types (`Any`), and complex cognitive complexity. **Use `# type: ignore` for external library typing issues.**
+
+2.  **Iteration 2: Specification Compliance**
+    - Re-read `SPEC.md` and `UAT.md`.
+    - **Self-Critique**: "Did I implement every single requirement? Did I accidentally skip the 'error handling' requirement?"
+    - **Action**: Add missing features or constraints.
+
+3.  **Iteration 3: Test Coverage & Edge Cases**
+    - **Run Coverage**: Execute `pytest --cov=. --cov-report=term-missing` to identify uncovered lines.
+    - **Self-Critique**: "Did I reach the **85%** coverage target? Which branches are missed? Do I have happy/failure paths?"
+    - **Action**: Add specific tests to cover missing lines and edge cases (e.g. empty lists, malformed input).
+
+4.  **Iteration 4: Security & Robustness**
+    - Review input validation.
+    - **Self-Critique**: "Am I validating user input in Pydantic? Am I handling exceptions gracefully or just crashing?"
+    - **Action**: Wrap risky code in try/catch blocks and ensure Pydantic models use `extra="forbid"`.
+
+5.  **Iteration 5: Readability & Minimal Refactoring**
+    - Read your code as if you were a stranger.
+    - **Self-Critique**: "Are variable names obvious? Are functions too long? Is there a magic number?"
+    - **Action**: Rename variables, extract helper functions, and add docstrings.
+
+**Only proceed to the Final Verification after completing these 5 loops.**
+
+### 5. Verification & Proof of Work
+
 - **Run Tests**: Execute `pytest` immediately after generating the implementation file to verify it satisfies the TDD requirements. Fix ANY failures before proceeding. Do not wait until the end; check the test status frequently for each file generated.
 - **Linting**: Immediately after generating or modifying a single file, run `uv run ruff check .`, `uv run ruff format .`, and `uv run mypy .` targeting the entire project, and fix any linting errors. Since we impose stringent linting conditions, you must apply these commands incrementally to avoid code collapse or massive conflicts that would occur if run in batch at the end.
 - **Generate Log**: Save the output of your test run to a file.
   - Command (Safe): `python -c "import subprocess; from pathlib import Path; p = Path('dev_documents/CYCLE{{cycle_id}}'); p.mkdir(parents=True, exist_ok=True); res = subprocess.run(['pytest'], capture_output=True, text=True); (p / 'test_execution_log.txt').write_text(res.stdout + res.stderr); print(f'✓ Log saved: {p / \"test_execution_log.txt\"}')"`
   - **NOTE**: The Auditor will check this file. It must show passing tests.
+- **Test Coverage**: You must ensure that the test coverage is **85%** or higher for all new code. Use `pytest-cov` to verify this if possible.
 
-### 5. Update README.md
+### 6. Update README.md
 - **Update**: Update `README.md` to reflect the changes you have made.
 
 ## Output Rules

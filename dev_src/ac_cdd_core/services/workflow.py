@@ -261,6 +261,70 @@ class WorkflowService:
                 body=f"This PR merges all implemented cycles from session {sid} into main.",
             )
             console.print(SuccessMessages.session_finalized(pr_url))
+
+            # Archive and reset for next phase
+            self._archive_and_reset_state()
+            
         except Exception as e:
             console.print(f"[bold red]Finalization failed:[/bold red] {e}")
             sys.exit(1)
+
+    def _archive_and_reset_state(self) -> None:
+        """
+        Archives current session artifacts to dev_documents/phase_n
+        and resets the state for the next phase.
+        """
+        import shutil
+        from pathlib import Path
+
+        docs_dir = settings.paths.documents_dir
+        if not docs_dir.exists():
+            return
+
+        # 1. Determine next phase number
+        existing_phases = [d for d in docs_dir.iterdir() if d.is_dir() and d.name.startswith("phase_")]
+        next_phase_num = 1
+        if existing_phases:
+            nums = []
+            for d in existing_phases:
+                try:
+                    nums.append(int(d.name.split("_")[1]))
+                except (IndexError, ValueError):
+                    pass
+            if nums:
+                next_phase_num = max(nums) + 1
+        
+        phase_dir = docs_dir / f"phase_{next_phase_num}"
+        phase_dir.mkdir(parents=True, exist_ok=True)
+        console.print(f"\n[bold cyan]Archiving session artifacts to {phase_dir}...[/bold cyan]")
+
+        # 2. Archive files
+        # ALL_SPEC.md
+        all_spec = docs_dir / "ALL_SPEC.md"
+        if all_spec.exists():
+            shutil.move(str(all_spec), str(phase_dir / "ALL_SPEC.md"))
+        
+        # SYSTEM_ARCHITECTURE.md
+        sys_prompts_dir = docs_dir / "system_prompts"
+        sys_arch = sys_prompts_dir / "SYSTEM_ARCHITECTURE.md"
+        if sys_arch.exists():
+            shutil.move(str(sys_arch), str(phase_dir / "SYSTEM_ARCHITECTURE.md"))
+
+        # CYCLEnn directories
+        if sys_prompts_dir.exists():
+            for item in sys_prompts_dir.iterdir():
+                if item.is_dir() and item.name.startswith("CYCLE"):
+                    shutil.move(str(item), str(phase_dir / item.name))
+
+        # 3. Archive State (project_state.json)
+        state_mgr = StateManager()
+        if state_mgr.STATE_FILE.exists():
+            shutil.copy2(str(state_mgr.STATE_FILE), str(phase_dir / "project_state.json"))
+            # Remove original to reset
+            state_mgr.STATE_FILE.unlink()
+            console.print("Project state reset (project_state.json archived and removed).")
+
+        # 4. Create empty ALL_SPEC.md for next phase
+        (docs_dir / "ALL_SPEC.md").touch()
+        console.print("[green]Created fresh, empty ALL_SPEC.md for the next phase.[/green]")
+        console.print(f"[green]Ready for Phase {next_phase_num}![/green]")
