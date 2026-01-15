@@ -50,6 +50,11 @@ class JulesSessionNodes:
                 # Process inquiries (questions and plan approvals)
                 await self._process_inquiries_in_monitor(state, client)
 
+                # CRITICAL FIX: If an inquiry was detected, return immediately to handle it.
+                # Do NOT let "COMPLETED" status overwrite a pending question.
+                if state.status == "inquiry_detected":
+                    return state
+
                 # Check for completion (only COMPLETED state exists in Jules API)
                 if state.jules_state == "COMPLETED":
                     state.status = "validating_completion"
@@ -179,8 +184,45 @@ class JulesSessionNodes:
                         state.status = "checking_pr"
                         return state
 
-                    # Logic removed: Checking for ongoing work indicators via keywords caused infinite loops
-                    # in resume mode (e.g. "next step" in past messages).
+                    # Logic removed: Checking for ongoing work indicators via keywords caused infinite loops.
+                    
+                    # NEW FIX: If sessionCompleted is missing, check for distress/objections in the last message.
+                    # This prevents auditing when Jules is complaining (e.g. "feedback inconsistent") but ends session.
+                    if not has_session_completed:
+                        try:
+                            # Use existing client to fetch messages
+                            msgs_url = f"{state.session_url}/messages"
+                            msg_resp = await client.get(msgs_url, headers=self.client._get_headers())
+                            if msg_resp.status_code == httpx.codes.OK:
+                                messages = msg_resp.json().get("messages", [])
+                                if messages:
+                                    last_msg = messages[-1]
+                                    
+                                    # Verify last message is from AGENT
+                                    sender = last_msg.get("author", last_msg.get("role", last_msg.get("type", ""))).upper()
+                                    if sender in ["AGENT", "MODEL", "ASSISTANT", "JULES"]:
+                                        # Check for distress keywords
+                                        content = last_msg.get("content", "").lower()
+                                        distress_keywords = [
+                                            "inconsistent", "cannot act", "faulty audit", "incorrect version",
+                                            "please manually", "blocked", "error", "issue with", "reiterate"
+                                        ]
+                                        if any(k in content for k in distress_keywords):
+                                            # Generate ID to prevent infinite inquiry loop on same message
+                                            msg_id = last_msg.get("name") or str(hash(content))
+                                            
+                                            if msg_id in state.processed_activity_ids:
+                                                # Already handled this distress message
+                                                pass
+                                            else:
+                                                logger.warning("Detected distress/objection in last message. Treating as inquiry.")
+                                                state.current_inquiry = last_msg.get("content")
+                                                state.current_inquiry_id = msg_id
+                                                state.status = "inquiry_detected"
+                                                return state
+                        except Exception as e:
+                            logger.warning(f"Failed to check last message content: {e}")
+
                     # If Jules API says COMPLETED, we should trust it and proceed to PR check.
                     # If PR is missing, check_pr will handle it by requesting PR creation.
 
@@ -219,7 +261,13 @@ class JulesSessionNodes:
                 if resp.status_code == httpx.codes.OK:
                     activities = resp.json().get("activities", [])
                     for activity in activities:
+                        # Check for PR
                         if "pullRequest" in activity:
+                            # Skip already processed activities (stale PRs)
+                            act_id = activity.get("name", activity.get("id"))
+                            if act_id and act_id in state.processed_activity_ids:
+                                continue
+
                             pr_url = activity["pullRequest"].get("url")
                             if pr_url:
                                 console.print(f"\n[bold green]PR Created: {pr_url}[/bold green]")
@@ -295,6 +343,11 @@ class JulesSessionNodes:
                     for activity in activities:
                         # Check for PR
                         if "pullRequest" in activity:
+                            # CRITICAL FIX: Ignore already processed activities (stale PRs)
+                            act_id = activity.get("name", activity.get("id"))
+                            if act_id and act_id in state.processed_activity_ids:
+                                continue
+
                             pr_url = activity["pullRequest"].get("url")
                             if pr_url:
                                 console.print(f"[bold green]PR Created: {pr_url}[/bold green]")
