@@ -10,6 +10,11 @@ Your goal is to implement and **VERIFY** the features for **CYCLE {{cycle_id}}**
     - **Implement Logic Last**: Implement the functions to satisfy the tests.
 2.  **PROOF OF WORK**: The remote CI system will NOT run heavy tests. **YOU are responsible for running tests in your local environment.**
 3.  **INCREMENTAL LINTING & TYPE CHECKING**: After creating or modifying EACH file, immediately run `uv run ruff check .`, `uv run ruff format .`, and `uv run mypy .` to fix issues incrementally. **DO NOT** wait until the end - this prevents massive conflicts and code collapse from accumulated linting errors.
+4.  **DEPENDENCY CONFLICT PROTOCOL (NO MOCKS ALLOWED)**:
+    - **Trigger**: If `uv pip install` or `uv sync` fails due to version conflicts (e.g., `icet` not supporting Python 3.12).
+    - **Action**: You are **AUTHORIZED** to downgrade the `requires-python` version in `pyproject.toml` (e.g., change `">=3.12"` to `">=3.10"`).
+    - **Prohibition**: DO NOT implement "Mock" classes to bypass dependency errors. You must solve the environment issue.
+    - **Verification**: After downgrading, run `uv lock` again to confirm resolution.
 
 ## Inputs
 - `dev_documents/system_prompts/SYSTEM_ARCHITECTURE.md`
@@ -42,6 +47,14 @@ Your goal is to implement and **VERIFY** the features for **CYCLE {{cycle_id}}**
     - Example: `atoms = atoms.copy()  # type: ignore[no-untyped-call]`
 
 ## Tasks
+
+### 0. Phase 0: Review & Refine Specification
+**Before starting any new implementation, you must ensure the specification is optimal.**
+- **Review Existing Code**: Analyze the current codebase to understand existing patterns, utilities, and architectural decisions.
+- **Refine SPEC.md**:
+  - Update `SPEC.md` to fix any inconsistencies with the current codebase.
+  - Optimize the design architecture if you discover a better approach based on the existing implementation.
+  - Ensure logical consistency before writing a single line of new code.
 
 ### 1. Phase 1: Blueprint Realization (Schema Implementation)
 **Before writing logic or tests, you MUST implement the Data Models.**

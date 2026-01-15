@@ -465,6 +465,14 @@ class GitManager:
             return existing_pr_url
 
         await self._run_git(["checkout", integration_branch])
+        
+        # Pull latest changes to sync with remote before pushing
+        # This prevents "updates were rejected" errors if remote has moved ahead
+        try:
+            await self._run_git(["pull"])
+        except RuntimeError as e:
+            logger.warning(f"Pull failed before push (proceeding anyway): {e}")
+
         await self._run_git(["push"])
 
         stdout, _, code = await self.runner.run_command(
