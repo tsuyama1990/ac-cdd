@@ -97,6 +97,13 @@ class StateManager:
         self.save_manifest(manifest)
         return manifest
 
+    def _normalize_id(self, cycle_id: str | int) -> str:
+        """Normalizes cycle ID to 2-digit string (e.g., '1' -> '01')."""
+        cid = str(cycle_id)
+        if cid.isdigit() and len(cid) == 1:
+            return f"0{cid}"
+        return cid
+
     def get_cycle(self, cycle_id: str) -> CycleManifest | None:
         """
         Get a specific cycle from the manifest.
@@ -111,8 +118,9 @@ class StateManager:
         if not manifest:
             return None
 
+        normalized_id = self._normalize_id(cycle_id)
         for cycle in manifest.cycles:
-            if cycle.id == cycle_id:
+            if cycle.id == cycle_id or cycle.id == normalized_id:
                 return cycle
         return None
 
@@ -135,7 +143,11 @@ class StateManager:
             msg = "No active project manifest found."
             raise SessionValidationError(msg)
 
-        cycle = next((c for c in manifest.cycles if c.id == cycle_id), None)
+        normalized_id = self._normalize_id(cycle_id)
+        cycle = next(
+            (c for c in manifest.cycles if c.id == cycle_id or c.id == normalized_id),
+            None,
+        )
         if not cycle:
             msg = f"Cycle {cycle_id} not found in manifest."
             raise SessionValidationError(msg)

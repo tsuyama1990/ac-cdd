@@ -160,9 +160,24 @@ class JulesApiClient:
         return self._request("POST", endpoint, payload)
 
     def list_activities(self, session_id_path: str) -> list[dict[str, Any]]:
+        all_activities = []
+        page_token = ""
         try:
-            resp = self._request("GET", f"{session_id_path}/activities?pageSize=50")
-            return list(resp.get("activities", []))
+            while True:
+                url = f"{session_id_path}/activities?pageSize=100"
+                if page_token:
+                    url += f"&pageToken={page_token}"
+                
+                resp = self._request("GET", url)
+                acts = list(resp.get("activities", []))
+                if not acts:
+                    break
+                all_activities.extend(acts)
+                
+                page_token = resp.get("nextPageToken", "")
+                if not page_token:
+                    break
+            return all_activities
         except JulesApiError as e:
             if "404" in str(e):
                 return []
@@ -379,19 +394,38 @@ class JulesClient:
     ) -> tuple[str, str] | None:
         """Checks if the session is waiting for user feedback."""
         try:
-            act_url = f"{session_url}/activities?pageSize=50"
-            act_resp = await client.get(act_url, headers=self._get_headers(), timeout=10.0)
+            page_token = ""
+            # Check up to 3 pages (300 activities) to capture inquiries buried by logs
+            for _ in range(3):
+                act_url = f"{session_url}/activities?pageSize=100"
+                if page_token:
+                    act_url += f"&pageToken={page_token}"
 
-            if act_resp.status_code == httpx.codes.OK:
-                activities = act_resp.json().get("activities", [])
-                for act in activities:
-                    act_id = act.get("name", act.get("id"))
-                    # Skip already processed activities to prevent duplicates
-                    if act_id in processed_ids:
-                        continue
-                    msg = self._extract_activity_message(act)
-                    if msg:
-                        return msg, act_id
+                act_resp = await client.get(act_url, headers=self._get_headers(), timeout=10.0)
+
+                if act_resp.status_code == httpx.codes.OK:
+                    data = act_resp.json()
+                    activities = data.get("activities", [])
+                    
+                    found_inquiry = None
+                    # Search activities
+                    for act in activities:
+                        act_id = act.get("name", act.get("id"))
+                        # Skip already processed activities to prevent duplicates
+                        if act_id in processed_ids:
+                            continue
+                        msg = self._extract_activity_message(act)
+                        if msg:
+                            found_inquiry = (msg, act_id)
+                            # If we found one, we return immediately.
+                            # Since iteration order is usually newest first or oldest first?
+                            # Google API lists usually newest first? No, default is often oldest first or mixed.
+                            # But we should process any pending inquiry.
+                            return found_inquiry
+                    
+                    page_token = data.get("nextPageToken")
+                    if not page_token:
+                        break
         except Exception as e:
             logger.warning(f"Failed to check for inquiry: {e}")
         return None
@@ -569,10 +603,40 @@ class JulesClient:
     async def _initialize_processed_ids(self, session_url: str, processed_ids: set[str]) -> None:
         try:
             session_id_path = session_url.split(f"{self.base_url}/")[-1]
+            
+            # Check session state
+            try:
+                session_resp = self._request("GET", session_id_path)
+                state = session_resp.get("state")
+            except Exception:
+                state = "UNKNOWN"
+
             initial_acts = self.list_activities(session_id_path)
+            
+            latest_inquiry_id = None
+            latest_ts = ""
+
             for act in initial_acts:
-                if "name" in act:
-                    processed_ids.add(act["name"])
+                act_id = act.get("name")
+                if not act_id:
+                    continue
+                
+                processed_ids.add(act_id)
+                
+                # If awaiting feedback, track the latest inquiry
+                if state == "AWAITING_USER_FEEDBACK":
+                    msg = self._extract_activity_message(act)
+                    if msg:
+                        ts = act.get("createTime", "")
+                        if ts >= latest_ts:
+                            latest_ts = ts
+                            latest_inquiry_id = act_id
+            
+            # If we are waiting for feedback, ensure the latest inquiry is NOT ignored
+            if latest_inquiry_id:
+                processed_ids.discard(latest_inquiry_id)
+                logger.info(f"Session is {state}: Re-enabling latest inquiry {latest_inquiry_id} for processing.")
+
             logger.info(f"Initialized with {len(processed_ids)} existing activities to ignore.")
         except Exception as e:
             logger.warning(f"Failed to fetch initial activities: {e}")

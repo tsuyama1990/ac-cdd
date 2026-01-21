@@ -42,9 +42,36 @@ class JulesSessionNodes:
 
                 # Check for failure
                 if state.jules_state == "FAILED":
+                    # Debug output for failed state
+                    import json
+                    logger.error(f"Jules Session FAILED. Response: {json.dumps(data, indent=2)}")
+                    
                     error_msg = data.get("error", {}).get("message", "Unknown error")
-                    state.status = "failed"
-                    state.error = f"Jules Session Failed: {error_msg}"
+                    
+                    # Resilience: Check if a PR was created despite the failure
+                    # (Sometimes Jules marks session FAILED due to timeout/minor error but PR exists)
+                    pr_found = False
+                    
+                    # Check in outputs
+                    for output in data.get("outputs", []):
+                        if "github_pull_request" in str(output.get("type", "")):
+                             pr_found = True
+                             break
+                    
+                    # Check in activities (if outputs empty)
+                    if not pr_found:
+                         activities = self.client.list_activities(state.session_url.split("/")[-1])
+                         for act in activities:
+                             if "pullRequest" in str(act) or "CreatePullRequest" in str(act):
+                                 pr_found = True
+                                 break
+                    
+                    if pr_found:
+                        logger.warning("Session marked FAILED but PR activity detected. Proceeding to validation.")
+                        state.status = "checking_pr"
+                    else:
+                        state.status = "failed"
+                        state.error = f"Jules Session Failed: {error_msg}"
                     return state
 
                 # Process inquiries (questions and plan approvals)

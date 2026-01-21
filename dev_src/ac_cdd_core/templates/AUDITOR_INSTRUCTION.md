@@ -131,20 +131,27 @@ Review the code critically to improve readability, efficiency, or robustness bas
 ## Output Format
 
 ### If REJECTED:
-Output a structured list of **Critical Issues** that must be fixed.
+Output an **EXHAUSTIVE, STRUCTURED** list of issues.
+**CRITICAL INSTRUCTION**: Do NOT provide single examples (e.g., "For example, in file X..."). You MUST list **EVERY** file and line of code that contains a violation. Be mercilessly comprehensive.
+
 Format:
 ```text
 -> REJECT
 
 ### Critical Issues
-1. [Functional Implementation] NG points and improve suggestions.
-2. [Architecture & Design] NG points and improve suggestions.
-3. [Data Integrity] NG points and improve suggestions.
-4. [Robustness, Security & Efficiency] NG points and improve suggestions.
-5. [Testing] NG points and improve suggestions.
-6. [Code Style & Docs] NG points and improve suggestions.
-7. [Project Standards] NG points and improve suggestions.
 
+#### [Category Name] (e.g. Architecture, Data Integrity)
+- **Issue**: [Concise description of the violation]
+  - **Location**: `path/to/file.py` (Line XX)
+  - **Requirement**: [Reference to SPEC.md or Architecture rule]
+  - **Fix**: [Specific instruction]
+
+- **Issue**: [Another violation description]
+  - **Location**: `path/to/another_file.py` (Line YY)
+  ...
+
+#### [Another Category]
+...
 ```
 
 ### If APPROVED:

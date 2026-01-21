@@ -263,13 +263,14 @@ class WorkflowService:
             console.print(SuccessMessages.session_finalized(pr_url))
 
             # Archive and reset for next phase
-            self._archive_and_reset_state()
+            # Archive and reset for next phase
+            await self._archive_and_reset_state()
             
         except Exception as e:
             console.print(f"[bold red]Finalization failed:[/bold red] {e}")
             sys.exit(1)
 
-    def _archive_and_reset_state(self) -> None:
+    async def _archive_and_reset_state(self) -> None:
         """
         Archives current session artifacts to dev_documents/phase_n
         and resets the state for the next phase.
@@ -298,33 +299,48 @@ class WorkflowService:
         phase_dir.mkdir(parents=True, exist_ok=True)
         console.print(f"\n[bold cyan]Archiving session artifacts to {phase_dir}...[/bold cyan]")
 
+        async def move_item(src: Path, dest: Path):
+            if not src.exists():
+                return
+            try:
+                # Try git mv first to keep history
+                await self.git._run_git(["mv", str(src), str(dest)])
+            except Exception:
+                # Fallback to pure filesystem move
+                logger.warning(f"git mv failed for {src.name}, falling back to shutil.move")
+                shutil.move(str(src), str(dest))
+
         # 2. Archive files
         # ALL_SPEC.md
-        all_spec = docs_dir / "ALL_SPEC.md"
-        if all_spec.exists():
-            shutil.move(str(all_spec), str(phase_dir / "ALL_SPEC.md"))
+        await move_item(docs_dir / "ALL_SPEC.md", phase_dir / "ALL_SPEC.md")
         
         # SYSTEM_ARCHITECTURE.md
         sys_prompts_dir = docs_dir / "system_prompts"
-        sys_arch = sys_prompts_dir / "SYSTEM_ARCHITECTURE.md"
-        if sys_arch.exists():
-            shutil.move(str(sys_arch), str(phase_dir / "SYSTEM_ARCHITECTURE.md"))
+        await move_item(sys_prompts_dir / "SYSTEM_ARCHITECTURE.md", phase_dir / "SYSTEM_ARCHITECTURE.md")
 
         # CYCLEnn directories
         if sys_prompts_dir.exists():
             for item in sys_prompts_dir.iterdir():
                 if item.is_dir() and item.name.startswith("CYCLE"):
-                    shutil.move(str(item), str(phase_dir / item.name))
+                    await move_item(item, phase_dir / item.name)
 
         # 3. Archive State (project_state.json)
         state_mgr = StateManager()
         if state_mgr.STATE_FILE.exists():
             shutil.copy2(str(state_mgr.STATE_FILE), str(phase_dir / "project_state.json"))
-            # Remove original to reset
             state_mgr.STATE_FILE.unlink()
             console.print("Project state reset (project_state.json archived and removed).")
 
         # 4. Create empty ALL_SPEC.md for next phase
         (docs_dir / "ALL_SPEC.md").touch()
-        console.print("[green]Created fresh, empty ALL_SPEC.md for the next phase.[/green]")
+        
+        # 5. Commit the archiving
+        try:
+            await self.git._run_git(["add", "."])
+            await self.git._run_git(["commit", "-m", f"Archive Phase {next_phase_num-1} Artifacts"])
+        except Exception as e:
+            logger.warning(f"Failed to commit archive: {e}")
+
+        console.print(f"[green]Created fresh, empty ALL_SPEC.md for the next phase.[/green]")
         console.print(f"[green]Ready for Phase {next_phase_num}![/green]")
+

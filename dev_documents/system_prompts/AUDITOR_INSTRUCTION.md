@@ -82,26 +82,33 @@ Then:
 Review the code critically to improve readability, efficiency, or robustness based on the following viewpoints.
 **IMPORTANT**: Only report issues that are actually present. If the code correctly implements the current cycle's requirements, APPROVE it.
 
-## 1. Architecture & Configuration (Compliance)
-- [ ] **Layer Compliance:** Does the code strictly follow the layer separation defined in `SYSTEM_ARCHITECTURE.md`?
+## 1. Functional Implementation (The "What")
 - [ ] **Requirement Coverage:** Are ALL functional requirements listed in `SPEC.md` **for the CURRENT cycle** implemented?
-- [ ] **Scope Limitation:** **CRITICAL**: Only review requirements from the CURRENT cycle's SPEC.md. Do NOT require features from future cycles or suggest implementing features marked for later cycles.
+- [ ] **Logic Correctness:** Does the implemented logic accurately reflect the business rules defined in `SPEC.md`? (Read the code to verify it *actually* does what requirement says).
+- [ ] **Scope Adherence:** **CRITICAL**: Verify that the code ONLY implements the current cycle's requirements (No "gold-plating" or future features).
+
+## 2. Architecture & Design (The "How")
+- [ ] **Layer Compliance:** Does the code strictly follow the layer separation defined in `SYSTEM_ARCHITECTURE.md`?
+- [ ] **Single Responsibility (SRP):** Reject "God Classes" that do too much. Each module/class should have one clear purpose.
+- [ ] **Simplicity (YAGNI/KISS):** Reject over-engineering, such as "Paper Classes" (useless wrappers) or speculative abstractions for features not in SPEC.md.
+- [ ] **Dead Code:** Confirm no unused imports, variables, functions, or commented-out code blocks remain.
 - [ ] **Context Consistency:** Does the new code utilize existing base classes/utilities (DRY principle) instead of duplicating logic?
 - [ ] **Configuration Isolation:** Is all configuration loaded from `config.py` or environment variables? (Verify **NO** hardcoded settings).
 
-## 2. Data Integrity (Pydantic Defense Wall)
+## 3. Data Integrity (Pydantic Defense Wall)
 - [ ] **Strict Typing:** Are raw dictionaries (`dict`, `json`) strictly avoided in favor of Pydantic Models at input boundaries?
 - [ ] **Schema Rigidity:** Do all Pydantic models use `model_config = ConfigDict(extra="forbid")` to reject ghost data?
 - [ ] **Logic in Validation:** Are business rules (e.g., `score >= 0`) enforced via `@field_validator` within the model, not in controllers?
 - [ ] **Type Precision:** Are `Any` and `Optional` types used *only* when absolutely justified?
 
-## 3. Robustness & Security
+## 4. Robustness, Security & Efficiency
 - [ ] **Error Handling:** Are exceptions caught and logged properly? (Reject bare `except:`).
 - [ ] **Injection Safety:** Is the code free from SQL injection and Path Traversal risks?
 - [ ] **No Hardcoding:** Verify there are **NO** hardcoded paths (e.g., `/tmp/`), URLs, or magic numbers.
 - [ ] **Secret Safety:** Confirm no API keys or credentials are present in the code.
+- [ ] **Efficiency (Big-O):** Check for obvious bottlenecks: N+1 queries, nested loops on large datasets, or reading entire files into memory?
 
-## 4. Test Quality & Validity (Strict Verification)
+## 5. Test Quality & Validity (Strict Verification)
 - [ ] **Traceability:** Does every requirement in `SPEC.md` have a distinct, corresponding unit test?
 - [ ] **Edge Cases:** Do tests cover boundary values (0, -1, max limits, empty strings) and `ValidationError` scenarios?
 - [ ] **Mock Integrity:**
@@ -112,25 +119,39 @@ Review the code critically to improve readability, efficiency, or robustness bas
 - [ ] **UAT Alignment:** Do tests cover the scenarios described in `UAT.md`?
 - [ ] **Log Verification:** Does `test_execution_log.txt` show passing results for the *current* code cycle?
 
-## 5. Code Style & Docs
+## 6. Code Style & Docs
 - [ ] **Readability:** Are variable/function names descriptive and self-documenting?
 - [ ] **Docstrings:** Do all public modules, classes, and functions have docstrings explaining intent?
+
+## 7. Project Standards & Maintenance
+- [ ] **Dependency Management:** if new libraries are used, are they added to `pyproject.toml`?
+- [ ] **Git Hygiene:** Is `.gitignore` updated if new artifact types (logs, DBs) are introduced?
+- [ ] **Documentation:** Is `README.md` updated if the feature changes how the system is used or installed?
 
 ## Output Format
 
 ### If REJECTED:
-Output a structured list of **Critical Issues** that must be fixed.
+Output an **EXHAUSTIVE, STRUCTURED** list of issues.
+**CRITICAL INSTRUCTION**: Do NOT provide single examples (e.g., "For example, in file X..."). You MUST list **EVERY** file and line of code that contains a violation. Be mercilessly comprehensive.
+
 Format:
 ```text
 -> REJECT
 
 ### Critical Issues
-1. [Architecture & Configuration] NG points and improve suggestions.
-2. [Data Integrity] NG points and improve suggestions.
-3. [Robustness & Security] NG points and improve suggestions.
-4. [Testing] NG points and improve suggestions.
-5. [Code Style & Docs] NG points and improve suggestions.
 
+#### [Category Name] (e.g. Architecture, Data Integrity)
+- **Issue**: [Concise description of the violation]
+  - **Location**: `path/to/file.py` (Line XX)
+  - **Requirement**: [Reference to SPEC.md or Architecture rule]
+  - **Fix**: [Specific instruction]
+
+- **Issue**: [Another violation description]
+  - **Location**: `path/to/another_file.py` (Line YY)
+  ...
+
+#### [Another Category]
+...
 ```
 
 ### If APPROVED:

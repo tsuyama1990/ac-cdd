@@ -41,6 +41,24 @@ class ProcessRunner:
                     logger.error(f"Command failed [{returncode}]: {cmd_str}")
                     if stderr_str:
                         logger.error(f"Stderr: {stderr_str}")
+                    
+                    # DEBUG: Diagnose git permissions issues
+                    if cmd[0] == "git":
+                        try:
+                            import os
+                            logger.error(f"DEBUG: Process UID={os.getuid()}, GID={os.getgid()}")
+                            git_index = Path(".git/index")
+                            if git_index.exists():
+                                st = git_index.stat()
+                                logger.error(f"DEBUG: .git/index: mode={oct(st.st_mode)}, uid={st.st_uid}, gid={st.st_gid}")
+                            else:
+                                logger.error("DEBUG: .git/index not found")
+                            
+                            lock_file = Path(".git/index.lock")
+                            if lock_file.exists():
+                                logger.error("DEBUG: .git/index.lock EXISTS (Lock contention)")
+                        except Exception as e:
+                            logger.error(f"DEBUG failed: {e}")
                 else:
                     logger.debug(f"Command failed (expected) [{returncode}]: {cmd_str}")
         except Exception as e:
