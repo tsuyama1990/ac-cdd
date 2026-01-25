@@ -13,8 +13,8 @@ from .services.git_ops import GitManager
 from .services.jules_client import JulesClient
 from .services.llm_reviewer import LLMReviewer
 from .services.project import ProjectManager
-from .state_manager import StateManager
 from .state import CycleState
+from .state_manager import StateManager
 
 console = Console()
 
@@ -106,6 +106,39 @@ class CycleNodes(IGraphNodes):
                 except Exception as e:
                     console.print(f"[yellow]Warning: Could not fix permissions: {e}[/yellow]")
 
+                # Install dependencies (ensure ruff/mypy are available for next steps)
+                try:
+                    console.print("[bold blue]Installing dependencies (uv sync)...[/bold blue]")
+                    from .process_runner import ProcessRunner
+
+                    runner = ProcessRunner()
+
+                    # 1. Try sync first (assumes Architect added dependencies)
+                    result, stderr, code = await runner.run_command(
+                        ["uv", "sync", "--dev"], check=False
+                    )
+
+                    # 2. If sync failed or ruff/mypy missing, force add them
+                    # We check if they were supposed to be installed but failed,
+                    # or if we should just ensure they exist.
+                    # Best effort: force install to be safe.
+                    if code != 0:
+                        console.print(f"[yellow]uv sync failed: {stderr}. Attempting fix...[/yellow]")
+
+                    # Check if ruff/mypy are installed
+                    _, _, code_ruff = await runner.run_command(["uv", "run", "ruff", "--version"], check=False)
+                    _, _, code_mypy = await runner.run_command(["uv", "run", "mypy", "--version"], check=False)
+
+                    if code_ruff != 0 or code_mypy != 0:
+                        console.print("[yellow]Linters missing. Installing ruff and mypy...[/yellow]")
+                        await runner.run_command(["uv", "add", "--dev", "ruff", "mypy"], check=True)
+                        console.print("[green]✓ ruff and mypy installed.[/green]")
+                    else:
+                        console.print("[green]✓ Dependencies synchronized.[/green]")
+
+                except Exception as e:
+                    console.print(f"[yellow]Warning: Could not install dependencies: {e}[/yellow]")
+
             except Exception as e:
                 console.print(f"[bold red]Failed to auto-merge Architecture PR: {e}[/bold red]")
                 # We don't fail the cycle here, but manual intervention will be needed
@@ -161,6 +194,7 @@ class CycleNodes(IGraphNodes):
         """Node for Coder Agent (Jules)."""
         cycle_id = state.get("cycle_id")
         iteration = state.get("iteration_count")
+        current_phase = state.get("current_phase")
 
         # Resume Logic using StateManager
         mgr = StateManager()
@@ -187,13 +221,18 @@ class CycleNodes(IGraphNodes):
             except Exception as e:
                 console.print(f"[yellow]Resume failed: {e}. Starting new session.[/yellow]")
 
+        phase_label = "REFACTORING" if current_phase == "refactoring" else "CODER"
         console.print(
-            f"[bold green]Starting Coder Session for Cycle {cycle_id} "
+            f"[bold green]Starting {phase_label} Session for Cycle {cycle_id} "
             f"(Iteration {iteration})...[/bold green]"
         )
 
-        instruction = settings.get_template("CODER_INSTRUCTION.md").read_text()
-        instruction = instruction.replace("{{cycle_id}}", str(cycle_id))
+        if current_phase == "refactoring":
+            instruction = settings.get_template("REFACTOR_INSTRUCTION.md").read_text()
+            # No cycle ID needed in refactor instruction, but we can add context if needed
+        else:
+            instruction = settings.get_template("CODER_INSTRUCTION.md").read_text()
+            instruction = instruction.replace("{{cycle_id}}", str(cycle_id))
 
         last_audit = state.get("audit_result")
         if state.get("status") == "retry_fix" and last_audit and last_audit.feedback:
@@ -215,14 +254,13 @@ class CycleNodes(IGraphNodes):
 
         try:
             # Generate a unique logical ID for the session request
-            # But the actual Jules session ID will be returned by the API
             timestamp = datetime.now(UTC).strftime("%Y%m%d-%H%M")
-            session_req_id = f"coder-cycle-{cycle_id}-iter-{iteration}-{timestamp}"
+
+            # Distinguish session ID by phase so refactoring starts fresh if needed or tracks separately
+            prefix = "refactor" if current_phase == "refactoring" else "coder"
+            session_req_id = f"{prefix}-cycle-{cycle_id}-iter-{iteration}-{timestamp}"
 
             # Start new session
-            # IMPORTANT: We use require_plan_approval=True to get the session ID early if needed
-            # but usually run_session returns after session is created/completed.
-
             result = await self.jules.run_session(
                 session_id=session_req_id,
                 prompt=instruction,
@@ -233,6 +271,8 @@ class CycleNodes(IGraphNodes):
 
             # 2. Persist Session ID IMMEDIATELY for Hot Resume
             if result.get("session_name"):
+                # We update the manifest, but if it's refactoring, we might want to track it differently?
+                # For now, just overwriting the session ID in manifest is fine as we move forward.
                 mgr.update_cycle_state(
                     cycle_id, jules_session_id=result["session_name"], status="in_progress"
                 )
@@ -246,18 +286,12 @@ class CycleNodes(IGraphNodes):
             if result.get("status") == "success" or result.get("pr_url"):
                 return {"status": "ready_for_audit", "pr_url": result.get("pr_url")}
 
-            # If we returned early (e.g. for approval), we might need to handle it.
-            # But CycleNodes expects to finish the cycle work.
-
-            # For now, just persisting what we got.
-
         except Exception as e:
-            console.print(f"[red]Coder Session Failed: {e}[/red]")
+            console.print(f"[red]{phase_label} Session Failed: {e}[/red]")
             return {"status": "failed", "error": str(e)}
         else:
             if result.get("status") == "failed":
                 return {"status": "failed", "error": result.get("error")}
-            # If successful but no PR (unexpected)
             return {"status": "failed", "error": "Jules failed to produce PR"}
 
     async def auditor_node(self, state: CycleState) -> dict[str, Any]:  # noqa: PLR0912, PLR0915, C901
@@ -521,7 +555,7 @@ class CycleNodes(IGraphNodes):
         }
 
     async def uat_evaluate_node(self, state: CycleState) -> dict[str, Any]:
-        """Node for UAT Evaluation and Auto-Merge."""
+        """Node for UAT Evaluation, Auto-Merge, and Refactoring Transition."""
         console.print("[bold cyan]Running UAT Evaluation...[/bold cyan]")
         # Assume UAT passes for now
 
@@ -537,6 +571,24 @@ class CycleNodes(IGraphNodes):
                 console.print(f"[bold red]Failed to auto-merge Cycle PR: {e}[/bold red]")
                 return {"status": "failed", "error": str(e)}
 
+        # Refactoring Phase Transition Logic
+        current_phase = state.get("current_phase")
+        if current_phase != "refactoring":
+            console.print("[bold magenta]Transitioning to Refactoring Phase...[/bold magenta]")
+            # Clear audit results and reset counters for the refactoring loop
+            return {
+                "current_phase": "refactoring",
+                "status": "start_refactor",
+                "iteration_count": 0,
+                "current_auditor_index": 1,
+                "current_auditor_review_count": 1,
+                "audit_result": None,
+                "audit_pass_count": 0,
+                "audit_retries": 0,
+            }
+
+        # If we were already in refactoring, we are done
+        console.print("[bold green]Refactoring Phase Completed.[/bold green]")
         return {"status": "cycle_completed"}
 
     def check_coder_outcome(self, state: CycleState) -> str:
@@ -564,3 +616,13 @@ class CycleNodes(IGraphNodes):
         if status == "retry_fix":
             return "coder_session"
         return "failed"
+
+    def route_uat(self, state: CycleState) -> str:
+        """Router from uat_evaluate_node (Determine if we Loop to Refactor or Finish)."""
+        status = state.get("status")
+        if status == "start_refactor":
+            return "coder_session"
+        if status == "cycle_completed":
+            return "end"
+        return "end"  # failed etc.
+

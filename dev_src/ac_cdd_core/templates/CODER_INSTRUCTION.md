@@ -9,7 +9,9 @@ Your goal is to implement and **VERIFY** the features for **CYCLE {{cycle_id}}**
     - **Write Tests Second**: Write tests based on the defined schemas (TDD).
     - **Implement Logic Last**: Implement the functions to satisfy the tests.
 2.  **PROOF OF WORK**: The remote CI system will NOT run heavy tests. **YOU are responsible for running tests in your local environment.**
-3.  **INCREMENTAL LINTING & TYPE CHECKING**: After creating or modifying EACH file, immediately run `uv run ruff check .`, `uv run ruff format .`, and `uv run mypy .` to fix issues incrementally. **DO NOT** wait until the end - this prevents massive conflicts and code collapse from accumulated linting errors.
+3.  **INCREMENTAL LINTING & TYPE CHECKING**: After creating or modifying EACH file, immediately run `uv run ruff check .`, `uv run ruff format .`, and `uv run mypy .` to fix issues incrementally.
+    - **SAFEGUARD**: If `ruff` or `mypy` checks fail because the tools are missing (e.g., "executable not found"), you **MUST INSTALL THEM** immediately using `uv add --dev ruff mypy` (or `uv pip install ruff mypy`) before proceeding.
+    - **DO NOT** wait until the end - this prevents massive conflicts and code collapse from accumulated linting errors.
 4.  **DEPENDENCY CONFLICT PROTOCOL (NO MOCKS ALLOWED)**:
     - **Trigger**: If `uv pip install` or `uv sync` fails due to version conflicts (e.g., `icet` not supporting Python 3.12).
     - **Action**: You are **AUTHORIZED** to downgrade the `requires-python` version in `pyproject.toml` (e.g., change `">=3.12"` to `">=3.10"`).
@@ -59,7 +61,9 @@ Your goal is to implement and **VERIFY** the features for **CYCLE {{cycle_id}}**
 ### 1. Phase 1: Blueprint Realization (Schema Implementation)
 **Before writing logic or tests, you MUST implement the Data Models.**
 - Read **Section 3: Design Architecture** in `SPEC.md` carefully.
-- Create the necessary Python files (e.g., `src/schemas.py`, `src/domain/models.py`) exactly as described.
+- **Modular Design**: Do NOT create a single massive file. Create a Python package `src/domain_models/`.
+- **Split Modules**: Create separate files for different domains (e.g., `src/domain_models/manifest.py`, `src/domain_models/config.py`).
+- **Export**: Expose main models in `src/domain_models/__init__.py` for cleaner imports.
 - **Requirements for Schemas**:
   - Use `pydantic.BaseModel`.
   - Enforce strict validation: `model_config = ConfigDict(extra="forbid")`.
@@ -127,9 +131,37 @@ This is effectively a self-refinement process. You must not assume your first dr
   - **NOTE**: The Auditor will check this file. It must show passing tests.
 - **Test Coverage**: You must ensure that the test coverage is **85%** or higher for all new code. Use `pytest-cov` to verify this if possible.
 
-### 6. Update README.md
-- **Update**: Update `README.md`, if necessary.
-- **DO NOT**: Do not modify the structure of the `README.md`.
+### 6. Documentation & README Best Practices (CRITICAL)
+**You MUST update `README.md` to reflect the current state of the software for End Users.**
+
+**Rules:**
+1.  **User-Centric**: Write for the END USER, not the developer. **DO NOT** mention "Cycle 0X", "Phase Y", or internal development jargon. Users do not care about your sprint schedule.
+2.  **Living Document**: The README must always compile and reflect the code *as it is right now*.
+3.  **Structure**: Strictly follow the standardized structure below.
+
+**Required README Structure:**
+
+1.  **Header**: Project Name, Badges (License, Python Ver), and a 1-line Catchphrase.
+2.  **Overview**:
+    - **What**: What is this software?
+    - **Why**: What problem does it solve?
+    - **Demo**: (Optional) Placeholder for screenshots.
+3.  **Features**: Bullet points of currently verified capabilities.
+4.  **Requirements**: Prerequisites (Python 3.x, Docker, etc.).
+5.  **Installation**: **Copy-Pasteable** commands.
+    ```bash
+    git clone ...
+    uv sync
+    ```
+6.  **Usage** (Most Important):
+    - Basic command to run the tool.
+    - Example configuration or input.
+7.  **Architecture/Structure**: Brief directory tree (src, structure).
+8.  **Roadmap**: (Optional) Future plans.
+
+**Action**:
+- **Refine**: Update existing sections. Do NOT just append "Cycle 2 completed". Integrate the new features into the "Features" list naturally.
+- **Verify**: Ensure the "Installation" and "Usage" commands are actually valid for the current checking code.
 
 ## Output Rules
 - **Create all source and test files.**

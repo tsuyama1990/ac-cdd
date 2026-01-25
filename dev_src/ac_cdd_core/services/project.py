@@ -40,10 +40,13 @@ class ProjectManager:
         else:
             return True, msg
 
-    def initialize_project(self, templates_path: str) -> None:
+    async def initialize_project(self, templates_path: str) -> None:
         """
         Initializes the project structure.
         """
+        from ac_cdd_core.services.git_ops import GitManager
+        from ac_cdd_core.process_runner import ProcessRunner
+
         docs_dir = Path(settings.paths.documents_dir)
         docs_dir.mkdir(parents=True, exist_ok=True)
 
@@ -159,10 +162,115 @@ FAST_MODEL=openrouter/nousresearch/hermes-3-llama-3.1-405b:free
             gitignore_path.write_text("\n".join(gitignore_entries) + "\n", encoding="utf-8")
             logger.info("✓ Created .gitignore")
 
-        # Fix permissions if running with elevated privileges
-        self._fix_permissions(docs_dir, env_example_path.parent, gitignore_path)
+        # Create .github/workflows/ci.yml
+        github_dir = Path.cwd() / ".github"
+        workflows_dir = github_dir / "workflows"
+        workflows_dir.mkdir(parents=True, exist_ok=True)
+        
+        ci_yml_path = workflows_dir / "ci.yml"
+        if not ci_yml_path.exists():
+            ci_content = """name: CI
 
-    def _fix_permissions(self, *paths: Path) -> None:  # noqa: C901, PLR0912, PLR0915
+on:
+  push:
+    branches: [ main, master, "dev/**", "feature/**" ]
+  pull_request:
+    branches: [ main, master, "dev/**", "feature/**" ]
+
+jobs:
+  quality:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install Dependencies
+        run: uv sync --all-extras --dev
+
+      - name: Lint (Ruff)
+        run: uv run ruff check .
+
+      - name: Check Formatting (Ruff)
+        run: uv run ruff format --check .
+
+      - name: Type Check (Mypy)
+        run: uv run mypy .
+
+      - name: Run Tests (Pytest)
+        run: uv run pytest
+"""
+            ci_yml_path.write_text(ci_content, encoding="utf-8")
+            logger.info(f"✓ Created CI workflow at {ci_yml_path}")
+
+        # Fix permissions if running with elevated privileges
+        self._fix_permissions(docs_dir, env_example_path.parent, gitignore_path, github_dir)
+
+        # ---------------------------------------------------------
+        # Dependency Installation & Git Initialization
+        # ---------------------------------------------------------
+        runner = ProcessRunner()
+        git = GitManager()
+
+        # 1. Initialize uv project (if needed)
+        # Check if pyproject.toml exists
+        if not (Path.cwd() / "pyproject.toml").exists():
+            logger.info("Initializing pyproject.toml...")
+            await runner.run_command(["uv", "init", "--no-workspace"], check=False)
+
+        # 2. Add Development Dependencies
+        # This creates/updates uv.lock and installs tools locally
+        logger.info("Installing development dependencies (ruff, mypy, pytest)...")
+        try:
+            await runner.run_command(
+                ["uv", "add", "--dev", "ruff", "mypy", "pytest", "pytest-cov"],
+                check=True
+            )
+            logger.info("✓ Dependencies installed successfully.")
+        except Exception as e:
+            logger.warning(f"Failed to install dependencies: {e}")
+
+        # 3. Git Operations
+        # Check if git is initialized
+        if not (Path.cwd() / ".git").exists():
+            logger.info("Initializing Git repository...")
+            await runner.run_command(["git", "init"], check=True)
+
+        try:
+            # Add all files
+            await git._run_git(["add", "."])
+            
+            # Commit
+            if await git.commit_changes("Initialize project with AC-CDD structure and dev dependencies"):
+                logger.info("✓ Changes committed.")
+                
+                # Push to main if remote exists
+                try:
+                    remote_url = await git.get_remote_url()
+                    if remote_url:
+                        # Ensure we are on main branch
+                        current_branch = await git.get_current_branch()
+                        logger.info(f"Pushing {current_branch} to origin...")
+                        await git.push_branch(current_branch)
+                        logger.info("✓ Successfully pushed to remote.")
+                    else:
+                        logger.info("No remote 'origin' configured. Skipping push.")
+                except Exception as e:
+                    logger.warning(f"Failed to push to remote: {e}")
+            else:
+                logger.info("No changes to commit.")
+
+        except Exception as e:
+            logger.warning(f"Git operations failed: {e}")
+
+    async def _fix_permissions(self, *paths: Path) -> None:  # noqa: C901, PLR0912, PLR0915
         """Fix file ownership to current user if created with elevated privileges."""
         import os
         import pwd

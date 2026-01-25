@@ -78,7 +78,15 @@ class GraphBuilder:
             },
         )
 
-        workflow.add_edge("uat_evaluate", END)
+        # Conditional edge from uat_evaluate for Refactoring Phase
+        workflow.add_conditional_edges(
+            "uat_evaluate",
+            self.nodes.route_uat,
+            {
+                "coder_session": "coder_session",
+                "end": END,
+            },
+        )
 
         return workflow
 

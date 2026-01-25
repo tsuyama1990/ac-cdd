@@ -97,7 +97,15 @@ User Acceptance Testing plan.
 **IMPORTANT:** This project enforces strict code quality standards using `ruff` and `mypy` in strict mode.
 
 **Modification Rules:**
-- **DO NOT MODIFY** any existing sections in `pyproject.toml`
+**Dependency Requirements (CRITICAL):**
+You **MUST** explicitly add the following tools to the `[dependency-groups] dev` section (or `[project.optional-dependencies]` if strictly following PEP 621 without `uv` features, but `dependency-groups` is preferred for `uv`):
+- `ruff`
+- `mypy`
+- `pytest`
+- `pytest-cov`
+
+**Modification Rules:**
+- **DO NOT MODIFY** any existing sections in `pyproject.toml` (except adding the required dependencies).
 - **ONLY OVERRIDE** the linter tool settings shown below if needed for project-specific requirements
 - The default configuration is optimized for AI-generated code quality
 

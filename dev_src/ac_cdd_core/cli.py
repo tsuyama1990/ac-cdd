@@ -81,7 +81,7 @@ def init() -> None:
             raise typer.Abort()
 
     # Don't check environment yet - .env doesn't exist
-    ProjectManager().initialize_project(str(settings.paths.templates))
+    asyncio.run(ProjectManager().initialize_project(str(settings.paths.templates)))
 
     # Get appropriate command prefix
     cmd = _get_command_prefix()

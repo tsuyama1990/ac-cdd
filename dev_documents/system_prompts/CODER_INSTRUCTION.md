@@ -9,7 +9,9 @@ Your goal is to implement and **VERIFY** the features for **CYCLE {{cycle_id}}**
     - **Write Tests Second**: Write tests based on the defined schemas (TDD).
     - **Implement Logic Last**: Implement the functions to satisfy the tests.
 2.  **PROOF OF WORK**: The remote CI system will NOT run heavy tests. **YOU are responsible for running tests in your local environment.**
-3.  **INCREMENTAL LINTING & TYPE CHECKING**: After creating or modifying EACH file, immediately run `uv run ruff check .`, `uv run ruff format .`, and `uv run mypy .` to fix issues incrementally. **DO NOT** wait until the end - this prevents massive conflicts and code collapse from accumulated linting errors.
+3.  **INCREMENTAL LINTING & TYPE CHECKING**: After creating or modifying EACH file, immediately run `uv run ruff check .`, `uv run ruff format .`, and `uv run mypy .` to fix issues incrementally.
+    - **SAFEGUARD**: If `ruff` or `mypy` checks fail because the tools are missing (e.g., "executable not found"), you **MUST INSTALL THEM** immediately using `uv add --dev ruff mypy` (or `uv pip install ruff mypy`) before proceeding.
+    - **DO NOT** wait until the end - this prevents massive conflicts and code collapse from accumulated linting errors.
 
 ## Inputs
 - `dev_documents/system_prompts/SYSTEM_ARCHITECTURE.md`
