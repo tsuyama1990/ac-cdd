@@ -1,30 +1,31 @@
 """State model for Jules session management using LangGraph."""
 
-from typing import Any, Literal
+from enum import Enum
+from typing import Any
 
 from pydantic import BaseModel, Field
 
-JulesSessionStatus = Literal[
-    "monitoring",
-    "inquiry_detected",
-    "answering_inquiry",
-    "validating_completion",
-    "checking_pr",
-    "requesting_pr_creation",
-    "waiting_for_pr",
-    "success",
-    "failed",
-    "timeout",
-]
+
+class SessionStatus(str, Enum):
+    MONITORING = "monitoring"
+    INQUIRY_DETECTED = "inquiry_detected"
+    ANSWERING_INQUIRY = "answering_inquiry"
+    VALIDATING_COMPLETION = "validating_completion"
+    CHECKING_PR = "checking_pr"
+    REQUESTING_PR_CREATION = "requesting_pr_creation"
+    WAITING_FOR_PR = "waiting_for_pr"
+    SUCCESS = "success"
+    FAILED = "failed"
+    TIMEOUT = "timeout"
 
 
 class JulesSessionState(BaseModel):
     """State for managing Jules session lifecycle with LangGraph."""
 
     # Session identification
-    session_url: str
-    session_name: str
-    status: JulesSessionStatus = "monitoring"
+    session_url: str = Field(default="")
+    session_name: str = Field(default="unknown")
+    status: SessionStatus = SessionStatus.MONITORING
 
     # Jules API state
     jules_state: str | None = None
@@ -52,8 +53,8 @@ class JulesSessionState(BaseModel):
 
     # Timing
     start_time: float = 0.0
-    timeout_seconds: int = 7200
-    poll_interval: int = 120
+    timeout_seconds: float = 7200.0
+    poll_interval: float = 120.0
 
     # Result
     error: str | None = None

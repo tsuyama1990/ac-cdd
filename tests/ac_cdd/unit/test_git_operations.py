@@ -99,13 +99,32 @@ async def test_merge_pr(git_manager: GitManager) -> None:
 
         # Verify command arguments
         # args[0] is the command list passed to run_command
-        call_args = mock_run.call_args[0][0]
-        assert call_args == ["gh", "pr", "merge", "123", "--squash", "--auto", "--delete-branch"]
+        # Note: merge_pr calls 'pr view' first, then 'pr merge'
+        # The LAST call should be the merge command
+
+        # We need to find the merge command in call_args_list because pr view might be called
+        merge_calls = [
+            call[0][0]
+            for call in mock_run.call_args_list
+            if "merge" in call[0][0] and "pr" in call[0][0]
+        ]
+        assert merge_calls
+        last_merge_args = merge_calls[-1]
+
+        # New behavior: tries immediate merge first (no --auto)
+        assert last_merge_args == ["gh", "pr", "merge", "123", "--squash", "--delete-branch"]
 
         # Merge with explicit method
+        mock_run.reset_mock()
         await git_manager.merge_pr(pr_number, method="merge")
-        call_args = mock_run.call_args[0][0]
-        assert call_args == ["gh", "pr", "merge", "123", "--merge", "--auto", "--delete-branch"]
+
+        merge_calls = [
+            call[0][0]
+            for call in mock_run.call_args_list
+            if "merge" in call[0][0] and "pr" in call[0][0]
+        ]
+        last_merge_args = merge_calls[-1]
+        assert last_merge_args == ["gh", "pr", "merge", "123", "--merge", "--delete-branch"]
 
 
 @pytest.mark.asyncio
@@ -117,12 +136,13 @@ async def test_create_final_pr_new(git_manager: GitManager) -> None:
 
     with patch.object(git_manager.runner, "run_command", new_callable=AsyncMock) as mock_run:
         # Mock gh pr list to return empty (no existing PR) -> check=False
-        # Mock push (checkout, push) -> check=True
+        # Mock push (checkout, pull, push) -> check=True
         # Mock gh pr create to return new PR URL -> check=True
 
         mock_run.side_effect = [
             ("", "", 0),  # gh pr list (empty)
             ("", "", 0),  # git checkout
+            ("", "", 0),  # git pull (added in refactor)
             ("", "", 0),  # git push
             ("https://github.com/user/repo/pull/456", "", 0),  # gh pr create
         ]
@@ -130,7 +150,7 @@ async def test_create_final_pr_new(git_manager: GitManager) -> None:
         pr_url = await git_manager.create_final_pr(integration_branch, title, body)
 
         assert "pull/456" in pr_url
-        assert mock_run.call_count == 4
+        assert mock_run.call_count == 5
 
 
 @pytest.mark.asyncio

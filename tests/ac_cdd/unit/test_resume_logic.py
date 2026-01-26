@@ -15,7 +15,7 @@ class TestResumeLogic:
         jules.run_session = AsyncMock()
         return sandbox, jules
 
-    @patch("ac_cdd_core.graph_nodes.SessionManager")
+    @patch("ac_cdd_core.graph_nodes.StateManager")
     async def test_hot_resume_active(
         self, mock_sm_cls: MagicMock, mock_dependencies: tuple[MagicMock, MagicMock]
     ) -> None:
@@ -26,7 +26,7 @@ class TestResumeLogic:
         # Setup Manifest with existing Jules Session
         mock_mgr = mock_sm_cls.return_value
         cycle = CycleManifest(id="01", jules_session_id="jules-existing-123")
-        mock_mgr.get_cycle = AsyncMock(return_value=cycle)
+        mock_mgr.get_cycle = MagicMock(return_value=cycle)
 
         # Setup Jules Client to return success on wait
         jules.wait_for_completion.return_value = {"status": "success", "pr_url": "http://pr"}
@@ -42,7 +42,7 @@ class TestResumeLogic:
         assert result["status"] == "ready_for_audit"
         assert result["pr_url"] == "http://pr"
 
-    @patch("ac_cdd_core.graph_nodes.SessionManager")
+    @patch("ac_cdd_core.graph_nodes.StateManager")
     async def test_fallback_to_new_session_and_persist(
         self, mock_sm_cls: MagicMock, mock_dependencies: tuple[MagicMock, MagicMock]
     ) -> None:
@@ -53,8 +53,8 @@ class TestResumeLogic:
         # Setup Manifest with NO existing session
         mock_mgr = mock_sm_cls.return_value
         cycle = CycleManifest(id="01", jules_session_id=None)
-        mock_mgr.get_cycle = AsyncMock(return_value=cycle)
-        mock_mgr.update_cycle_state = AsyncMock()
+        mock_mgr.get_cycle = MagicMock(return_value=cycle)
+        mock_mgr.update_cycle_state = MagicMock()
 
         # Setup Jules to return a new session
         jules.run_session.return_value = {
@@ -73,7 +73,7 @@ class TestResumeLogic:
         assert jules.run_session.await_args.kwargs["require_plan_approval"] is False
 
         # Verify Immediate Persistence
-        mock_mgr.update_cycle_state.assert_awaited_with(
+        mock_mgr.update_cycle_state.assert_called_with(
             "01", jules_session_id="jules-new-456", status="in_progress"
         )
 

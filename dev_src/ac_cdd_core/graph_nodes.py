@@ -47,6 +47,41 @@ class CycleNodes(IGraphNodes):
                 pass
         return result
 
+    async def _run_static_analysis(self) -> tuple[bool, str]:
+        """Runs local static analysis (mypy, ruff) and returns (success, output)."""
+        console.print("[bold cyan]Running Static Analysis (mypy, ruff)...[/bold cyan]")
+        output = []
+        success = True
+
+        # Run mypy
+        try:
+            # Using settings checks if possible, or default
+            mypy_cmd = ["uv", "run", "mypy", "."]
+            stdout, stderr, code = await self.git.runner.run_command(mypy_cmd, check=False)
+            if code != 0:
+                success = False
+                output.append("### mypy Errors")
+                output.append(f"```\n{stdout}{stderr}\n```")
+            else:
+                console.print("[green]mypy passed[/green]")
+        except Exception as e:
+            output.append(f"Failed to run mypy: {e}")
+
+        # Run ruff
+        try:
+            ruff_cmd = ["uv", "run", "ruff", "check", "."]
+            stdout, stderr, code = await self.git.runner.run_command(ruff_cmd, check=False)
+            if code != 0:
+                success = False
+                output.append("### ruff Errors")
+                output.append(f"```\n{stdout}{stderr}\n```")
+            else:
+                console.print("[green]ruff passed[/green]")
+        except Exception as e:
+            output.append(f"Failed to run ruff: {e}")
+
+        return success, "\n\n".join(output)
+
     async def architect_session_node(self, state: CycleState) -> dict[str, Any]:
         """Node for Architect Agent (Jules)."""
         console.print("[bold blue]Starting Architect Session...[/bold blue]")
@@ -98,46 +133,11 @@ class CycleNodes(IGraphNodes):
                 await self.git.merge_pr(pr_number)
                 console.print("[bold green]Architecture merged successfully![/bold green]")
 
-                # Fix permissions for merged files
+                # Prepare environment (fix perms, sync dependencies)
                 try:
-                    # Fix dev_documents path
-                    docs_dir = Path(settings.paths.documents_dir)
-                    ProjectManager()._fix_permissions(docs_dir)
+                    await ProjectManager().prepare_environment()
                 except Exception as e:
-                    console.print(f"[yellow]Warning: Could not fix permissions: {e}[/yellow]")
-
-                # Install dependencies (ensure ruff/mypy are available for next steps)
-                try:
-                    console.print("[bold blue]Installing dependencies (uv sync)...[/bold blue]")
-                    from .process_runner import ProcessRunner
-
-                    runner = ProcessRunner()
-
-                    # 1. Try sync first (assumes Architect added dependencies)
-                    result, stderr, code = await runner.run_command(
-                        ["uv", "sync", "--dev"], check=False
-                    )
-
-                    # 2. If sync failed or ruff/mypy missing, force add them
-                    # We check if they were supposed to be installed but failed,
-                    # or if we should just ensure they exist.
-                    # Best effort: force install to be safe.
-                    if code != 0:
-                        console.print(f"[yellow]uv sync failed: {stderr}. Attempting fix...[/yellow]")
-
-                    # Check if ruff/mypy are installed
-                    _, _, code_ruff = await runner.run_command(["uv", "run", "ruff", "--version"], check=False)
-                    _, _, code_mypy = await runner.run_command(["uv", "run", "mypy", "--version"], check=False)
-
-                    if code_ruff != 0 or code_mypy != 0:
-                        console.print("[yellow]Linters missing. Installing ruff and mypy...[/yellow]")
-                        await runner.run_command(["uv", "add", "--dev", "ruff", "mypy"], check=True)
-                        console.print("[green]✓ ruff and mypy installed.[/green]")
-                    else:
-                        console.print("[green]✓ Dependencies synchronized.[/green]")
-
-                except Exception as e:
-                    console.print(f"[yellow]Warning: Could not install dependencies: {e}[/yellow]")
+                    console.print(f"[yellow]Warning: Environment preparation issue: {e}[/yellow]")
 
             except Exception as e:
                 console.print(f"[bold red]Failed to auto-merge Architecture PR: {e}[/bold red]")
@@ -472,6 +472,10 @@ class CycleNodes(IGraphNodes):
             else settings.reviewer.fast_model
         )
 
+        # Run static analysis BEFORE or PARALLEL to LLM?
+        # Running before gives us clear fail signal.
+        static_ok, static_log = await self._run_static_analysis()
+
         audit_feedback = await self.llm_reviewer.review_code(
             target_files=target_files,
             context_docs=context_docs,
@@ -480,6 +484,14 @@ class CycleNodes(IGraphNodes):
         )
 
         status = "approved" if "NO ISSUES FOUND" in audit_feedback.upper() else "rejected"
+
+        # OVERRIDE: If static analysis failed, force rejection and append log
+        if not static_ok:
+            console.print("[bold red]Static Analysis Failed. Extending feedback...[/bold red]")
+            status = "rejected"
+            audit_feedback += "\n\n# AUTOMATED CHECKS FAILED (MUST FIX)\n"
+            audit_feedback += "The following static analysis errors were found. You MUST fix these before the code is accepted.\n"
+            audit_feedback += static_log
 
         result = AuditResult(
             status=status.upper(),
@@ -625,4 +637,3 @@ class CycleNodes(IGraphNodes):
         if status == "cycle_completed":
             return "end"
         return "end"  # failed etc.
-

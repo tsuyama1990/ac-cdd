@@ -9,6 +9,7 @@ from ac_cdd_core.messages import SuccessMessages
 from ac_cdd_core.services.project import ProjectManager
 from ac_cdd_core.services.workflow import WorkflowService
 from ac_cdd_core.state_manager import StateManager
+from ac_cdd_core.utils import get_command_prefix
 from rich.console import Console
 
 app = typer.Typer(help="AC-CDD: AI-Native Cycle-Based Contract-Driven Development Environment")
@@ -49,13 +50,6 @@ def _is_docker_environment() -> bool:
     return os.environ.get("DOCKER_CONTAINER") == "true"
 
 
-def _get_command_prefix() -> str:
-    """Get the appropriate command prefix based on environment."""
-    if _is_docker_environment():
-        return "docker-compose run --rm ac-cdd ac-cdd"
-    return "uv run manage.py"
-
-
 def check_environment() -> None:
     """Check that all required tools and keys are present."""
     if not utils.check_api_key():
@@ -84,7 +78,7 @@ def init() -> None:
     asyncio.run(ProjectManager().initialize_project(str(settings.paths.templates)))
 
     # Get appropriate command prefix
-    cmd = _get_command_prefix()
+    cmd = get_command_prefix()
 
     # Show next steps
     console.print("\n[bold green]✓ Project Structure Created![/bold green]\n")
@@ -385,7 +379,7 @@ def env_verify() -> None:  # noqa: PLR0915
         console.print(panel)
         raise typer.Exit(code=1)
 
-    cmd = _get_command_prefix()
+    cmd = get_command_prefix()
     panel = Panel(
         "[green]All required API keys are configured![/green]\n"
         "[green]Model configuration is valid![/green]\n\n"

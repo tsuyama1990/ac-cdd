@@ -140,6 +140,7 @@ class Settings(BaseSettings):
     JULES_API_KEY: str | None = None
     OPENROUTER_API_KEY: str | None = None
     MAX_RETRIES: int = 10
+    GRAPH_RECURSION_LIMIT: int = 200
     DUMMY_CYCLE_ID: str = "00"
     E2B_API_KEY: str | None = None
 

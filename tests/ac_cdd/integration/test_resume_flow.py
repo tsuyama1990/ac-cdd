@@ -19,13 +19,13 @@ def mock_jules_client(cycle_nodes: CycleNodes) -> Any:
 @pytest.mark.asyncio
 async def test_resume_logic_hot_resume(cycle_nodes: CycleNodes, mock_jules_client: Any) -> None:
     """Test hot resume functionality."""
-    # Mock SessionManager
-    with patch("ac_cdd_core.graph_nodes.SessionManager") as mock_sm_cls:
+    # Mock StateManager
+    with patch("ac_cdd_core.graph_nodes.StateManager") as mock_sm_cls:
         mock_mgr = mock_sm_cls.return_value
 
         # Setup cycle with existing session ID
         cycle = CycleManifest(id="01", jules_session_id="existing-session")
-        mock_mgr.get_cycle = AsyncMock(return_value=cycle)
+        mock_mgr.get_cycle = MagicMock(return_value=cycle)
 
         # Mock Jules Client
         mock_jules_client.wait_for_completion = AsyncMock(
@@ -45,14 +45,14 @@ async def test_resume_logic_cold_start_persists_id(
     cycle_nodes: CycleNodes, mock_jules_client: Any
 ) -> None:
     """Test cold start (no previous ID) persists new ID."""
-    # Mock SessionManager
-    with patch("ac_cdd_core.graph_nodes.SessionManager") as mock_sm_cls:
+    # Mock StateManager
+    with patch("ac_cdd_core.graph_nodes.StateManager") as mock_sm_cls:
         mock_mgr = mock_sm_cls.return_value
 
         # Setup cycle WITHOUT session ID
         cycle = CycleManifest(id="01", jules_session_id=None)
-        mock_mgr.get_cycle = AsyncMock(return_value=cycle)
-        mock_mgr.update_cycle_state = AsyncMock()
+        mock_mgr.get_cycle = MagicMock(return_value=cycle)
+        mock_mgr.update_cycle_state = MagicMock()
 
         # Mock Jules Client
         mock_jules_client.run_session = AsyncMock(
@@ -65,6 +65,6 @@ async def test_resume_logic_cold_start_persists_id(
         # Verify
         mock_jules_client.run_session.assert_awaited()
         # Verify persistence
-        mock_mgr.update_cycle_state.assert_awaited_with(
+        mock_mgr.update_cycle_state.assert_called_with(
             "01", jules_session_id="new-session", status="in_progress"
         )

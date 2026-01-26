@@ -3,7 +3,7 @@
 from typing import Literal
 
 from ac_cdd_core.jules_session_nodes import JulesSessionNodes
-from ac_cdd_core.jules_session_state import JulesSessionState
+from ac_cdd_core.jules_session_state import JulesSessionState, SessionStatus
 from langgraph.graph import END, StateGraph
 
 
@@ -11,11 +11,11 @@ def route_monitor(
     state: JulesSessionState,
 ) -> Literal["answer_inquiry", "validate_completion", "end", "monitor"]:
     """Route from monitor node based on detected state."""
-    if state.status == "inquiry_detected":
+    if state.status == SessionStatus.INQUIRY_DETECTED:
         return "answer_inquiry"
-    if state.status == "validating_completion":
+    if state.status == SessionStatus.VALIDATING_COMPLETION:
         return "validate_completion"
-    if state.status in ["failed", "timeout"]:
+    if state.status in [SessionStatus.FAILED, SessionStatus.TIMEOUT]:
         return "end"
     return "monitor"
 
@@ -24,7 +24,7 @@ def route_validation(
     state: JulesSessionState,
 ) -> Literal["monitor", "check_pr"]:
     """Route from validation node."""
-    if state.status == "monitoring":
+    if state.status == SessionStatus.MONITORING:
         return "monitor"
     return "check_pr"
 
@@ -33,7 +33,7 @@ def route_pr_check(
     state: JulesSessionState,
 ) -> Literal["end", "request_pr"]:
     """Route from PR check node."""
-    if state.status == "success":
+    if state.status == SessionStatus.SUCCESS:
         return "end"
     return "request_pr"
 
@@ -42,11 +42,11 @@ def route_pr_wait(
     state: JulesSessionState,
 ) -> Literal["end", "monitor", "wait_pr"]:
     """Route from PR wait node."""
-    if state.status == "success":
+    if state.status == SessionStatus.SUCCESS:
         return "end"
-    if state.status == "monitoring":
+    if state.status == SessionStatus.MONITORING:
         return "monitor"
-    if state.status in ["timeout", "failed"]:
+    if state.status in [SessionStatus.TIMEOUT, SessionStatus.FAILED]:
         return "end"
     return "wait_pr"
 

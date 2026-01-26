@@ -40,12 +40,12 @@ class ProjectManager:
         else:
             return True, msg
 
-    async def initialize_project(self, templates_path: str) -> None:
+    async def initialize_project(self, templates_path: str) -> None:  # noqa: C901, PLR0912, PLR0915
         """
         Initializes the project structure.
         """
-        from ac_cdd_core.services.git_ops import GitManager
         from ac_cdd_core.process_runner import ProcessRunner
+        from ac_cdd_core.services.git_ops import GitManager
 
         docs_dir = Path(settings.paths.documents_dir)
         docs_dir.mkdir(parents=True, exist_ok=True)
@@ -166,7 +166,7 @@ FAST_MODEL=openrouter/nousresearch/hermes-3-llama-3.1-405b:free
         github_dir = Path.cwd() / ".github"
         workflows_dir = github_dir / "workflows"
         workflows_dir.mkdir(parents=True, exist_ok=True)
-        
+
         ci_yml_path = workflows_dir / "ci.yml"
         if not ci_yml_path.exists():
             ci_content = """name: CI
@@ -183,7 +183,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Install uv
         uses: astral-sh/setup-uv@v4
         with:
@@ -211,7 +211,7 @@ jobs:
             logger.info(f"✓ Created CI workflow at {ci_yml_path}")
 
         # Fix permissions if running with elevated privileges
-        self._fix_permissions(docs_dir, env_example_path.parent, gitignore_path, github_dir)
+        await self._fix_permissions(docs_dir, env_example_path.parent, gitignore_path, github_dir)
 
         # ---------------------------------------------------------
         # Dependency Installation & Git Initialization
@@ -230,8 +230,7 @@ jobs:
         logger.info("Installing development dependencies (ruff, mypy, pytest)...")
         try:
             await runner.run_command(
-                ["uv", "add", "--dev", "ruff", "mypy", "pytest", "pytest-cov"],
-                check=True
+                ["uv", "add", "--dev", "ruff", "mypy", "pytest", "pytest-cov"], check=True
             )
             logger.info("✓ Dependencies installed successfully.")
         except Exception as e:
@@ -246,11 +245,13 @@ jobs:
         try:
             # Add all files
             await git._run_git(["add", "."])
-            
+
             # Commit
-            if await git.commit_changes("Initialize project with AC-CDD structure and dev dependencies"):
+            if await git.commit_changes(
+                "Initialize project with AC-CDD structure and dev dependencies"
+            ):
                 logger.info("✓ Changes committed.")
-                
+
                 # Push to main if remote exists
                 try:
                     remote_url = await git.get_remote_url()
@@ -270,10 +271,52 @@ jobs:
         except Exception as e:
             logger.warning(f"Git operations failed: {e}")
 
-    async def _fix_permissions(self, *paths: Path) -> None:  # noqa: C901, PLR0912, PLR0915
+    async def prepare_environment(self) -> None:
+        """
+        Prepares the environment for execution:
+        1. Fixes permissions of key directories.
+        2. Syncs dependencies using uv.
+        """
+        # Fix permissions first
+        docs_dir = Path(settings.paths.documents_dir)
+        await self.fix_permissions(docs_dir)
+
+        # Sync dependencies
+        from ac_cdd_core.process_runner import ProcessRunner
+
+        runner = ProcessRunner()
+
+        logger.info("[ProjectManager] Syncing dependencies...")
+        try:
+            # 1. Try sync
+            await runner.run_command(["uv", "sync", "--dev"], check=True)
+
+            # 2. Verify linters
+            _, _, code_ruff = await runner.run_command(
+                ["uv", "run", "ruff", "--version"], check=False
+            )
+            _, _, code_mypy = await runner.run_command(
+                ["uv", "run", "mypy", "--version"], check=False
+            )
+
+            if code_ruff != 0 or code_mypy != 0:
+                logger.info("[ProjectManager] Installing missing linters...")
+                await runner.run_command(["uv", "add", "--dev", "ruff", "mypy"], check=True)
+
+            logger.info("[ProjectManager] Environment prepared.")
+        except Exception as e:
+            logger.warning(f"[ProjectManager] Dependency sync failed: {e}")
+
+    async def fix_permissions(self, *paths: Path) -> None:
         """Fix file ownership to current user if created with elevated privileges."""
+        # Call the internal implementation (which was _fix_permissions)
+        await self._fix_permissions(*paths)
+
+    async def _fix_permissions(self, *paths: Path) -> None:  # noqa: C901, PLR0912, PLR0915
+        """Internal Fix file ownership implementation."""
         import os
         import pwd
+        # ... (rest of implementation is same as original)
 
         # Determine target UID and GID
         uid: int | None = None
@@ -352,6 +395,7 @@ jobs:
             "ARCHITECT_INSTRUCTION.md",
             "AUDITOR_INSTRUCTION.md",
             "CODER_INSTRUCTION.md",
+            "REFACTOR_INSTRUCTION.md",
             "UAT_DESIGN.md",
             "MANAGER_INSTRUCTION.md",
             "MANAGER_INQUIRY_PROMPT.md",

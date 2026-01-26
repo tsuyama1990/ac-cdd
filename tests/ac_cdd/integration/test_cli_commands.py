@@ -14,10 +14,11 @@ def mock_dependencies() -> Iterator[None]:
     with (
         patch("ac_cdd_core.cli.utils.check_api_key", return_value=True),
         patch("shutil.which", return_value="/usr/bin/git"),
-        patch("ac_cdd_core.cli.ProjectManager"),
+        patch("ac_cdd_core.cli.ProjectManager") as mock_pm_cls,
         patch("ac_cdd_core.cli.StateManager"),
         patch("ac_cdd_core.cli._WorkflowServiceHolder.get"),
     ):
+        mock_pm_cls.return_value.initialize_project = AsyncMock()
         yield
 
 

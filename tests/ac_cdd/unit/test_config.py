@@ -14,7 +14,7 @@ def mock_env() -> Generator[None, None, None]:
         os.environ,
         {
             "AC_CDD_REVIEWER__SMART_MODEL": "test-smart-model",
-            "AC_CDD_PATHS__DOCUMENTS_DIR": "/tmp/docs",  # noqa: S108
+            "AC_CDD_PATHS__DOCUMENTS_DIR": str(Path.cwd() / "docs_tmp"),
             "AC_CDD_JULES__TIMEOUT_SECONDS": "999",
         },
     ):
@@ -28,7 +28,7 @@ def test_config_env_vars_loaded(mock_env: Any) -> None:
     local_settings = Settings()
 
     assert local_settings.reviewer.smart_model == "test-smart-model"
-    assert str(local_settings.paths.documents_dir) == "/tmp/docs"  # noqa: S108
+    assert str(local_settings.paths.documents_dir) == str(Path.cwd() / "docs_tmp")
     assert local_settings.jules.timeout_seconds == 999
 
 
@@ -96,14 +96,16 @@ def test_path_separation() -> None:
     """
     local_settings = Settings()
 
+    # Mock paths directly
+    local_settings.paths.documents_dir = Path("/app/dev_documents")
+    # Setting mock spec filename for predictability
+    local_settings.filename_spec = "spec1.md"
+
     with (
-        patch("pathlib.Path.glob") as mock_glob,
         patch("pathlib.Path.rglob") as mock_rglob,
         patch("pathlib.Path.exists", return_value=True),
     ):
-        mock_glob.return_value = [Path("/app/dev_documents/spec1.md")]
-
-        # Mock rglob for src/tests
+        # Mock rglob for src/tests (get_target_files USES rglob)
         # get_target_files calls rglob twice: once on src, once on tests
         mock_rglob.side_effect = [
             [Path("/app/src/main.py")],  # src rglob
@@ -114,6 +116,7 @@ def test_path_separation() -> None:
         target_files = local_settings.get_target_files()
 
         # Verify Context Files
+        # get_context_files uses exists(), not glob, so it constructs path from documents_dir
         assert len(context_files) == 1
         assert context_files[0] == "/app/dev_documents/spec1.md"
         # Ensure no src files here

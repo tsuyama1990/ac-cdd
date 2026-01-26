@@ -23,6 +23,7 @@ class WorkflowService:
     def __init__(self) -> None:
         self.services = ServiceContainer.default()
         self.builder = GraphBuilder(self.services)
+        self.git = GitManager()
 
     async def run_gen_cycles(self, cycles: int, project_session_id: str | None) -> None:
         with KeepAwake(reason="Generating Architecture and Cycles"):
@@ -40,7 +41,10 @@ class WorkflowService:
 
         try:
             thread_id = project_session_id or "architect-session"
-            config = RunnableConfig(configurable={"thread_id": thread_id}, recursion_limit=50)
+            config = RunnableConfig(
+                configurable={"thread_id": thread_id},
+                recursion_limit=settings.GRAPH_RECURSION_LIMIT,
+            )
             final_state = await graph.ainvoke(initial_state, config)
 
             if final_state.get("error"):
@@ -170,7 +174,10 @@ class WorkflowService:
             )
 
             thread_id = f"cycle-{cycle_id}-{state.project_session_id}"
-            config = RunnableConfig(configurable={"thread_id": thread_id}, recursion_limit=50)
+            config = RunnableConfig(
+                configurable={"thread_id": thread_id},
+                recursion_limit=settings.GRAPH_RECURSION_LIMIT,
+            )
             final_state = await graph.ainvoke(state, config)
 
             if final_state.get("error"):
@@ -265,12 +272,12 @@ class WorkflowService:
             # Archive and reset for next phase
             # Archive and reset for next phase
             await self._archive_and_reset_state()
-            
+
         except Exception as e:
             console.print(f"[bold red]Finalization failed:[/bold red] {e}")
             sys.exit(1)
 
-    async def _archive_and_reset_state(self) -> None:
+    async def _archive_and_reset_state(self) -> None:  # noqa: C901
         """
         Archives current session artifacts to dev_documents/phase_n
         and resets the state for the next phase.
@@ -283,23 +290,25 @@ class WorkflowService:
             return
 
         # 1. Determine next phase number
-        existing_phases = [d for d in docs_dir.iterdir() if d.is_dir() and d.name.startswith("phase_")]
+        existing_phases = [
+            d for d in docs_dir.iterdir() if d.is_dir() and d.name.startswith("phase_")
+        ]
         next_phase_num = 1
         if existing_phases:
+            import contextlib
+
             nums = []
             for d in existing_phases:
-                try:
+                with contextlib.suppress(IndexError, ValueError):
                     nums.append(int(d.name.split("_")[1]))
-                except (IndexError, ValueError):
-                    pass
             if nums:
                 next_phase_num = max(nums) + 1
-        
+
         phase_dir = docs_dir / f"phase_{next_phase_num}"
         phase_dir.mkdir(parents=True, exist_ok=True)
         console.print(f"\n[bold cyan]Archiving session artifacts to {phase_dir}...[/bold cyan]")
 
-        async def move_item(src: Path, dest: Path):
+        async def move_item(src: Path, dest: Path) -> None:
             if not src.exists():
                 return
             try:
@@ -313,10 +322,12 @@ class WorkflowService:
         # 2. Archive files
         # ALL_SPEC.md
         await move_item(docs_dir / "ALL_SPEC.md", phase_dir / "ALL_SPEC.md")
-        
+
         # SYSTEM_ARCHITECTURE.md
         sys_prompts_dir = docs_dir / "system_prompts"
-        await move_item(sys_prompts_dir / "SYSTEM_ARCHITECTURE.md", phase_dir / "SYSTEM_ARCHITECTURE.md")
+        await move_item(
+            sys_prompts_dir / "SYSTEM_ARCHITECTURE.md", phase_dir / "SYSTEM_ARCHITECTURE.md"
+        )
 
         # CYCLEnn directories
         if sys_prompts_dir.exists():
@@ -333,14 +344,15 @@ class WorkflowService:
 
         # 4. Create empty ALL_SPEC.md for next phase
         (docs_dir / "ALL_SPEC.md").touch()
-        
+
         # 5. Commit the archiving
         try:
             await self.git._run_git(["add", "."])
-            await self.git._run_git(["commit", "-m", f"Archive Phase {next_phase_num-1} Artifacts"])
+            await self.git._run_git(
+                ["commit", "-m", f"Archive Phase {next_phase_num - 1} Artifacts"]
+            )
         except Exception as e:
             logger.warning(f"Failed to commit archive: {e}")
 
-        console.print(f"[green]Created fresh, empty ALL_SPEC.md for the next phase.[/green]")
+        console.print("[green]Created fresh, empty ALL_SPEC.md for the next phase.[/green]")
         console.print(f"[green]Ready for Phase {next_phase_num}![/green]")
-

@@ -8,7 +8,7 @@ from ac_cdd_core.services.git_ops import GitManager
 
 @pytest.fixture
 def mock_runner() -> Generator[Any, None, None]:
-    with patch("ac_cdd_core.services.git_ops.ProcessRunner") as MockRunner:
+    with patch("ac_cdd_core.services.git.base.ProcessRunner") as MockRunner:
         runner_instance = MockRunner.return_value
         runner_instance.run_command = AsyncMock()
         yield runner_instance
@@ -17,7 +17,7 @@ def mock_runner() -> Generator[Any, None, None]:
 @pytest.fixture
 def git_manager(mock_runner: Any) -> GitManager:
     # Mock settings to prevent loading real config
-    with patch("ac_cdd_core.services.git_ops.settings") as mock_settings:
+    with patch("ac_cdd_core.services.git.base.settings") as mock_settings:
         mock_settings.github_token = "dummy_token"  # noqa: S105
         manager = GitManager()
         # Replace the real runner with our mock

@@ -2,7 +2,7 @@
 
 import sys
 
-from ac_cdd_core.utils import check_api_key
+from ac_cdd_core.utils import check_api_key, get_command_prefix
 from rich.console import Console
 from rich.panel import Panel
 
@@ -13,13 +13,14 @@ class RecoveryMessages:
     @staticmethod
     def session_not_found() -> str:
         """Error message when no session can be found."""
+        cmd = get_command_prefix()
         return (
             "No session found.\n\n"
             "Recovery options:\n"
             "1. Start a new session:\n"
-            "   uv run manage.py gen-cycles\n"
+            f"   {cmd} gen-cycles\n"
             "2. If you have an existing session, specify it:\n"
-            "   uv run manage.py run-cycle --session <session-id>"
+            f"   {cmd} run-cycle --session <session-id>"
         )
 
     @staticmethod
@@ -36,7 +37,8 @@ class RecoveryMessages:
     @staticmethod
     def architect_merge_failed(pr_url: str) -> str:
         """Error message when architect PR merge fails."""
-        return RecoveryMessages.merge_failed(pr_url, "uv run manage.py run-cycle --id 01")
+        cmd = get_command_prefix()
+        return RecoveryMessages.merge_failed(pr_url, f"{cmd} run-cycle --id 01")
 
     @staticmethod
     def cycle_merge_failed(pr_url: str) -> str:
@@ -46,13 +48,14 @@ class RecoveryMessages:
     @staticmethod
     def branch_not_found(branch: str, session_file: str = ".ac_cdd_session.json") -> str:
         """Error message when integration branch doesn't exist."""
+        cmd = get_command_prefix()
         return (
             f"Integration branch '{branch}' does not exist.\n\n"
             f"Recovery options:\n"
             f"1. If you deleted the branch, clear the session file:\n"
             f"   rm {session_file}\n"
             f"2. If you want to recreate the session, run:\n"
-            f"   uv run manage.py gen-cycles\n"
+            f"   {cmd} gen-cycles\n"
             f"3. If the branch exists remotely, fetch it:\n"
             f"   git fetch origin {branch}:{branch}"
         )
@@ -89,20 +92,22 @@ class SuccessMessages:
     @staticmethod
     def architect_complete(session_id: str, integration_branch: str) -> str:
         """Success message for architect phase completion."""
+        cmd = get_command_prefix()
         return (
             f"✅ Architect Phase Complete! Session: {session_id}\n\n"
             f"Integration Branch: {integration_branch}\n"
             "Architecture PR has been merged to integration branch.\n\n"
             "Next Steps:\n"
             "1. Start implementing cycles:\n"
-            f"   uv run manage.py run-cycle --id 01 --session {session_id}\n"
+            f"   {cmd} run-cycle --id 01 --session {session_id}\n"
             "2. After all cycles complete, finalize the session:\n"
-            f"   uv run manage.py finalize-session --session {session_id}"
+            f"   {cmd} finalize-session --session {session_id}"
         )
 
     @staticmethod
     def cycle_complete(cycle_id: str, next_cycle_id: str) -> str:
         """Success message for cycle completion."""
+        cmd = get_command_prefix()
         return (
             f"✅ Cycle {cycle_id} Implementation Request Sent!\n\n"
             "Jules has created a Pull Request with the implementation.\n\n"
@@ -112,7 +117,7 @@ class SuccessMessages:
             "3. Pull the changes locally:\n"
             "   git checkout main && git pull\n"
             "4. Proceed to the next cycle:\n"
-            f"   uv run manage.py run-cycle --id {next_cycle_id}"
+            f"   {cmd} run-cycle --id {next_cycle_id}"
         )
 
     @staticmethod
@@ -128,6 +133,7 @@ class SuccessMessages:
     @staticmethod
     def session_finalized(pr_url: str) -> str:
         """Success message for session finalization."""
+        cmd = get_command_prefix()
         return (
             f"✅ Final PR Created!\n\n"
             f"PR URL: {pr_url}\n\n"
@@ -135,7 +141,7 @@ class SuccessMessages:
             "1. Review the PR on GitHub\n"
             "2. Merge to main when ready\n"
             "3. The integration branch will be automatically deleted\n\n"
-            "To start a new session, run: uv run manage.py gen-cycles"
+            f"To start a new session, run: {cmd} gen-cycles"
         )
 
     @staticmethod

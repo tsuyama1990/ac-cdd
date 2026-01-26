@@ -4,7 +4,7 @@ import asyncio
 from typing import Any
 
 import httpx
-from ac_cdd_core.jules_session_state import JulesSessionState
+from ac_cdd_core.jules_session_state import JulesSessionState, SessionStatus
 from ac_cdd_core.utils import logger
 from rich.console import Console
 
@@ -18,13 +18,13 @@ class JulesSessionNodes:
         """Initialize with reference to JulesClient for API calls."""
         self.client = jules_client
 
-    async def monitor_session(self, state: JulesSessionState) -> JulesSessionState:
+    async def monitor_session(self, state: JulesSessionState) -> JulesSessionState:  # noqa: C901
         """Monitor Jules session and detect state changes."""
         # Check timeout
         elapsed = asyncio.get_event_loop().time() - state.start_time
         if elapsed > state.timeout_seconds:
             logger.warning(f"Session timeout after {elapsed}s")
-            state.status = "timeout"
+            state.status = SessionStatus.TIMEOUT
             state.error = f"Timed out after {elapsed}s"
             return state
 
@@ -44,33 +44,36 @@ class JulesSessionNodes:
                 if state.jules_state == "FAILED":
                     # Debug output for failed state
                     import json
+
                     logger.error(f"Jules Session FAILED. Response: {json.dumps(data, indent=2)}")
-                    
+
                     error_msg = data.get("error", {}).get("message", "Unknown error")
-                    
+
                     # Resilience: Check if a PR was created despite the failure
                     # (Sometimes Jules marks session FAILED due to timeout/minor error but PR exists)
                     pr_found = False
-                    
+
                     # Check in outputs
                     for output in data.get("outputs", []):
                         if "github_pull_request" in str(output.get("type", "")):
-                             pr_found = True
-                             break
-                    
+                            pr_found = True
+                            break
+
                     # Check in activities (if outputs empty)
                     if not pr_found:
-                         activities = self.client.list_activities(state.session_url.split("/")[-1])
-                         for act in activities:
-                             if "pullRequest" in str(act) or "CreatePullRequest" in str(act):
-                                 pr_found = True
-                                 break
-                    
+                        activities = self.client.list_activities(state.session_url.split("/")[-1])
+                        for act in activities:
+                            if "pullRequest" in str(act) or "CreatePullRequest" in str(act):
+                                pr_found = True
+                                break
+
                     if pr_found:
-                        logger.warning("Session marked FAILED but PR activity detected. Proceeding to validation.")
-                        state.status = "checking_pr"
+                        logger.warning(
+                            "Session marked FAILED but PR activity detected. Proceeding to validation."
+                        )
+                        state.status = SessionStatus.CHECKING_PR
                     else:
-                        state.status = "failed"
+                        state.status = SessionStatus.FAILED
                         state.error = f"Jules Session Failed: {error_msg}"
                     return state
 
@@ -79,12 +82,12 @@ class JulesSessionNodes:
 
                 # CRITICAL FIX: If an inquiry was detected, return immediately to handle it.
                 # Do NOT let "COMPLETED" status overwrite a pending question.
-                if state.status == "inquiry_detected":
+                if state.status == SessionStatus.INQUIRY_DETECTED:
                     return state
 
-                # Check for completion (only COMPLETED state exists in Jules API)
-                if state.jules_state == "COMPLETED":
-                    state.status = "validating_completion"
+                # Check for completion
+                if state.jules_state in ["COMPLETED", "SUCCEEDED"]:
+                    state.status = SessionStatus.VALIDATING_COMPLETION
                     return state
 
                 # Update activity count
@@ -97,7 +100,7 @@ class JulesSessionNodes:
             logger.warning(f"Monitor loop error (transient): {e}")
 
         # Continue monitoring
-        await asyncio.sleep(state.poll_interval)
+        await self.client._sleep(state.poll_interval)
         return state
 
     async def _process_inquiries_in_monitor(
@@ -123,7 +126,7 @@ class JulesSessionNodes:
             if act_id and act_id not in state.processed_activity_ids:
                 state.current_inquiry = question
                 state.current_inquiry_id = act_id
-                state.status = "inquiry_detected"
+                state.status = SessionStatus.INQUIRY_DETECTED
 
     async def _update_activity_count(
         self, state: JulesSessionState, client: httpx.AsyncClient
@@ -143,7 +146,7 @@ class JulesSessionNodes:
     async def answer_inquiry(self, state: JulesSessionState) -> JulesSessionState:
         """Answer Jules' inquiry using Manager Agent."""
         if not state.current_inquiry or not state.current_inquiry_id:
-            state.status = "monitoring"
+            state.status = SessionStatus.MONITORING
             return state
 
         console.print(
@@ -169,7 +172,7 @@ class JulesSessionNodes:
             state.current_inquiry = None
             state.current_inquiry_id = None
 
-            await asyncio.sleep(5)
+            await self.client._sleep(5)
 
         except Exception as e:
             logger.error(f"Manager Agent failed: {e}")
@@ -181,10 +184,10 @@ class JulesSessionNodes:
             await self.client._send_message(state.session_url, fallback_msg)
             state.processed_activity_ids.add(state.current_inquiry_id)
 
-        state.status = "monitoring"
+        state.status = SessionStatus.MONITORING
         return state
 
-    async def validate_completion(self, state: JulesSessionState) -> JulesSessionState:
+    async def validate_completion(self, state: JulesSessionState) -> JulesSessionState:  # noqa: C901, PLR0912
         """Validate if COMPLETED state is genuine or if work is still ongoing."""
         try:
             async with httpx.AsyncClient() as client:
@@ -208,44 +211,57 @@ class JulesSessionNodes:
                     # If sessionCompleted exists, it's genuinely complete
                     if has_session_completed:
                         state.completion_validated = True
-                        state.status = "checking_pr"
+                        state.status = SessionStatus.CHECKING_PR
                         return state
 
                     # Logic removed: Checking for ongoing work indicators via keywords caused infinite loops.
-                    
+
                     # NEW FIX: If sessionCompleted is missing, check for distress/objections in the last message.
                     # This prevents auditing when Jules is complaining (e.g. "feedback inconsistent") but ends session.
                     if not has_session_completed:
                         try:
                             # Use existing client to fetch messages
                             msgs_url = f"{state.session_url}/messages"
-                            msg_resp = await client.get(msgs_url, headers=self.client._get_headers())
+                            msg_resp = await client.get(
+                                msgs_url, headers=self.client._get_headers()
+                            )
                             if msg_resp.status_code == httpx.codes.OK:
                                 messages = msg_resp.json().get("messages", [])
                                 if messages:
                                     last_msg = messages[-1]
-                                    
+
                                     # Verify last message is from AGENT
-                                    sender = last_msg.get("author", last_msg.get("role", last_msg.get("type", ""))).upper()
+                                    sender = last_msg.get(
+                                        "author", last_msg.get("role", last_msg.get("type", ""))
+                                    ).upper()
                                     if sender in ["AGENT", "MODEL", "ASSISTANT", "JULES"]:
                                         # Check for distress keywords
                                         content = last_msg.get("content", "").lower()
                                         distress_keywords = [
-                                            "inconsistent", "cannot act", "faulty audit", "incorrect version",
-                                            "please manually", "blocked", "error", "issue with", "reiterate"
+                                            "inconsistent",
+                                            "cannot act",
+                                            "faulty audit",
+                                            "incorrect version",
+                                            "please manually",
+                                            "blocked",
+                                            "error",
+                                            "issue with",
+                                            "reiterate",
                                         ]
                                         if any(k in content for k in distress_keywords):
                                             # Generate ID to prevent infinite inquiry loop on same message
                                             msg_id = last_msg.get("name") or str(hash(content))
-                                            
+
                                             if msg_id in state.processed_activity_ids:
                                                 # Already handled this distress message
                                                 pass
                                             else:
-                                                logger.warning("Detected distress/objection in last message. Treating as inquiry.")
+                                                logger.warning(
+                                                    "Detected distress/objection in last message. Treating as inquiry."
+                                                )
                                                 state.current_inquiry = last_msg.get("content")
                                                 state.current_inquiry_id = msg_id
-                                                state.status = "inquiry_detected"
+                                                state.status = SessionStatus.INQUIRY_DETECTED
                                                 return state
                         except Exception as e:
                             logger.warning(f"Failed to check last message content: {e}")
@@ -261,13 +277,13 @@ class JulesSessionNodes:
             "No sessionCompleted activity found, but no ongoing work detected. Proceeding to PR check."
         )
         state.completion_validated = True
-        state.status = "checking_pr"
+        state.status = SessionStatus.CHECKING_PR
         return state
 
-    async def check_pr(self, state: JulesSessionState) -> JulesSessionState:
+    async def check_pr(self, state: JulesSessionState) -> JulesSessionState:  # noqa: C901
         """Check for PR in session outputs and activities."""
         if not state.raw_data:
-            state.status = "requesting_pr_creation"
+            state.status = SessionStatus.REQUESTING_PR_CREATION
             return state
 
         # Check session outputs
@@ -277,7 +293,7 @@ class JulesSessionNodes:
                 if pr_url:
                     console.print(f"\n[bold green]PR Created: {pr_url}[/bold green]")
                     state.pr_url = pr_url
-                    state.status = "success"
+                    state.status = SessionStatus.SUCCESS
                     return state
 
         # Check activities
@@ -300,14 +316,14 @@ class JulesSessionNodes:
                                 console.print(f"\n[bold green]PR Created: {pr_url}[/bold green]")
                                 logger.info(f"Found PR in activities: {pr_url}")
                                 state.pr_url = pr_url
-                                state.status = "success"
+                                state.status = SessionStatus.SUCCESS
                                 return state
         except Exception as e:
             logger.debug(f"Failed to check activities for PR: {e}")
 
         # No PR found
         console.print("[yellow]Session Completed but NO PR found.[/yellow]")
-        state.status = "requesting_pr_creation"
+        state.status = SessionStatus.REQUESTING_PR_CREATION
         return state
 
     async def request_pr_creation(self, state: JulesSessionState) -> JulesSessionState:
@@ -328,19 +344,19 @@ class JulesSessionNodes:
         await self.client._send_message(state.session_url, message)
         console.print("[dim]Waiting for Jules to create PR...[/dim]")
 
-        state.status = "waiting_for_pr"
+        state.status = SessionStatus.WAITING_FOR_PR
         state.fallback_elapsed_seconds = 0
         return state
 
     async def wait_for_pr(self, state: JulesSessionState) -> JulesSessionState:  # noqa: C901
         """Wait for PR creation after manual request, with session state re-validation."""
-        await asyncio.sleep(10)
+        await self.client._sleep(10)
         state.fallback_elapsed_seconds += 10
 
         # Check timeout
         if state.fallback_elapsed_seconds >= state.fallback_max_wait:
             logger.warning(f"Timeout ({state.fallback_max_wait}s) waiting for Jules to create PR")
-            state.status = "timeout"
+            state.status = SessionStatus.TIMEOUT
             state.error = f"Timeout waiting for PR after {state.fallback_max_wait}s"
             return state
 
@@ -356,7 +372,7 @@ class JulesSessionNodes:
                         logger.info(
                             "Session returned to IN_PROGRESS during PR wait. Returning to monitoring."
                         )
-                        state.status = "monitoring"
+                        state.status = SessionStatus.MONITORING
                         state.jules_state = current_state
                         return state
 
@@ -379,7 +395,7 @@ class JulesSessionNodes:
                             if pr_url:
                                 console.print(f"[bold green]PR Created: {pr_url}[/bold green]")
                                 state.pr_url = pr_url
-                                state.status = "success"
+                                state.status = SessionStatus.SUCCESS
                                 return state
 
                         # Log new activities

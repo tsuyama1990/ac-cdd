@@ -120,7 +120,7 @@ class StateManager:
 
         normalized_id = self._normalize_id(cycle_id)
         for cycle in manifest.cycles:
-            if cycle.id == cycle_id or cycle.id == normalized_id:
+            if cycle.id in (cycle_id, normalized_id):
                 return cycle
         return None
 
@@ -145,7 +145,7 @@ class StateManager:
 
         normalized_id = self._normalize_id(cycle_id)
         cycle = next(
-            (c for c in manifest.cycles if c.id == cycle_id or c.id == normalized_id),
+            (c for c in manifest.cycles if c.id in (cycle_id, normalized_id)),
             None,
         )
         if not cycle:

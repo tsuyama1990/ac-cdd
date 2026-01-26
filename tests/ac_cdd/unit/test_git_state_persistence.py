@@ -42,7 +42,7 @@ class TestGitStatePersistence:
         assert "show" in args[0]
         assert "ac-cdd/state:test.json" in args[0]
 
-    @patch("ac_cdd_core.services.git_ops.tempfile.TemporaryDirectory")
+    @patch("ac_cdd_core.services.git.state.tempfile.TemporaryDirectory")
     @patch("ac_cdd_core.process_runner.ProcessRunner.run_command")
     @patch("pathlib.Path.write_text")  # Mock writing file
     async def test_save_state_file(

@@ -78,6 +78,30 @@ def check_api_key() -> bool:
     return True
 
 
+def get_command_prefix() -> str:
+    """Get the appropriate command prefix based on environment."""
+    import os
+    from pathlib import Path
+
+    # Method 1: Check for .dockerenv file
+    if Path("/.dockerenv").exists():
+        return "docker-compose run --rm ac-cdd ac-cdd"
+
+    # Method 2: Check cgroup for docker
+    try:
+        with Path("/proc/self/cgroup").open() as f:
+            if "docker" in f.read():
+                return "docker-compose run --rm ac-cdd ac-cdd"
+    except (FileNotFoundError, PermissionError):
+        pass
+
+    # Method 3: Check environment variable
+    if os.environ.get("DOCKER_CONTAINER") == "true":
+        return "docker-compose run --rm ac-cdd ac-cdd"
+
+    return "uv run manage.py"
+
+
 class KeepAwake:
     """
     Context manager to prevent system sleep/suspension during long operations.
