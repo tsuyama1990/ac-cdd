@@ -35,10 +35,7 @@ class JulesSessionNodes:
                 response.raise_for_status()
                 data = response.json()
 
-                new_state = data.get("state")
-                if new_state != state.jules_state:
-                    state.previous_jules_state = state.jules_state
-                state.jules_state = new_state
+                state.jules_state = data.get("state")
                 state.raw_data = data
 
                 logger.info(f"Jules session state: {state.jules_state}")

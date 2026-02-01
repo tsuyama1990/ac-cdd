@@ -1,4 +1,3 @@
-
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -11,13 +10,13 @@ class TestPhaseTransition:
     """Validate state reset when transitioning between phases."""
 
     @pytest.mark.asyncio
-    async def test_refactor_phase_resets_final_fix(self):
+    async def test_refactor_phase_resets_final_fix(self) -> None:
         """Should reset final_fix flag on Refactor Phase transition."""
         # Setup mocks
         mock_sandbox = MagicMock(spec=SandboxRunner)
         mock_jules = MagicMock(spec=JulesClient)
         nodes = CycleNodes(mock_sandbox, mock_jules)
-        nodes.git = AsyncMock() # Mock git manager
+        nodes.git = AsyncMock()  # Mock git manager
 
         # Simulate Coder Phase state with final_fix=True (which causes the bug)
         state = {
@@ -25,8 +24,8 @@ class TestPhaseTransition:
             "final_fix": True,
             "iteration_count": 5,
             "pr_url": "https://github.com/repo/pull/1",
-            "status": "cycle_approved", # Trigger transition logic
-            "last_feedback_time": 1234567890.0
+            "status": "cycle_approved",  # Trigger transition logic
+            "last_feedback_time": 1234567890.0,
         }
 
         # Mock git.merge_pr to succeed, allowing transition logic to run

@@ -20,7 +20,9 @@ class CycleManifest(BaseModel):
     pr_url: str | None = None
     last_error: str | None = None
     # Session restart tracking
-    session_restart_count: int = Field(default=0, description="Number of session restarts attempted")
+    session_restart_count: int = Field(
+        default=0, description="Number of session restarts attempted"
+    )
     max_session_restarts: int = Field(default=2, description="Maximum allowed session restarts")
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

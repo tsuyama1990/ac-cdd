@@ -469,9 +469,7 @@ class JulesClient:
 
         async with httpx.AsyncClient() as client:
             try:
-                resp = await client.get(
-                    session_url, headers=self._get_headers(), timeout=10.0
-                )
+                resp = await client.get(session_url, headers=self._get_headers(), timeout=10.0)
                 resp.raise_for_status()
                 data = resp.json()
                 return str(data.get("state", "UNKNOWN"))
@@ -483,7 +481,7 @@ class JulesClient:
         self,
         session_url: str,
         processed_ids: set[str],
-        processed_completion_ids: set[str] | None = None
+        processed_completion_ids: set[str] | None = None,
     ) -> None:
         try:
             session_id_path = session_url.split(f"{self.base_url}/")[-1]

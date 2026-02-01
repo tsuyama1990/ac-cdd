@@ -211,12 +211,13 @@ class CycleNodes(IGraphNodes):
                     result = await self.jules.wait_for_completion(cycle_manifest.jules_session_id)
                     if result.get("status") == "success" or result.get("pr_url"):
                         return {"status": "ready_for_audit", "pr_url": result.get("pr_url")}
-                    console.print("[yellow]Jules session did not produce PR. Continuing...[/yellow]")
+                    console.print(
+                        "[yellow]Jules session did not produce PR. Continuing...[/yellow]"
+                    )
                 except Exception as e:
                     console.print(f"[yellow]Wait for completion failed: {e}[/yellow]")
             else:
                 console.print("[yellow]No active Jules session found. Continuing...[/yellow]")
-
 
         # 1. Try Resume if session ID exists, but ONLY if we are not in a retry loop.
         # If status is 'retry_fix', we need to send feedback (handled below), not just resume.
@@ -257,9 +258,7 @@ class CycleNodes(IGraphNodes):
             # Check if we have an existing Jules session to reuse
             if cycle_manifest and cycle_manifest.jules_session_id:
                 # Check if session is still active before attempting reuse
-                session_state = await self.jules.get_session_state(
-                    cycle_manifest.jules_session_id
-                )
+                session_state = await self.jules.get_session_state(cycle_manifest.jules_session_id)
 
                 # Allow reuse for IN_PROGRESS and COMPLETED (Auditor Reject case)
                 # Only create new session if FAILED
@@ -278,7 +277,9 @@ class CycleNodes(IGraphNodes):
                         "[yellow]Previous session FAILED. Creating new session for retry...[/yellow]"
                     )
                     # Fallback: Inject feedback into new session prompt
-                    instruction += f"\n\n# PREVIOUS AUDIT FEEDBACK (MUST FIX)\n{last_audit.feedback}"
+                    instruction += (
+                        f"\n\n# PREVIOUS AUDIT FEEDBACK (MUST FIX)\n{last_audit.feedback}"
+                    )
                     if cycle_manifest.pr_url:
                         instruction += f"\n\nPrevious PR: {cycle_manifest.pr_url}"
                 else:
@@ -286,7 +287,9 @@ class CycleNodes(IGraphNodes):
                     console.print(
                         f"[yellow]Session in unexpected state: {session_state}. Creating new session...[/yellow]"
                     )
-                    instruction += f"\n\n# PREVIOUS AUDIT FEEDBACK (MUST FIX)\n{last_audit.feedback}"
+                    instruction += (
+                        f"\n\n# PREVIOUS AUDIT FEEDBACK (MUST FIX)\n{last_audit.feedback}"
+                    )
                     if cycle_manifest.pr_url:
                         instruction += f"\n\nPrevious PR: {cycle_manifest.pr_url}"
             else:
@@ -355,7 +358,7 @@ class CycleNodes(IGraphNodes):
                         cycle_id,
                         jules_session_id=None,
                         session_restart_count=new_restart_count,
-                        last_error=str(e)
+                        last_error=str(e),
                     )
 
                     # Recursively retry (this will create a new session)
@@ -384,7 +387,7 @@ class CycleNodes(IGraphNodes):
                             cycle_id,
                             jules_session_id=None,
                             session_restart_count=new_restart_count,
-                            last_error=result.get("error", "Unknown error")
+                            last_error=result.get("error", "Unknown error"),
                         )
 
                         return await self.coder_session_node(state)
@@ -465,7 +468,9 @@ class CycleNodes(IGraphNodes):
                             # Return early with a special status to skip audit
                             return {
                                 "status": "waiting_for_jules",
-                                "audit_result": state.get("audit_result"),  # Keep previous audit result
+                                "audit_result": state.get(
+                                    "audit_result"
+                                ),  # Keep previous audit result
                                 "last_audited_commit": last_audited,
                             }
 

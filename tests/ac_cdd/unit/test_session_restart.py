@@ -10,14 +10,16 @@ class TestSessionRestart:
     """Test session restart logic on failure."""
 
     @pytest.fixture
-    def mock_nodes(self):
+    def mock_nodes(self):  # type: ignore[no-untyped-def]
         sandbox = MagicMock(spec=SandboxRunner)
         jules = MagicMock(spec=JulesClient)
         jules.run_session = AsyncMock()
         jules.wait_for_completion = AsyncMock()
 
-        with patch("ac_cdd_core.graph_nodes.GitManager"), \
-             patch("ac_cdd_core.graph_nodes.settings") as mock_settings:
+        with (
+            patch("ac_cdd_core.graph_nodes.GitManager"),
+            patch("ac_cdd_core.graph_nodes.settings") as mock_settings,
+        ):
             mock_settings.get_template.return_value.read_text.return_value = "Instruction"
             mock_settings.get_target_files.return_value = []
             mock_settings.get_context_files.return_value = []
@@ -27,14 +29,14 @@ class TestSessionRestart:
             yield nodes
 
     @pytest.mark.asyncio
-    async def test_session_restart_on_failure(self, mock_nodes):
+    async def test_session_restart_on_failure(self, mock_nodes) -> None:  # type: ignore[no-untyped-def]
         """Should restart session when Jules fails, up to max_session_restarts."""
         # Setup state
         state = {
             "cycle_id": "01",
             "iteration_count": 1,
             "current_phase": "coder",
-            "status": "start"
+            "status": "start",
         }
 
         # Mock StateManager
@@ -46,7 +48,7 @@ class TestSessionRestart:
         # First attempt fails, second succeeds
         call_count = 0
 
-        def run_session_side_effect(*args, **kwargs):
+        def run_session_side_effect(*args, **kwargs):  # type: ignore[no-untyped-def]
             nonlocal call_count
             call_count += 1
             if call_count == 1:
@@ -55,9 +57,10 @@ class TestSessionRestart:
             # Second attempt - return session that will succeed
             return {"session_name": "sessions/success_456", "status": "running"}
 
-        def wait_for_completion_side_effect(session_id):
+        def wait_for_completion_side_effect(session_id):  # type: ignore[no-untyped-def]
             if "fail" in session_id:
-                raise JulesSessionError("Jules Session Failed: Unknown error")
+                msg = "Jules Session Failed: Unknown error"
+                raise JulesSessionError(msg)
             return {"status": "success", "pr_url": "https://github.com/pr/1"}
 
         mock_nodes.jules.run_session.side_effect = run_session_side_effect
@@ -69,7 +72,7 @@ class TestSessionRestart:
             # Track updates to manifest
             update_calls = []
 
-            def track_updates(cycle_id, **kwargs):
+            def track_updates(cycle_id, **kwargs):  # type: ignore[no-untyped-def]
                 update_calls.append(kwargs)
                 # Update mock manifest based on calls
                 if "session_restart_count" in kwargs:
@@ -90,17 +93,23 @@ class TestSessionRestart:
         assert mock_nodes.jules.run_session.call_count == 2
 
         # Verify restart counter was incremented then reset
-        assert any("session_restart_count" in call and call["session_restart_count"] == 1 for call in update_calls)
-        assert any("session_restart_count" in call and call["session_restart_count"] == 0 for call in update_calls)
+        assert any(
+            "session_restart_count" in call and call["session_restart_count"] == 1
+            for call in update_calls
+        )
+        assert any(
+            "session_restart_count" in call and call["session_restart_count"] == 0
+            for call in update_calls
+        )
 
     @pytest.mark.asyncio
-    async def test_session_restart_max_limit(self, mock_nodes):
+    async def test_session_restart_max_limit(self, mock_nodes) -> None:  # type: ignore[no-untyped-def]
         """Should fail after max_session_restarts attempts."""
         state = {
             "cycle_id": "01",
             "iteration_count": 1,
             "current_phase": "coder",
-            "status": "start"
+            "status": "start",
         }
 
         mock_manifest = MagicMock()
@@ -109,13 +118,17 @@ class TestSessionRestart:
         mock_manifest.max_session_restarts = 2
 
         # All attempts fail
-        mock_nodes.jules.run_session.return_value = {"session_name": "sessions/fail_123", "status": "running"}
-        mock_nodes.jules.wait_for_completion.side_effect = JulesSessionError("Jules Session Failed: Unknown error")
+        mock_nodes.jules.run_session.return_value = {
+            "session_name": "sessions/fail_123",
+            "status": "running",
+        }
+        msg = "Jules Session Failed: Unknown error"
+        mock_nodes.jules.wait_for_completion.side_effect = JulesSessionError(msg)
 
         with patch("ac_cdd_core.graph_nodes.StateManager") as MockManager:
             instance = MockManager.return_value
 
-            def track_updates(cycle_id, **kwargs):
+            def track_updates(cycle_id, **kwargs):  # type: ignore[no-untyped-def]
                 if "session_restart_count" in kwargs:
                     mock_manifest.session_restart_count = kwargs["session_restart_count"]
 

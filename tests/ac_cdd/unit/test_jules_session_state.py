@@ -1,4 +1,3 @@
-
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -9,13 +8,13 @@ class TestSessionStateValidation:
     """Validate session state checking before operations."""
 
     @pytest.fixture
-    def mock_client(self):
+    def mock_client(self):  # type: ignore[no-untyped-def]
         client = JulesClient()
         client.api_client._request = MagicMock()
         return client
 
     @pytest.mark.asyncio
-    async def test_get_session_state_in_progress(self, mock_client):
+    async def test_get_session_state_in_progress(self, mock_client) -> None:  # type: ignore[no-untyped-def]
         """Should return IN_PROGRESS for active session."""
         # Mock API response via httpx since _request might be lower level in api_client but JulesClient mostly uses it or httpx directly.
         # Looking at HANDOFF_SUMMARY implementation, get_session_state uses a fresh httpx client.
@@ -37,7 +36,7 @@ class TestSessionStateValidation:
             # The method implementation should handle sessions/ prefix or not
 
     @pytest.mark.asyncio
-    async def test_get_session_state_completed(self, mock_client):
+    async def test_get_session_state_completed(self, mock_client) -> None:  # type: ignore[no-untyped-def]
         """Should return COMPLETED for finished session."""
         with patch("httpx.AsyncClient") as mock_cls:
             mock_instance = AsyncMock()
@@ -53,7 +52,7 @@ class TestSessionStateValidation:
             assert state == "COMPLETED"
 
     @pytest.mark.asyncio
-    async def test_get_session_state_on_error(self, mock_client):
+    async def test_get_session_state_on_error(self, mock_client) -> None:  # type: ignore[no-untyped-def]
         """Should return UNKNOWN on exception."""
         with patch("httpx.AsyncClient") as mock_cls:
             mock_instance = AsyncMock()

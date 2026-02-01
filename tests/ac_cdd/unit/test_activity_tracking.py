@@ -1,14 +1,10 @@
-
-from unittest.mock import MagicMock
-
-from ac_cdd_core.jules_session_nodes import JulesSessionNodes
 from ac_cdd_core.jules_session_state import JulesSessionState
 
 
 class TestActivityTracking:
     """Validate activity ID tracking and scoping."""
 
-    def test_state_initialization(self):
+    def test_state_initialization(self) -> None:
         """Should initialize with separate tracking sets if implemented."""
         state = JulesSessionState(session_url="http://test")
 
@@ -18,19 +14,11 @@ class TestActivityTracking:
         assert hasattr(state, "processed_inquiry_ids")
         assert isinstance(state.processed_completion_ids, set)
 
-    def test_stale_completion_detection_separation(self):
+    def test_stale_completion_detection_separation(self) -> None:
         """Should use specific set for completion tracking."""
-        # Setup mock nodes
-        nodes = JulesSessionNodes(MagicMock())
-
         # Setup state
         state = JulesSessionState(session_url="http://test")
         state.processed_completion_ids.add("comp_1")
-
-        # Mock activity response
-        activities = [
-            {"name": "comp_1", "sessionCompleted": {}} # Stale
-        ]
 
         # We need to simulate the logic inside monitor_session or similar.
         # But monitor_session is an async loop.
@@ -39,5 +27,3 @@ class TestActivityTracking:
 
         # However, we can assert that logic USES the new set.
         # But that's implementation detail.
-
-

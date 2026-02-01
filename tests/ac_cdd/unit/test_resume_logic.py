@@ -75,10 +75,12 @@ class TestResumeLogic:
         # Verify Immediate Persistence (session ID was saved)
         # Note: There may be multiple calls (e.g., to reset session_restart_count)
         assert any(
-            call.args == ("01",) and 
-            call.kwargs.get("jules_session_id") == "jules-new-456" and
-            call.kwargs.get("status") == "in_progress"
+            call.args == ("01",)
+            and call.kwargs.get("jules_session_id") == "jules-new-456"
+            and call.kwargs.get("status") == "in_progress"
             for call in mock_mgr.update_cycle_state.call_args_list
-        ), f"Expected update_cycle_state call with session_id not found. Calls: {mock_mgr.update_cycle_state.call_args_list}"
+        ), (
+            f"Expected update_cycle_state call with session_id not found. Calls: {mock_mgr.update_cycle_state.call_args_list}"
+        )
 
         assert result["status"] == "ready_for_audit"
