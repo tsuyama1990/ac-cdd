@@ -62,6 +62,25 @@ class ProjectManager:
                 encoding="utf-8",
             )
 
+        # Create USER_TEST_SCENARIO.md (Target User Experience) if not exists
+        uts_dest = docs_dir / "USER_TEST_SCENARIO.md"
+        if not uts_dest.exists():
+            uts_content = """# User Test Scenario & Tutorial Plan
+
+## Aha! Moment
+Describe the "Magic Moment" where the user first realizes the value of this software.
+(e.g., "The user runs one command and sees a beautiful report generated instantly.")
+
+## Prerequisites
+List what the user needs before running the tutorial.
+(e.g., "OpenAI API Key", "Docker installed")
+
+## Success Criteria
+What defines a successful user experience?
+(e.g., "The tutorial runs from start to finish without errors in under 5 minutes.")
+"""
+            uts_dest.write_text(uts_content, encoding="utf-8")
+
         # Create other necessary dirs
         (docs_dir / "contracts").mkdir(exist_ok=True)
 
@@ -400,6 +419,7 @@ jobs:
             "MANAGER_INSTRUCTION.md",
             "MANAGER_INQUIRY_PROMPT.md",
             "PLAN_REVIEW_PROMPT.md",
+            "QA_TUTORIAL_INSTRUCTION.md",
         ]
 
         # Source directory: package templates (always available)

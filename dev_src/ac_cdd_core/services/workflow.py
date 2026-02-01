@@ -1,5 +1,6 @@
 import os
 import sys
+from pathlib import Path
 
 from ac_cdd_core.config import settings
 from ac_cdd_core.domain_models import CycleManifest
@@ -115,6 +116,9 @@ class WorkflowService:
             console.print(
                 f"[bold green]Completed Cycle {cid} ({idx}/{len(cycles_to_run)})[/bold green]"
             )
+
+        # After all cycles, run QA/Tutorial Generation
+        await self.generate_tutorials(project_session_id)
 
     async def _run_single_cycle(
         self,
@@ -245,6 +249,68 @@ class WorkflowService:
                 console.print("[bold red]Session Failed.[/bold red]")
                 logger.exception("Session Failed")
                 sys.exit(1)
+
+    async def generate_tutorials(self, project_session_id: str | None) -> None:
+        """
+        QA Phase: Generate and verify tutorials based on FINAL_UAT.md.
+        """
+        console.rule("[bold cyan]QA Phase: Tutorial Generation[/bold cyan]")
+
+        docs_dir = settings.paths.documents_dir
+        qa_instruction_path = docs_dir / "system_prompts" / "QA_TUTORIAL_INSTRUCTION.md"
+
+        if not qa_instruction_path.exists():
+            console.print("[yellow]Skipping Tutorial Generation: QA_TUTORIAL_INSTRUCTION.md not found.[/yellow]")
+            return
+
+        # Prepare Prompt and Context
+        instruction = qa_instruction_path.read_text(encoding="utf-8")
+        full_prompt = f"{instruction}\n\nTask: Generate the tutorials based on the Final UAT plan."
+
+        # Collect context files
+        files_to_send = []
+
+        # 1. FINAL_UAT.md
+        uat_path = docs_dir / "FINAL_UAT.md"
+        if uat_path.exists():
+            files_to_send.append(str(uat_path))
+        else:
+             console.print("[yellow]Skipping Tutorial Generation: FINAL_UAT.md not found.[/yellow]")
+             return
+
+        # 2. SYSTEM_ARCHITECTURE.md
+        arch_path = docs_dir / "system_prompts" / "SYSTEM_ARCHITECTURE.md"
+        if arch_path.exists():
+            files_to_send.append(str(arch_path))
+
+        # 3. pyproject.toml (for knowing test commands)
+        pyproject_path = Path.cwd() / "pyproject.toml"
+        if pyproject_path.exists():
+             files_to_send.append(str(pyproject_path))
+
+        # Run Jules Session
+        client = self.services.jules or JulesClient()
+        try:
+            console.print("[cyan]Asking QA Agent to generate tutorials...[/cyan]")
+            # Use specific session ID for QA phase if needed, or stick to project session
+            sid = project_session_id or settings.current_session_id
+
+            result = await client.run_session(
+                session_id=sid,
+                prompt=full_prompt,
+                files=files_to_send,
+            )
+
+            if result and result.get("pr_url"):
+                console.print(
+                    Panel(
+                        f"Tutorials Generated & Verified.\nPR: {result['pr_url']}",
+                        style="bold green",
+                    )
+                )
+        except Exception as e:
+            console.print(f"[bold red]Tutorial Generation Failed:[/bold red] {e}")
+            logger.exception("Tutorial Generation Failed")
 
     async def finalize_session(self, project_session_id: str | None) -> None:
         console.rule("[bold cyan]Finalizing Development Session[/bold cyan]")

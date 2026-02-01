@@ -90,7 +90,9 @@ def init() -> None:
     console.print(f"     [yellow]{cmd} env-verify[/yellow]\n")
     console.print("  3. Define your project requirements:")
     console.print("     Edit [yellow]dev_documents/ALL_SPEC.md[/yellow]\n")
-    console.print("  4. Generate development cycles:")
+    console.print("  4. Define your target user experience:")
+    console.print("     Edit [yellow]dev_documents/USER_TEST_SCENARIO.md[/yellow]\n")
+    console.print("  5. Generate development cycles:")
     console.print(f"     [yellow]{cmd} gen-cycles[/yellow]\n")
 
 

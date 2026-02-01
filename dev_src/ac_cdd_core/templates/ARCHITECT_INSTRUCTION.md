@@ -14,11 +14,13 @@ Your goal is to analyze the raw requirements in `dev_documents/ALL_SPEC.md` and 
 
 ## Inputs
 - `ALL_SPEC.md`: The raw requirement document.
+- `USER_TEST_SCENARIO.md`: The target user experience and tutorial plan.
 
 ## Outputs
 You must generate (create) the following files in the repository:
 
 - `dev_documents/system_prompts/SYSTEM_ARCHITECTURE.md`
+- `dev_documents/FINAL_UAT.md`
 - `dev_documents/system_prompts/CYCLE{xx}/SPEC.md` (For EACH Cycle)
 - `dev_documents/system_prompts/CYCLE{xx}/UAT.md` (For EACH Cycle)
 - `pyproject.toml`
@@ -92,7 +94,25 @@ User Acceptance Testing plan.
 2. **Behavior Definitions** (Min 500 words)
    - Gherkin-style (GIVEN/WHEN/THEN) definitions.
 
-#### 4. `pyproject.toml` - Linter Configuration
+#### 4. `dev_documents/FINAL_UAT.md`
+The Master Plan for User Acceptance Testing and Tutorials.
+**Requirements:**
+- **Language**: Simple British English.
+- **Format**: Markdown.
+
+**Sections:**
+1. **Tutorial Strategy**
+   - How to turn the `USER_TEST_SCENARIO.md` into executable tutorials.
+   - Strategy for "Mock Mode" (CI/no-api-key execution) vs "Real Mode".
+2. **Notebook Plan**
+   - List of Jupyter Notebooks to generate in `tutorials/` directory.
+   - Example:
+     - `tutorials/01_quickstart.ipynb`: The "Aha! Moment" (Must run without API keys if possible).
+     - `tutorials/02_advanced_usage.ipynb`: Deep dive into features.
+3. **Validation Steps**
+   - What the QA agent should look for when running these notebooks.
+
+#### 5. `pyproject.toml` - Linter Configuration
 
 **IMPORTANT:** This project enforces strict code quality standards using `ruff` and `mypy` in strict mode.
 
