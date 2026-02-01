@@ -35,7 +35,10 @@ class JulesSessionNodes:
                 response.raise_for_status()
                 data = response.json()
 
-                state.jules_state = data.get("state")
+                new_state = data.get("state")
+                if new_state != state.jules_state:
+                    state.previous_jules_state = state.jules_state
+                state.jules_state = new_state
                 state.raw_data = data
 
                 logger.info(f"Jules session state: {state.jules_state}")
@@ -187,7 +190,7 @@ class JulesSessionNodes:
         state.status = SessionStatus.MONITORING
         return state
 
-    async def validate_completion(self, state: JulesSessionState) -> JulesSessionState:  # noqa: C901, PLR0912
+    async def validate_completion(self, state: JulesSessionState) -> JulesSessionState:  # noqa: C901
         """Validate if COMPLETED state is genuine or if work is still ongoing."""
         try:
             async with httpx.AsyncClient() as client:
@@ -200,71 +203,55 @@ class JulesSessionNodes:
 
                     # First, check for sessionCompleted activity (most reliable indicator)
                     has_session_completed = False
+                    stale_completion_detected = False
+
                     for activity in activities:
                         if "sessionCompleted" in activity:
+                            # Check if this is a stale (already processed) event
+                            act_id = activity.get("name", activity.get("id"))
+                            if act_id and act_id in state.processed_completion_ids:
+                                stale_completion_detected = True
+                                continue
+
+                            if act_id:
+                                state.processed_completion_ids.add(act_id)
+
                             has_session_completed = True
                             logger.info(
                                 "Found sessionCompleted activity - session is genuinely complete"
                             )
                             break
 
-                    # If sessionCompleted exists, it's genuinely complete
+                    # If sessionCompleted exists (and is new), it's genuinely complete
                     if has_session_completed:
                         state.completion_validated = True
                         state.status = SessionStatus.CHECKING_PR
                         return state
+
+                    # If we found a STALE completion, we must NOT fall back to checking PRs
+                    # because we are likely in a feedback loop where state hasn't updated yet.
+                    if stale_completion_detected:
+                        # Allow proceed if we observed a valid IN_PROGRESS -> COMPLETED transition
+                        # This handles cases where Jules re-completes but doesn't emit a new completion event
+                        if state.previous_jules_state == "IN_PROGRESS":
+                            logger.info(
+                                "Stale completion detected, BUT valid IN_PROGRESS->COMPLETED transition observed. Treating as complete."
+                            )
+                        else:
+                            logger.info(
+                                "Stale completion detected (ignored). Waiting for new Agent activity..."
+                            )
+                            state.status = SessionStatus.MONITORING
+                            return state
 
                     # Logic removed: Checking for ongoing work indicators via keywords caused infinite loops.
 
                     # NEW FIX: If sessionCompleted is missing, check for distress/objections in the last message.
                     # This prevents auditing when Jules is complaining (e.g. "feedback inconsistent") but ends session.
                     if not has_session_completed:
-                        try:
-                            # Use existing client to fetch messages
-                            msgs_url = f"{state.session_url}/messages"
-                            msg_resp = await client.get(
-                                msgs_url, headers=self.client._get_headers()
-                            )
-                            if msg_resp.status_code == httpx.codes.OK:
-                                messages = msg_resp.json().get("messages", [])
-                                if messages:
-                                    last_msg = messages[-1]
-
-                                    # Verify last message is from AGENT
-                                    sender = last_msg.get(
-                                        "author", last_msg.get("role", last_msg.get("type", ""))
-                                    ).upper()
-                                    if sender in ["AGENT", "MODEL", "ASSISTANT", "JULES"]:
-                                        # Check for distress keywords
-                                        content = last_msg.get("content", "").lower()
-                                        distress_keywords = [
-                                            "inconsistent",
-                                            "cannot act",
-                                            "faulty audit",
-                                            "incorrect version",
-                                            "please manually",
-                                            "blocked",
-                                            "error",
-                                            "issue with",
-                                            "reiterate",
-                                        ]
-                                        if any(k in content for k in distress_keywords):
-                                            # Generate ID to prevent infinite inquiry loop on same message
-                                            msg_id = last_msg.get("name") or str(hash(content))
-
-                                            if msg_id in state.processed_activity_ids:
-                                                # Already handled this distress message
-                                                pass
-                                            else:
-                                                logger.warning(
-                                                    "Detected distress/objection in last message. Treating as inquiry."
-                                                )
-                                                state.current_inquiry = last_msg.get("content")
-                                                state.current_inquiry_id = msg_id
-                                                state.status = SessionStatus.INQUIRY_DETECTED
-                                                return state
-                        except Exception as e:
-                            logger.warning(f"Failed to check last message content: {e}")
+                        distress_state = await self._check_for_distress_in_messages(state, client)
+                        if distress_state:
+                            return distress_state
 
                     # If Jules API says COMPLETED, we should trust it and proceed to PR check.
                     # If PR is missing, check_pr will handle it by requesting PR creation.
@@ -325,6 +312,56 @@ class JulesSessionNodes:
         console.print("[yellow]Session Completed but NO PR found.[/yellow]")
         state.status = SessionStatus.REQUESTING_PR_CREATION
         return state
+
+    async def _check_for_distress_in_messages(
+        self, state: JulesSessionState, client: httpx.AsyncClient
+    ) -> JulesSessionState | None:
+        """Checks the last message for distress signals/objections."""
+        try:
+            # Use existing client to fetch messages
+            msgs_url = f"{state.session_url}/messages"
+            msg_resp = await client.get(msgs_url, headers=self.client._get_headers())
+            if msg_resp.status_code == httpx.codes.OK:
+                messages = msg_resp.json().get("messages", [])
+                if messages:
+                    last_msg = messages[-1]
+
+                    # Verify last message is from AGENT
+                    sender = last_msg.get(
+                        "author", last_msg.get("role", last_msg.get("type", ""))
+                    ).upper()
+                    if sender in ["AGENT", "MODEL", "ASSISTANT", "JULES"]:
+                        # Check for distress keywords
+                        content = last_msg.get("content", "").lower()
+                        distress_keywords = [
+                            "inconsistent",
+                            "cannot act",
+                            "faulty audit",
+                            "incorrect version",
+                            "please manually",
+                            "blocked",
+                            "error",
+                            "issue with",
+                            "reiterate",
+                        ]
+                        if any(k in content for k in distress_keywords):
+                            # Generate ID to prevent infinite inquiry loop on same message
+                            msg_id = last_msg.get("name") or str(hash(content))
+
+                            if msg_id in state.processed_activity_ids:
+                                # Already handled this distress message
+                                return None
+
+                            logger.warning(
+                                "Detected distress/objection in last message. Treating as inquiry."
+                            )
+                            state.current_inquiry = last_msg.get("content")
+                            state.current_inquiry_id = msg_id
+                            state.status = SessionStatus.INQUIRY_DETECTED
+                            return state
+        except Exception as e:
+            logger.warning(f"Failed to check last message content: {e}")
+        return None
 
     async def request_pr_creation(self, state: JulesSessionState) -> JulesSessionState:
         """Request Jules to create a PR manually."""

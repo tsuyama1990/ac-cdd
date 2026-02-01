@@ -143,6 +143,8 @@ class JulesClient:
             "automationMode": "AUTO_CREATE_PR",
             "requirePlanApproval": require_plan_approval,
         }
+        if "title" in extra:
+            payload["title"] = str(extra["title"])
 
         session_name = await self._create_jules_session(payload)
 
@@ -214,9 +216,16 @@ class JulesClient:
         prompt = str(payload.get("prompt", ""))
         source_context = payload.get("sourceContext", {})
         source = str(source_context.get("source", ""))
-        require_approval = bool(payload.get("requirePlanApproval", False))
 
-        resp = self.api_client.create_session(source, prompt, require_approval)
+        repo_context = source_context.get("githubRepoContext", {})
+        branch = str(repo_context.get("startingBranch", "main"))
+
+        require_approval = bool(payload.get("requirePlanApproval", False))
+        title = payload.get("title")
+
+        resp = self.api_client.create_session(
+            source, prompt, require_approval, branch=branch, title=str(title) if title else None
+        )
         return str(resp.get("name", ""))
 
     async def continue_session(self, session_name: str, prompt: str) -> dict[str, Any]:
@@ -318,7 +327,10 @@ class JulesClient:
 
         # Initialize processed IDs
         processed_ids: set[str] = set()
-        await self._initialize_processed_ids(session_url, processed_ids)
+        processed_completion_ids: set[str] = set()
+        await self._initialize_processed_ids(
+            session_url, processed_ids, processed_completion_ids=processed_completion_ids
+        )
 
         # Build graph
         graph = build_jules_session_graph(self)
@@ -333,6 +345,7 @@ class JulesClient:
             require_plan_approval=require_plan_approval,
             fallback_max_wait=settings.jules.wait_for_pr_timeout_seconds,
             processed_activity_ids=processed_ids,
+            processed_completion_ids=processed_completion_ids,
         )
 
         # Run graph
@@ -442,7 +455,36 @@ class JulesClient:
             return f"{self.base_url}/{session_name}"
         return f"{self.base_url}/sessions/{session_name}"
 
-    async def _initialize_processed_ids(self, session_url: str, processed_ids: set[str]) -> None:
+    async def get_session_state(self, session_id: str) -> str:
+        """Get current state of Jules session.
+
+        Args:
+            session_id: Session ID (with or without "sessions/" prefix)
+
+        Returns:
+            Session state: "IN_PROGRESS", "COMPLETED", "FAILED",
+                          "AWAITING_USER_FEEDBACK", "SUCCEEDED", or "UNKNOWN"
+        """
+        session_url = self._get_session_url(session_id)
+
+        async with httpx.AsyncClient() as client:
+            try:
+                resp = await client.get(
+                    session_url, headers=self._get_headers(), timeout=10.0
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                return str(data.get("state", "UNKNOWN"))
+            except Exception as e:
+                logger.warning(f"Failed to get session state for {session_id}: {e}")
+                return "UNKNOWN"
+
+    async def _initialize_processed_ids(
+        self,
+        session_url: str,
+        processed_ids: set[str],
+        processed_completion_ids: set[str] | None = None
+    ) -> None:
         try:
             session_id_path = session_url.split(f"{self.base_url}/")[-1]
 
@@ -464,6 +506,9 @@ class JulesClient:
                     continue
 
                 processed_ids.add(act_id)
+
+                if processed_completion_ids is not None and "sessionCompleted" in act:
+                    processed_completion_ids.add(act_id)
 
                 # If awaiting feedback, track the latest inquiry
                 if state == "AWAITING_USER_FEEDBACK":

@@ -34,3 +34,10 @@ class BaseGitManager:
             msg = f"Git command failed: {' '.join(cmd)}\nStderr: {stderr}"
             raise RuntimeError(msg)
         return str(stdout.strip())
+
+    async def get_current_commit(self) -> str:
+        """Returns the current commit hash (HEAD)."""
+        stdout, _, _ = await self.runner.run_command(
+            [self.git_cmd, "rev-parse", "HEAD"], check=True
+        )
+        return str(stdout).strip()

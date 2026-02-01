@@ -80,6 +80,7 @@ class GitBranchingMixin(BaseGitManager):
             await self._run_git(["checkout", branch_name])
             # Optional: Pull if it tracks remote
             import contextlib
+
             with contextlib.suppress(Exception):
                 await self._run_git(["pull"])
         else:

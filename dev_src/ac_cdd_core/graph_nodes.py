@@ -190,7 +190,7 @@ class CycleNodes(IGraphNodes):
             )
         return None
 
-    async def coder_session_node(self, state: CycleState) -> dict[str, Any]:  # noqa: C901, PLR0912
+    async def coder_session_node(self, state: CycleState) -> dict[str, Any]:  # noqa: C901, PLR0912, PLR0915, PLR0911
         """Node for Coder Agent (Jules)."""
         cycle_id = state.get("cycle_id")
         iteration = state.get("iteration_count")
@@ -199,6 +199,24 @@ class CycleNodes(IGraphNodes):
         # Resume Logic using StateManager
         mgr = StateManager()
         cycle_manifest = mgr.get_cycle(cycle_id)
+
+        # Special handling: If we're waiting for Jules to produce a new commit
+        # (because Auditor detected same commit), just wait for completion
+        if state.get("status") == "wait_for_jules_completion":
+            if cycle_manifest and cycle_manifest.jules_session_id:
+                console.print(
+                    f"[bold blue]Waiting for Jules to produce new commit: {cycle_manifest.jules_session_id}[/bold blue]"
+                )
+                try:
+                    result = await self.jules.wait_for_completion(cycle_manifest.jules_session_id)
+                    if result.get("status") == "success" or result.get("pr_url"):
+                        return {"status": "ready_for_audit", "pr_url": result.get("pr_url")}
+                    console.print("[yellow]Jules session did not produce PR. Continuing...[/yellow]")
+                except Exception as e:
+                    console.print(f"[yellow]Wait for completion failed: {e}[/yellow]")
+            else:
+                console.print("[yellow]No active Jules session found. Continuing...[/yellow]")
+
 
         # 1. Try Resume if session ID exists, but ONLY if we are not in a retry loop.
         # If status is 'retry_fix', we need to send feedback (handled below), not just resume.
@@ -238,11 +256,39 @@ class CycleNodes(IGraphNodes):
         if state.get("status") == "retry_fix" and last_audit and last_audit.feedback:
             # Check if we have an existing Jules session to reuse
             if cycle_manifest and cycle_manifest.jules_session_id:
-                retry_result = await self._send_audit_feedback_to_session(
-                    cycle_manifest.jules_session_id, last_audit.feedback
+                # Check if session is still active before attempting reuse
+                session_state = await self.jules.get_session_state(
+                    cycle_manifest.jules_session_id
                 )
-                if retry_result:
-                    return retry_result
+
+                # Allow reuse for IN_PROGRESS and COMPLETED (Auditor Reject case)
+                # Only create new session if FAILED
+                if session_state in ["IN_PROGRESS", "COMPLETED", "SUCCEEDED"]:
+                    console.print(
+                        f"[dim]Reusing session ({session_state}): {cycle_manifest.jules_session_id}[/dim]"
+                    )
+                    retry_result = await self._send_audit_feedback_to_session(
+                        cycle_manifest.jules_session_id, last_audit.feedback
+                    )
+                    if retry_result:
+                        return retry_result
+                elif session_state == "FAILED":
+                    # Session failed - create new session
+                    console.print(
+                        "[yellow]Previous session FAILED. Creating new session for retry...[/yellow]"
+                    )
+                    # Fallback: Inject feedback into new session prompt
+                    instruction += f"\n\n# PREVIOUS AUDIT FEEDBACK (MUST FIX)\n{last_audit.feedback}"
+                    if cycle_manifest.pr_url:
+                        instruction += f"\n\nPrevious PR: {cycle_manifest.pr_url}"
+                else:
+                    # Unknown state - log and create new session
+                    console.print(
+                        f"[yellow]Session in unexpected state: {session_state}. Creating new session...[/yellow]"
+                    )
+                    instruction += f"\n\n# PREVIOUS AUDIT FEEDBACK (MUST FIX)\n{last_audit.feedback}"
+                    if cycle_manifest.pr_url:
+                        instruction += f"\n\nPrevious PR: {cycle_manifest.pr_url}"
             else:
                 console.print(
                     "[bold yellow]Injecting Audit Feedback into Coder Prompt...[/bold yellow]"
@@ -284,13 +330,65 @@ class CycleNodes(IGraphNodes):
                 result = await self.jules.wait_for_completion(result["session_name"])
 
             if result.get("status") == "success" or result.get("pr_url"):
+                # Success - reset restart counter
+                if cycle_manifest:
+                    mgr.update_cycle_state(cycle_id, session_restart_count=0)
                 return {"status": "ready_for_audit", "pr_url": result.get("pr_url")}
 
         except Exception as e:
             console.print(f"[red]{phase_label} Session Failed: {e}[/red]")
+
+            # Check if we should restart the session
+            if cycle_manifest:
+                restart_count = cycle_manifest.session_restart_count
+                max_restarts = cycle_manifest.max_session_restarts
+
+                if restart_count < max_restarts:
+                    # Restart the session
+                    new_restart_count = restart_count + 1
+                    console.print(
+                        f"[yellow]Restarting session (attempt {new_restart_count}/{max_restarts + 1})...[/yellow]"
+                    )
+
+                    # Clear the failed session ID and increment restart counter
+                    mgr.update_cycle_state(
+                        cycle_id,
+                        jules_session_id=None,
+                        session_restart_count=new_restart_count,
+                        last_error=str(e)
+                    )
+
+                    # Recursively retry (this will create a new session)
+                    return await self.coder_session_node(state)
+                console.print(
+                    f"[red]Max session restarts ({max_restarts}) reached. Failing cycle.[/red]"
+                )
+
             return {"status": "failed", "error": str(e)}
         else:
             if result.get("status") == "failed":
+                # Handle failure in the else block (when no exception was raised)
+                # This shouldn't normally happen with the new LangGraph implementation
+                # but keep it for safety
+                if cycle_manifest:
+                    restart_count = cycle_manifest.session_restart_count
+                    max_restarts = cycle_manifest.max_session_restarts
+
+                    if restart_count < max_restarts:
+                        new_restart_count = restart_count + 1
+                        console.print(
+                            f"[yellow]Session failed without exception. Restarting (attempt {new_restart_count}/{max_restarts + 1})...[/yellow]"
+                        )
+
+                        mgr.update_cycle_state(
+                            cycle_id,
+                            jules_session_id=None,
+                            session_restart_count=new_restart_count,
+                            last_error=result.get("error", "Unknown error")
+                        )
+
+                        return await self.coder_session_node(state)
+
                 return {"status": "failed", "error": result.get("error")}
             return {"status": "failed", "error": "Jules failed to produce PR"}
 
@@ -314,6 +412,9 @@ class CycleNodes(IGraphNodes):
         git = GitManager()
 
         try:
+            # Initialize with current state
+            new_last_audited_commit = state.get("last_audited_commit")
+
             # CRITICAL: Checkout the PR branch before reviewing
             # Otherwise we'll be reviewing the wrong code!
             pr_url = state.get("pr_url")
@@ -322,6 +423,54 @@ class CycleNodes(IGraphNodes):
                 try:
                     await git.checkout_pr(pr_url)
                     console.print("[dim]Successfully checked out PR branch[/dim]")
+
+                    # ROBUSTNESS: Commit ID Check with Polling
+                    current_commit = await git.get_current_commit()
+                    last_audited = state.get("last_audited_commit")
+
+                    if current_commit and current_commit == last_audited:
+                        console.print(
+                            f"[bold yellow]Robustness Check: Commit {current_commit[:7]} already audited.[/bold yellow]"
+                        )
+                        console.print("[dim]Polling for new commit from Jules...[/dim]")
+                        import asyncio
+
+                        # Poll for new commit with exponential backoff
+                        max_wait_time = 300  # 5 minutes total
+                        elapsed_time = 0
+                        wait_intervals = [30, 60, 120]  # 30s, 60s, 120s
+                        poll_index = 0
+
+                        while elapsed_time < max_wait_time:
+                            wait_time = wait_intervals[min(poll_index, len(wait_intervals) - 1)]
+                            console.print(f"[dim]Waiting {wait_time}s for new commit...[/dim]")
+                            await asyncio.sleep(wait_time)
+                            elapsed_time += wait_time
+                            poll_index += 1
+
+                            # Check for new commit
+                            new_commit = await git.get_current_commit()
+                            if new_commit and new_commit != last_audited:
+                                console.print(
+                                    f"[bold green]New commit detected: {new_commit[:7]}. Proceeding with audit.[/bold green]"
+                                )
+                                current_commit = new_commit
+                                break
+                        else:
+                            # Timeout: No new commit after max wait time
+                            console.print(
+                                f"[bold yellow]No new commit after {max_wait_time}s. "
+                                f"Skipping audit and waiting for Jules to complete.[/bold yellow]"
+                            )
+                            # Return early with a special status to skip audit
+                            return {
+                                "status": "waiting_for_jules",
+                                "audit_result": state.get("audit_result"),  # Keep previous audit result
+                                "last_audited_commit": last_audited,
+                            }
+
+                    # Store for return
+                    new_last_audited_commit = current_commit
                 except Exception as e:
                     console.print(f"[yellow]Warning: Could not checkout PR: {e}[/yellow]")
                     console.print(
@@ -511,10 +660,25 @@ class CycleNodes(IGraphNodes):
             except Exception as e:
                 console.print(f"[yellow]Warning: Could not return to feature branch: {e}[/yellow]")
 
-        return {"audit_result": result, "status": status}
+        return {
+            "audit_result": result,
+            "status": status,
+            "last_audited_commit": new_last_audited_commit,
+        }
 
     async def committee_manager_node(self, state: CycleState) -> dict[str, Any]:
         """Node for Managing the Committee of Auditors."""
+        # Check if we're waiting for Jules to produce a new commit
+        if state.get("status") == "waiting_for_jules":
+            console.print(
+                "[bold yellow]No new commit detected. Waiting for Jules to complete work...[/bold yellow]"
+            )
+            # Return to coder_session to wait for Jules completion
+            # Don't increment counters or change audit state
+            return {
+                "status": "wait_for_jules_completion",
+            }
+
         audit_res = state.get("audit_result")
         i: int = state.get("current_auditor_index", 1)
         j: int = state.get("current_auditor_review_count", 1)
@@ -540,10 +704,28 @@ class CycleNodes(IGraphNodes):
                 f"[bold yellow]Auditor #{i} Rejected. "
                 f"Retry {next_rev}/{settings.REVIEWS_PER_AUDITOR}.[/bold yellow]"
             )
+            # Enforce Cooldown logic for retry_fix (Single Auditor)
+            import time
+
+            last_fb = state.get("last_feedback_time", 0)
+            now = time.time()
+            cooldown = 180  # 3 minutes
+            elapsed = now - last_fb
+
+            if elapsed < cooldown and last_fb > 0:
+                wait = cooldown - elapsed
+                console.print(
+                    f"[bold yellow]Cooldown: Waiting {int(wait)}s before next Coder session...[/bold yellow]"
+                )
+                import asyncio
+
+                await asyncio.sleep(wait)
+
             return {
                 "current_auditor_review_count": next_rev,
                 "iteration_count": current_iter + 1,
                 "status": "retry_fix",
+                "last_feedback_time": time.time(),
             }
         if i < settings.NUM_AUDITORS:
             next_idx = i + 1
@@ -551,11 +733,29 @@ class CycleNodes(IGraphNodes):
                 f"[bold yellow]Auditor #{i} limit reached. "
                 f"Fixing code then moving to Auditor #{next_idx}.[/bold yellow]"
             )
+            # Enforce Cooldown logic for retry_fix (Auditor Limit)
+            import time
+
+            last_fb = state.get("last_feedback_time", 0)
+            now = time.time()
+            cooldown = 180  # 3 minutes
+            elapsed = now - last_fb
+
+            if elapsed < cooldown and last_fb > 0:
+                wait = cooldown - elapsed
+                console.print(
+                    f"[bold yellow]Cooldown: Waiting {int(wait)}s before next Coder session...[/bold yellow]"
+                )
+                import asyncio
+
+                await asyncio.sleep(wait)
+
             return {
                 "current_auditor_index": next_idx,
                 "current_auditor_review_count": 1,
                 "iteration_count": current_iter + 1,
                 "status": "retry_fix",
+                "last_feedback_time": time.time(),
             }
         console.print(
             "[bold yellow]Final Auditor limit reached. Fixing code then Merging.[/bold yellow]"
@@ -597,6 +797,9 @@ class CycleNodes(IGraphNodes):
                 "audit_result": None,
                 "audit_pass_count": 0,
                 "audit_retries": 0,
+                "final_fix": False,
+                "last_feedback_time": 0,
+                "pr_url": None,
             }
 
         # If we were already in refactoring, we are done
@@ -626,6 +829,8 @@ class CycleNodes(IGraphNodes):
         if status == "cycle_approved":
             return "uat_evaluate"
         if status == "retry_fix":
+            return "coder_session"
+        if status == "wait_for_jules_completion":
             return "coder_session"
         return "failed"
 

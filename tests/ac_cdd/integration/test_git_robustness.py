@@ -12,6 +12,7 @@ def mock_git_env(tmp_path: Path) -> Path:
     (repo_dir / ".git").mkdir()
     return repo_dir
 
+
 @pytest.mark.asyncio
 async def test_create_feature_branch_idempotency(mock_git_env: Path) -> None:
     """
@@ -32,14 +33,14 @@ async def test_create_feature_branch_idempotency(mock_git_env: Path) -> None:
             cmd_str = " ".join(cmd)
             # When checking existence
             if "rev-parse --verify dev/int-test" in cmd_str:
-                return "", "", 0 # Return 0 = Exists
+                return "", "", 0  # Return 0 = Exists
             # If it tries to create anyway (fail case)
             if "checkout -b dev/int-test" in cmd_str:
-                 return "", "fatal: A branch named 'dev/int-test' already exists.", 128
+                return "", "fatal: A branch named 'dev/int-test' already exists.", 128
             return "", "", 0
 
         git.runner.run_command = AsyncMock(side_effect=mock_run_command)
-        git._ensure_no_lock = AsyncMock() # Skip lock check for test simplicity
+        git._ensure_no_lock = AsyncMock()  # Skip lock check for test simplicity
 
         # Now it should NOT raise
         await git.create_feature_branch(branch_name)

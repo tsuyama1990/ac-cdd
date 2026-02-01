@@ -114,13 +114,24 @@ class JulesApiClient:
         return None
 
     def create_session(
-        self, source: str, prompt: str, require_plan_approval: bool = False
+        self,
+        source: str,
+        prompt: str,
+        require_plan_approval: bool = False,
+        branch: str = "main",
+        title: str | None = None,
     ) -> dict[str, Any]:
         payload = {
             "prompt": prompt,
-            "sourceContext": {"source": source, "githubRepoContext": {"startingBranch": "main"}},
+            "sourceContext": {
+                "source": source,
+                "githubRepoContext": {"startingBranch": branch},
+            },
             "requirePlanApproval": require_plan_approval,
+            "automationMode": "AUTO_CREATE_PR",
         }
+        if title:
+            payload["title"] = title
         return self._request("POST", "sessions", payload)
 
     def approve_plan(self, session_id: str, plan_id: str) -> dict[str, Any]:

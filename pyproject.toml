@@ -20,6 +20,10 @@ dependencies = [
     "litellm>=1.80.11",
     "typer",
     "rich",
+    "yfinance",
+    "pandas",
+    "tqdm",
+    "numpy",
 ]
 
 [tool.uv]

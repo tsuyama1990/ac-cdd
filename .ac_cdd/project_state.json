@@ -7,12 +7,14 @@
       "id": "01",
       "status": "in_progress",
       "branch_name": null,
-      "jules_session_id": "coder-cycle-01-iter-0-20260126-0409",
+      "jules_session_id": "coder-cycle-01-iter-0-20260131-1244",
       "current_iteration": 1,
       "pr_url": null,
       "last_error": null,
+      "session_restart_count": 0,
+      "max_session_restarts": 2,
       "created_at": "2026-01-11T03:34:50.538532Z",
-      "updated_at": "2026-01-26T04:09:29.140866Z"
+      "updated_at": "2026-01-31T12:44:22.436143Z"
     },
     {
       "id": "02",
@@ -22,9 +24,11 @@
       "current_iteration": 1,
       "pr_url": null,
       "last_error": null,
+      "session_restart_count": 0,
+      "max_session_restarts": 2,
       "created_at": "2026-01-11T03:34:50.538540Z",
       "updated_at": "2026-01-11T03:34:50.540506Z"
     }
   ],
-  "last_updated": "2026-01-26T04:09:29.140895Z"
+  "last_updated": "2026-01-31T12:44:22.436163Z"
 }

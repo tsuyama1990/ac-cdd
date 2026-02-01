@@ -29,9 +29,12 @@ class JulesSessionState(BaseModel):
 
     # Jules API state
     jules_state: str | None = None
+    previous_jules_state: str | None = None
 
     # Activity tracking
     processed_activity_ids: set[str] = Field(default_factory=set)
+    processed_completion_ids: set[str] = Field(default_factory=set)
+    processed_inquiry_ids: set[str] = Field(default_factory=set)
     last_activity_count: int = 0
 
     # Inquiry handling

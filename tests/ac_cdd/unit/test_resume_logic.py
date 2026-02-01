@@ -72,9 +72,13 @@ class TestResumeLogic:
         jules.run_session.assert_awaited_once()
         assert jules.run_session.await_args.kwargs["require_plan_approval"] is False
 
-        # Verify Immediate Persistence
-        mock_mgr.update_cycle_state.assert_called_with(
-            "01", jules_session_id="jules-new-456", status="in_progress"
-        )
+        # Verify Immediate Persistence (session ID was saved)
+        # Note: There may be multiple calls (e.g., to reset session_restart_count)
+        assert any(
+            call.args == ("01",) and 
+            call.kwargs.get("jules_session_id") == "jules-new-456" and
+            call.kwargs.get("status") == "in_progress"
+            for call in mock_mgr.update_cycle_state.call_args_list
+        ), f"Expected update_cycle_state call with session_id not found. Calls: {mock_mgr.update_cycle_state.call_args_list}"
 
         assert result["status"] == "ready_for_audit"
