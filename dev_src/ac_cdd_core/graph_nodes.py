@@ -187,7 +187,7 @@ class CycleNodes(IGraphNodes):
 
             if result.get("status") == "success" or result.get("pr_url"):
                 return {"status": "ready_for_audit", "pr_url": result.get("pr_url")}
-            
+
             # If we get here, it means wait_for_completion returned but no success/PR
             console.print("[yellow]Jules session finished without new PR. Creating new session...[/yellow]")
             return None
