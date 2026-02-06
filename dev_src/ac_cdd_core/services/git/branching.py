@@ -1,3 +1,4 @@
+from ac_cdd_core.process_runner import ProcessRunner
 from ac_cdd_core.utils import logger
 
 from .base import BaseGitManager
@@ -37,12 +38,26 @@ class GitBranchingMixin(BaseGitManager):
 
         return branch_name
 
+    async def _auto_commit_if_dirty(self, message: str = "Auto-save before branch switch") -> None:
+        """Automatically commits changes if the working directory is dirty."""
+        # Check for uncommitted changes
+        stdout, _, _ = await self.runner.run_command(
+            [self.git_cmd, "status", "--porcelain"], check=False
+        )
+        if stdout.strip():
+            logger.info("Uncommitted changes detected. Auto-committing...")
+            await self._run_git(["add", "."])
+            await self._run_git(["commit", "-m", message])
+            logger.info("✓ Auto-committed changes.")
+
     async def create_integration_branch(
         self, session_id: str, prefix: str = "dev", branch_name: str | None = None
     ) -> str:
         """Creates integration branch from main for the session."""
         integration_branch = branch_name if branch_name else f"{prefix}/{session_id}/integration"
         logger.info(f"Creating integration branch: {integration_branch}")
+
+        await self._auto_commit_if_dirty()
 
         await self._run_git(["checkout", "main"])
         await self._run_git(["pull"])
@@ -65,6 +80,8 @@ class GitBranchingMixin(BaseGitManager):
     async def create_feature_branch(self, branch_name: str, from_branch: str = "main") -> str:
         """Creates and checks out a new feature branch from the specified base branch."""
         logger.info(f"Creating feature branch: {branch_name} from {from_branch}")
+
+        await self._auto_commit_if_dirty()
 
         # Ensure we're on the base branch and it's up to date
         await self._run_git(["checkout", from_branch])

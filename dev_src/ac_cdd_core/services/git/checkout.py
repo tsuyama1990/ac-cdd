@@ -10,8 +10,8 @@ class GitCheckoutMixin(BaseGitManager):
     """Mixin for Git checkout and stash operations."""
 
     async def smart_checkout(self, target: str, is_pr: bool = False, force: bool = False) -> None:
-        """Robust checkout that handles local changes."""
-        stashed = await self._stash_changes()
+        """Robust checkout that handles local changes by auto-committing."""
+        await self._auto_commit_if_dirty()
 
         try:
             if is_pr:
@@ -26,56 +26,24 @@ class GitCheckoutMixin(BaseGitManager):
                 await self._run_git(cmd)
 
         except Exception:
-            if stashed:
-                logger.warning("Checkout failed. Restoring local changes...")
-                with contextlib.suppress(Exception):
-                    await self._run_git(["stash", "pop"])
-
-                await self._ensure_no_lock()
-
             logger.error(
-                f"Failed to checkout '{target}'. Please stash/commit your changes or use --force."
+                f"Failed to checkout '{target}'. Please check git status."
             )
             raise
 
-        if stashed:
-            await self._restore_stash()
+    async def _auto_commit_if_dirty(self, message: str = "Auto-save before checkout") -> None:
+        """Automatically commits changes if the working directory is dirty."""
+        # Check for uncommitted changes
+        stdout, _, _ = await self.runner.run_command(
+            ["git", "status", "--porcelain"], check=False
+        )
+        if stdout.strip():
+            logger.info("Uncommitted changes detected. Auto-committing...")
+            await self._run_git(["add", "."])
+            await self._run_git(["commit", "-m", message])
+            logger.info("✓ Auto-committed changes.")
 
-    async def _stash_changes(self) -> bool:
-        """Checks for uncommitted changes and stashes them if found."""
-        status = await self._run_git(["status", "--porcelain"])
-        if status:
-            logger.info("Uncommitted changes detected. Performing smart checkout...")
-            await self._run_git(["stash", "push", "-u", "-m", "AC-CDD Auto-stash for checkout"])
-            return True
-        return False
 
-    async def _restore_stash(self) -> None:
-        """Restores stashed changes, resolving session file conflicts."""
-        logger.info("Restoring local changes...")
-        try:
-            await self._run_git(["stash", "pop"])
-        except RuntimeError:
-            logger.warning("Conflict detected during stash restoration.")
-            await self._resolve_session_conflict()
-
-    async def _resolve_session_conflict(self) -> None:
-        """Resolves conflicts specifically for .ac_cdd_session.json."""
-        try:
-            logger.info("Auto-resolving .ac_cdd_session.json to local version...")
-            await self._run_git(["checkout", "stash@{0}", "--", ".ac_cdd_session.json"])
-            await self._run_git(["add", ".ac_cdd_session.json"])
-
-            status = await self._run_git(["status", "--porcelain"])
-            if "UU" in status:
-                logger.warning("Other conflicts exist. Please resolve them manually.")
-            else:
-                await self._run_git(["stash", "drop"])
-                logger.info("Stash dropped after resolution.")
-
-        except Exception as ex:
-            logger.error(f"Failed to auto-resolve session file: {ex}")
-            raise
 
     async def checkout_pr(self, pr_url: str) -> None:
         """Checks out the Pull Request branch using GitHub CLI."""
@@ -99,15 +67,7 @@ class GitCheckoutMixin(BaseGitManager):
 
     async def ensure_clean_state(self, force_stash: bool = False) -> None:
         """Ensures the working directory is clean."""
-        status = await self._run_git(["status", "--porcelain"])
-        if status:
-            if not force_stash:
-                logger.warning(
-                    "Working directory has uncommitted changes.\n"
-                    "These changes will be stashed before proceeding."
-                )
-            logger.info("Stashing uncommitted changes...")
-            await self._run_git(["stash", "push", "-u", "-m", "Auto-stash before workflow run"])
+        await self._auto_commit_if_dirty("Auto-save before workflow run")
 
     async def commit_changes(self, message: str) -> bool:
         """Stages and commits all changes."""

@@ -1,3 +1,4 @@
+import asyncio
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -173,20 +174,27 @@ class CycleNodes(IGraphNodes):
                 f"{feedback}\n\n"
                 f"Please revise your implementation to address the above feedback and create a new PR."
             )
+            # Send message
             await self.jules._send_message(self.jules._get_session_url(session_id), feedback_msg)
 
+            # Wait for a bit to let Jules process the message and change state
+            console.print("[dim]Waiting for Jules to reactivate...[/dim]")
+            await asyncio.sleep(10)
+
             # Wait for Jules to process feedback and create new PR
+            # We pass a flag or rely on wait_for_completion to handle the "re-completion"
             result = await self.jules.wait_for_completion(session_id)
 
             if result.get("status") == "success" or result.get("pr_url"):
                 return {"status": "ready_for_audit", "pr_url": result.get("pr_url")}
+            
+            # If we get here, it means wait_for_completion returned but no success/PR
+            console.print("[yellow]Jules session finished without new PR. Creating new session...[/yellow]")
+            return None
+
         except Exception as e:
             console.print(
                 f"[yellow]Failed to send feedback to existing session: {e}. Creating new session...[/yellow]"
-            )
-        else:
-            console.print(
-                "[yellow]Jules session did not produce PR after feedback. Creating new session...[/yellow]"
             )
         return None
 
