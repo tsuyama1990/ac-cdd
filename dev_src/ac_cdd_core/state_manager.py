@@ -24,7 +24,17 @@ class StateManager:
     def __init__(self, project_root: str = ".") -> None:
         self.root = Path(project_root)
         self.STATE_DIR = self.root / ".ac_cdd"
-        self.STATE_FILE = self.STATE_DIR / "project_state.json"
+        self.STATE_FILE = self.STATE_DIR / "project_state_local.json"
+        
+        # Migration: Rename old file if it exists and new one doesn't
+        old_state_file = self.STATE_DIR / "project_state.json"
+        if old_state_file.exists() and not self.STATE_FILE.exists():
+            try:
+                # Rename/Move the file
+                old_state_file.rename(self.STATE_FILE)
+                logger.info(f"Migrated project state to {self.STATE_FILE}")
+            except Exception as e:
+                logger.warning(f"Failed to migrate project state file: {e}")
 
     def load_manifest(self) -> ProjectManifest | None:
         """

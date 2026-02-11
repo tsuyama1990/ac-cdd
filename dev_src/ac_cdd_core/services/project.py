@@ -171,8 +171,10 @@ FAST_MODEL=openrouter/nousresearch/hermes-3-llama-3.1-405b:free
         gitignore_entries = [
             "# AC-CDD Configuration",
             ".env",
-            ".ac_cdd/.env",
+            ".ac_cdd/",  # Ignore entire state directory
+            ".ac_cdd/project_state_local.json",
             "dev_documents/project_state.json",
+            "dev_documents/project_state_local.json",
         ]
 
         if gitignore_path.exists():

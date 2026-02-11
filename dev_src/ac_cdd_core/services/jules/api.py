@@ -120,6 +120,7 @@ class JulesApiClient:
         require_plan_approval: bool = False,
         branch: str = "main",
         title: str | None = None,
+        automation_mode: str = "AUTO_CREATE_PR",
     ) -> dict[str, Any]:
         payload = {
             "prompt": prompt,
@@ -128,7 +129,7 @@ class JulesApiClient:
                 "githubRepoContext": {"startingBranch": branch},
             },
             "requirePlanApproval": require_plan_approval,
-            "automationMode": "AUTO_CREATE_PR",
+            "automationMode": automation_mode,
         }
         if title:
             payload["title"] = title

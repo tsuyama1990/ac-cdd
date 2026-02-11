@@ -103,11 +103,17 @@ def gen_cycles(
         str | None,
         typer.Option("--session", "--id", help="Session ID (overwrites generated one)"),
     ] = None,
+    auto_run: Annotated[
+        bool,
+        typer.Option("--auto-run", help="Automatically run all cycles after generation"),
+    ] = False,
 ) -> None:
     """
     Architect Phase: Generate cycle specs based on requirements.
     """
-    asyncio.run(_WorkflowServiceHolder.get().run_gen_cycles(cycles, project_session_id))
+    asyncio.run(
+        _WorkflowServiceHolder.get().run_gen_cycles(cycles, project_session_id, auto_run)
+    )
 
 
 @app.command()

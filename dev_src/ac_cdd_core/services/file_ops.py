@@ -61,6 +61,18 @@ class FilePatcher:
     def _prepare_create(self, p: Path, op: FileCreate, dry_run: bool) -> tuple[bool, str, str, str]:
         old_lines = p.read_text(encoding="utf-8").splitlines(keepends=True) if p.exists() else []
         new_content = op.content
+
+        # Strip markdown code blocks if present (common LLM artifact)
+        if new_content.strip().startswith("```"):
+            lines = new_content.strip().splitlines()
+            # Remove first line (```python)
+            if lines and lines[0].startswith("```"):
+                lines = lines[1:]
+            # Remove last line (```)
+            if lines and lines[-1].strip() == "```":
+                lines = lines[:-1]
+            new_content = "\n".join(lines) + "\n"
+
         new_lines = new_content.splitlines(keepends=True)
         diff = list(
             difflib.unified_diff(old_lines, new_lines, fromfile=str(p), tofile=str(p), lineterm="")

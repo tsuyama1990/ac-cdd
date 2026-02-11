@@ -48,7 +48,8 @@ class GitCheckoutMixin(BaseGitManager):
     async def checkout_pr(self, pr_url: str) -> None:
         """Checks out the Pull Request branch using GitHub CLI."""
         logger.info(f"Checking out PR: {pr_url}...")
-        await self.smart_checkout(pr_url, is_pr=True)
+        # Use force=True to overwrite any local divergence (e.g. from auto-commits)
+        await self.smart_checkout(pr_url, is_pr=True, force=True)
 
         logger.info("Pulling latest commits from PR...")
         try:
@@ -56,6 +57,26 @@ class GitCheckoutMixin(BaseGitManager):
         except Exception as e:
             logger.warning(f"Could not pull latest commits: {e}")
         logger.info(f"Checked out PR {pr_url} successfully.")
+
+    async def get_pr_base_branch(self, pr_url: str) -> str:
+        """
+        Gets the base branch name for a given PR URL.
+        Useful for determining the correct diff target.
+        """
+        try:
+            # gh pr view <url> --json baseRefName -q .baseRefName
+            stdout, _, _ = await self.runner.run_command(
+                [self.gh_cmd, "pr", "view", pr_url, "--json", "baseRefName", "-q", ".baseRefName"],
+                check=True,
+            )
+            base_branch = stdout.strip()
+            if base_branch:
+                return base_branch
+            logger.warning(f"Could not determine base branch for PR {pr_url}, defaulting to main")
+            return "main"
+        except Exception as e:
+            logger.warning(f"Failed to get PR base branch: {e}")
+            return "main"
 
     async def checkout_branch(self, branch_name: str, force: bool = False) -> None:
         """Checks out an existing branch."""

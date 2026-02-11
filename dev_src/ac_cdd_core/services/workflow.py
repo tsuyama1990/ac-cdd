@@ -26,7 +26,9 @@ class WorkflowService:
         self.builder = GraphBuilder(self.services)
         self.git = GitManager()
 
-    async def run_gen_cycles(self, cycles: int, project_session_id: str | None) -> None:
+    async def run_gen_cycles(
+        self, cycles: int, project_session_id: str | None, auto_run: bool = False
+    ) -> None:
         with KeepAwake(reason="Generating Architecture and Cycles"):
             console.rule("[bold blue]Architect Phase: Generating Cycles[/bold blue]")
 
@@ -73,6 +75,16 @@ class WorkflowService:
                 console.print(
                     SuccessMessages.architect_complete(session_id_val, integration_branch)
                 )
+
+                if auto_run:
+                    console.rule("[bold magenta]Auto-Running All Cycles[/bold magenta]")
+                    # Chain execution: run all cycles with resume=False, auto=True (default), start_iter=1
+                    await self._run_all_cycles(
+                        resume=False,
+                        auto=True,
+                        start_iter=1,
+                        project_session_id=session_id_val,
+                    )
 
         except Exception:
             console.print("[bold red]Architect execution failed.[/bold red]")
@@ -263,51 +275,44 @@ class WorkflowService:
             console.print("[yellow]Skipping Tutorial Generation: QA_TUTORIAL_INSTRUCTION.md not found.[/yellow]")
             return
 
-        # Prepare Prompt and Context
-        instruction = qa_instruction_path.read_text(encoding="utf-8")
-        full_prompt = f"{instruction}\n\nTask: Generate the tutorials based on the Final UAT plan."
+        if not qa_instruction_path.exists():
+            console.print("[yellow]Skipping Tutorial Generation: QA_TUTORIAL_INSTRUCTION.md not found.[/yellow]")
+            return
 
-        # Collect context files
-        files_to_send = []
+        # Build QA Graph
+        graph = self.builder.build_qa_graph()
 
-        # 1. FINAL_UAT.md
-        uat_path = docs_dir / "FINAL_UAT.md"
-        if uat_path.exists():
-            files_to_send.append(str(uat_path))
-        else:
-             console.print("[yellow]Skipping Tutorial Generation: FINAL_UAT.md not found.[/yellow]")
-             return
+        # Initial State
+        project_session_id = project_session_id or settings.current_session_id
+        initial_state = CycleState(
+            cycle_id="qa-tutorials",
+            project_session_id=project_session_id,
+            current_phase="qa",
+            status="start"
+        )
 
-        # 2. SYSTEM_ARCHITECTURE.md
-        arch_path = docs_dir / "system_prompts" / "SYSTEM_ARCHITECTURE.md"
-        if arch_path.exists():
-            files_to_send.append(str(arch_path))
+        thread_id = f"qa-{project_session_id}"
+        config = RunnableConfig(
+            configurable={"thread_id": thread_id},
+            recursion_limit=settings.GRAPH_RECURSION_LIMIT,
+        )
 
-        # 3. pyproject.toml (for knowing test commands)
-        pyproject_path = Path.cwd() / "pyproject.toml"
-        if pyproject_path.exists():
-             files_to_send.append(str(pyproject_path))
-
-        # Run Jules Session
-        client = self.services.jules or JulesClient()
         try:
-            console.print("[cyan]Asking QA Agent to generate tutorials...[/cyan]")
-            # Use specific session ID for QA phase if needed, or stick to project session
-            sid = project_session_id or settings.current_session_id
+            console.print("[cyan]Running QA Tutorial Generation Graph...[/cyan]")
+            final_state = await graph.ainvoke(initial_state, config)
 
-            result = await client.run_session(
-                session_id=sid,
-                prompt=full_prompt,
-                files=files_to_send,
-            )
-
-            if result and result.get("pr_url"):
-                console.print(
+            if final_state.get("audit_result") and final_state.get("audit_result").is_approved:
+                 console.print(
                     Panel(
-                        f"Tutorials Generated & Verified.\nPR: {result['pr_url']}",
+                        f"QA Tutorials Generated & Verified.\nPR: {final_state.get('pr_url')}",
                         style="bold green",
                     )
                 )
+            elif final_state.get("error"):
+                 console.print(f"[red]QA Phase Failed: {final_state['error']}[/red]")
+            else:
+                 console.print("[yellow]QA Phase completed with uncertain status.[/yellow]")
+
         except Exception as e:
             console.print(f"[bold red]Tutorial Generation Failed:[/bold red] {e}")
             logger.exception("Tutorial Generation Failed")
@@ -349,7 +354,6 @@ class WorkflowService:
         and resets the state for the next phase.
         """
         import shutil
-        from pathlib import Path
 
         docs_dir = settings.paths.documents_dir
         if not docs_dir.exists():

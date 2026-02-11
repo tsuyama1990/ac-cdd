@@ -140,7 +140,7 @@ class Settings(BaseSettings):
     JULES_API_KEY: str | None = None
     OPENROUTER_API_KEY: str | None = None
     MAX_RETRIES: int = 10
-    GRAPH_RECURSION_LIMIT: int = 200
+    GRAPH_RECURSION_LIMIT: int = 2000
     DUMMY_CYCLE_ID: str = "00"
     E2B_API_KEY: str | None = None
 
@@ -286,6 +286,8 @@ class Settings(BaseSettings):
             return [str(f) for f in p.glob("*.md")]
         return []
 
+        return targets
+
     def get_target_files(self) -> list[str]:
         targets = []
         src = self.paths.src
@@ -300,6 +302,11 @@ class Settings(BaseSettings):
             targets.extend([str(p) for p in src.rglob("*.py")])
         if tests.exists():
             targets.extend([str(p) for p in tests.rglob("*.py")])
+
+        # Include pyproject.toml if it exists (for dependencies)
+        pyproject = Path.cwd() / "pyproject.toml"
+        if pyproject.exists():
+            targets.append(str(pyproject))
 
         return targets
 
