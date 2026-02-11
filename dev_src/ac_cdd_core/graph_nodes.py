@@ -526,6 +526,11 @@ class CycleNodes(IGraphNodes):
                             poll_index += 1
 
                             # Check for new commit
+                            try:
+                                await git.pull_changes()
+                            except Exception as e:
+                                console.print(f"[yellow]Warning: Could not pull changes during polling: {e}[/yellow]")
+
                             new_commit = await git.get_current_commit()
                             if new_commit and new_commit != last_audited:
                                 console.print(
