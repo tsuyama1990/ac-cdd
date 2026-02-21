@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock
 import pytest
 from ac_cdd_core.services.git.checkout import GitCheckoutMixin
 from ac_cdd_core.services.jules_client import JulesClient
+from ac_cdd_core.services.jules.git_context import JulesGitContext
 
 
 class TestJulesGitContextRobustness:
@@ -20,7 +21,8 @@ class TestJulesGitContextRobustness:
         client.git.runner.run_command = AsyncMock(return_value=("", "", 0))  # success
 
         # Act
-        await client._prepare_git_context()
+        context = JulesGitContext(client.git)
+        await context.prepare_git_context()
 
         # Assert
         # Check if git checkout -b jules-sync-... was called
