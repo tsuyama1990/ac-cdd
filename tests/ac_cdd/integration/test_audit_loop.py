@@ -48,9 +48,12 @@ async def test_audit_rejection_loop() -> None:
 
         builder.nodes.llm_reviewer.review_code = mock_services.reviewer.review_code
 
-        builder.nodes.coder_session_node = AsyncMock(
-            return_value={"status": "ready_for_audit", "pr_url": "http://pr"}
-        )
+        # Increment iteration count to avoid infinite loop
+        async def mock_coder_session(state: CycleState) -> dict:
+            current_iter = state.get("iteration_count", 1)
+            return {"status": "ready_for_audit", "pr_url": "http://pr", "iteration_count": current_iter + 1}
+
+        builder.nodes.coder_session_node = AsyncMock(side_effect=mock_coder_session)
 
         builder.nodes.uat_evaluate_node = AsyncMock(return_value={"status": "cycle_completed"})
 
