@@ -1,3 +1,4 @@
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -43,7 +44,11 @@ async def test_audit_rejection_loop() -> None:
     from ac_cdd_core.domain_models import AuditResult
 
     mock_auditor = MagicMock()
-    mock_auditor.run_audit = AsyncMock(return_value=(AuditResult(is_approved=False), "Feedback"))
+    async def mock_run_audit(*args: Any, **kwargs: Any) -> tuple[AuditResult, str]:
+        print(f"DEBUG run_audit mock called")
+        return (AuditResult(is_approved=False), "Feedback")
+        
+    mock_auditor.run_audit = AsyncMock(side_effect=mock_run_audit)
     with patch("ac_cdd_core.services.plan_auditor.PlanAuditor", return_value=mock_auditor):
         # Build Graph
         builder = GraphBuilder(mock_services)
@@ -53,11 +58,16 @@ async def test_audit_rejection_loop() -> None:
         # Increment iteration count to avoid infinite loop
         async def mock_coder_session(state: CycleState) -> dict:
             current_iter = state.get("iteration_count", 1)
+            print(f"DEBUG coder_session IN: iter={current_iter}, i={state.get('current_auditor_index')}, j={state.get('current_auditor_review_count')}, final_fix={state.get('final_fix')}")
             return {"status": "ready_for_audit", "pr_url": "http://pr", "iteration_count": current_iter + 1}
 
         builder.nodes.coder_session_node = AsyncMock(side_effect=mock_coder_session)
 
-        builder.nodes.uat_evaluate_node = AsyncMock(return_value={"status": "cycle_completed"})
+        async def mock_uat(state: CycleState) -> dict:
+            print(f"DEBUG uat_evaluate IN: iter={state.get('iteration_count')}")
+            return {"status": "cycle_completed"}
+            
+        builder.nodes.uat_evaluate_node = AsyncMock(side_effect=mock_uat)
 
         graph = builder.build_coder_graph()
 
