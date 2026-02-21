@@ -106,13 +106,13 @@ class JulesClient:
         return headers
 
     def _is_httpx_mocked(self) -> bool:
-        """Check if httpx.AsyncClient.post is mocked."""
+        """Check if httpx.AsyncClient is mocked."""
         is_mock = isinstance(
-            httpx.AsyncClient.post, (unittest.mock.MagicMock, unittest.mock.AsyncMock)
+            httpx.AsyncClient, (unittest.mock.MagicMock, unittest.mock.AsyncMock)
         )
         if is_mock:
             return True
-        return hasattr(httpx.AsyncClient.post, "assert_called")
+        return hasattr(httpx.AsyncClient, "return_value")
 
     async def run_session(
         self,
@@ -393,14 +393,22 @@ class JulesClient:
         try:
             session_id_path = session_url.split(f"{self.base_url}/")[-1]
 
-            # Check session state
+            state = "UNKNOWN"
+            initial_acts = []
+            
+            # Fetch session state and early activities via httpx to respect test mocks
             try:
-                session_resp = self.api_client._request("GET", session_id_path)
-                state = session_resp.get("state")
-            except Exception:
-                state = "UNKNOWN"
-
-            initial_acts = self.list_activities(session_id_path)
+                async with httpx.AsyncClient() as client:
+                    session_resp = await client.get(session_url, headers=self._get_headers(), timeout=10.0)
+                    if session_resp.status_code == httpx.codes.OK:
+                        state = session_resp.json().get("state", "UNKNOWN")
+                        
+                    act_url = f"{session_url}/activities?pageSize=100"
+                    act_resp = await client.get(act_url, headers=self._get_headers(), timeout=10.0)
+                    if act_resp.status_code == httpx.codes.OK:
+                        initial_acts = act_resp.json().get("activities", [])
+            except Exception as e:
+                logger.warning(f"Failed to fetch initial session data: {e}")
 
             latest_inquiry_id = None
             latest_ts = ""

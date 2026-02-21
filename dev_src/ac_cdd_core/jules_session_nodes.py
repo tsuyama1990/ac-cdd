@@ -86,13 +86,17 @@ class JulesSessionNodes:
 
                         # Check in activities (if outputs empty)
                         if not pr_found:
-                            activities = self.client.list_activities(
-                                state.session_url.split("/")[-1]
+                            act_resp = await client.get(
+                                f"{state.session_url}/activities",
+                                headers=self.client._get_headers(),
+                                timeout=10.0
                             )
-                            for act in activities:
-                                if "pullRequest" in str(act) or "CreatePullRequest" in str(act):
-                                    pr_found = True
-                                    break
+                            if act_resp.status_code == httpx.codes.OK:
+                                activities = act_resp.json().get("activities", [])
+                                for act in activities:
+                                    if "pullRequest" in str(act) or "CreatePullRequest" in str(act):
+                                        pr_found = True
+                                        break
 
                         if pr_found:
                             logger.warning(
@@ -147,7 +151,7 @@ class JulesSessionNodes:
         """Check for and process inquiries during monitoring."""
         # Handle plan approval if required
         if state.require_plan_approval:
-            await self.client._handle_plan_approval(
+            await self.client.inquiry_handler.handle_plan_approval(
                 client,
                 state.session_url,
                 state.processed_activity_ids,
@@ -156,7 +160,7 @@ class JulesSessionNodes:
             )
 
         # Check for regular inquiries
-        inquiry = await self.client._check_for_inquiry(
+        inquiry = await self.client.inquiry_handler.check_for_inquiry(
             client, state.session_url, state.processed_activity_ids
         )
         if inquiry:
@@ -196,7 +200,7 @@ class JulesSessionNodes:
 
         try:
             # Build comprehensive context
-            enhanced_context = await self.client._build_question_context(state.current_inquiry)
+            enhanced_context = await self.client.context_builder.build_question_context(state.current_inquiry)
             console.print(f"[dim]Context size: {len(enhanced_context)} chars[/dim]")
 
             # Get Manager Agent response
