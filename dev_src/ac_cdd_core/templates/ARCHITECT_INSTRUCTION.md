@@ -14,6 +14,7 @@ Your goal is to analyze the raw requirements in `dev_documents/ALL_SPEC.md` and 
 
 ## Inputs
 - `ALL_SPEC.md`: The raw requirement document.
+- `USER_TEST_SCENARIO.md`: The target user experience and tutorial plan.
 
 ## Outputs
 You must generate (create) the following files in the repository:
@@ -85,14 +86,37 @@ User Acceptance Testing plan.
 1. **Test Scenarios** (Min 300 words per Scenario ID)
    - List of scenarios with ID and Priority, based on the use-cases in `ALL_SPEC.md`.
    - UAT is a kind of user experience. Design the UAT to amaze the users.
-   - Jupyter Notebooks (`.ipynb`) is recommended to allow the user to easily verify requirements.
+   - **Marimo** (`.py`) is required to allow the user to easily verify requirements and ensure reproducibility.
    - A few files are better than too many files for simplicity.
    (UAT could be the tutorials for the new users to understand the system.)
 
 2. **Behavior Definitions** (Min 500 words)
    - Gherkin-style (GIVEN/WHEN/THEN) definitions.
 
-#### 4. `pyproject.toml` - Linter Configuration
+#### 4. `dev_documents/USER_TEST_SCENARIO.md`
+The Master Plan for User Acceptance Testing and Tutorials.
+**Requirements:**
+- **Language**: Simple British English.
+- **Format**: Markdown.
+
+**Sections:**
+#### 4. `dev_documents/USER_TEST_SCENARIO.md` (Refinement)
+If the input `USER_TEST_SCENARIO.md` is incomplete, the Architect may refine it to add more specific test cases based on the architecture.
+**Requirements:**
+- **Language**: Simple British English.
+- **Format**: Markdown.
+
+**Sections:**
+1. **Tutorial Strategy**
+   - How to turn the `USER_TEST_SCENARIO.md` into executable tutorials.
+   - Strategy for "Mock Mode" (CI/no-api-key execution) vs "Real Mode".
+2. **Tutorial Plan**
+   - You must specify that a **SINGLE** Marimo Text/Python file named `tutorials/UAT_AND_TUTORIAL.py` will be created.
+   - It should contain all scenarios (Quick Start + Advanced) in one file for easy verification using `marimo`.
+3. **Tutorial Validation**
+   - Validate that the Marimo file executes correctly.
+
+#### 5. `pyproject.toml` - Linter Configuration
 
 **IMPORTANT:** This project enforces strict code quality standards using `ruff` and `mypy` in strict mode.
 

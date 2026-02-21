@@ -24,7 +24,17 @@ class StateManager:
     def __init__(self, project_root: str = ".") -> None:
         self.root = Path(project_root)
         self.STATE_DIR = self.root / ".ac_cdd"
-        self.STATE_FILE = self.STATE_DIR / "project_state.json"
+        self.STATE_FILE = self.STATE_DIR / "project_state_local.json"
+
+        # Migration: Rename old file if it exists and new one doesn't
+        old_state_file = self.STATE_DIR / "project_state.json"
+        if old_state_file.exists() and not self.STATE_FILE.exists():
+            try:
+                # Rename/Move the file
+                old_state_file.rename(self.STATE_FILE)
+                logger.info(f"Migrated project state to {self.STATE_FILE}")
+            except Exception as e:
+                logger.warning(f"Failed to migrate project state file: {e}")
 
     def load_manifest(self) -> ProjectManifest | None:
         """
@@ -164,3 +174,33 @@ class StateManager:
         self.save_manifest(manifest)
 
         logger.info(f"Updated cycle {cycle_id}: {kwargs}")
+
+    def update_project_state(self, **kwargs: Any) -> None:
+        """
+        Update root-level fields of the project manifest and save immediately.
+
+        Args:
+            **kwargs: Fields to update (e.g., qa_session_id="...").
+
+        Raises:
+            SessionValidationError: If manifest not found.
+        """
+        manifest = self.load_manifest()
+        if not manifest:
+            msg = "No active project manifest found."
+            raise SessionValidationError(msg)
+
+        # Update fields
+        for key, value in kwargs.items():
+            if hasattr(manifest, key):
+                setattr(manifest, key, value)
+            else:
+                logger.warning(f"Attempted to update unknown manifest field: {key}")
+
+        # Update timestamp
+        manifest.last_updated = datetime.now(UTC)
+
+        # Save
+        self.save_manifest(manifest)
+
+        logger.info(f"Updated project state: {kwargs}")

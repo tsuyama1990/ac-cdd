@@ -34,6 +34,9 @@ class CycleState(BaseModel):
     audit_retries: int = 0
     audit_logs: str = ""
 
+    # QA/Tutorial State
+    qa_retry_count: int = 0
+
     # Test State
     test_logs: str = ""
     test_exit_code: int | None = None
@@ -44,6 +47,7 @@ class CycleState(BaseModel):
     error: str | None = None
     # Add status explicitely to allow safe access
     status: str | None = None
+    last_audited_commit: str | None = None
 
     # Legacy/Optional Fields
     sandbox_id: str | None = None

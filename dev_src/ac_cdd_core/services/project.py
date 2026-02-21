@@ -62,6 +62,30 @@ class ProjectManager:
                 encoding="utf-8",
             )
 
+        # Create USER_TEST_SCENARIO.md (Target User Experience) if not exists
+        uts_dest = docs_dir / "USER_TEST_SCENARIO.md"
+        if uts_dest.exists() and uts_dest.is_dir():
+            logger.warning(f"Removing directory {uts_dest} to replace with file")
+            shutil.rmtree(uts_dest)
+
+        if not uts_dest.exists():
+            uts_content = """# User Test Scenario & Tutorial Plan
+
+## Aha! Moment
+Describe the "Magic Moment" where the user first realizes the value of this software.
+(e.g., "The user runs one command and sees a beautiful report generated instantly.")
+
+## Prerequisites
+List what the user needs before running the tutorial.
+(e.g., "OpenAI API Key", "Docker installed")
+
+## Success Criteria
+What defines a successful user experience?
+(e.g., "The tutorial runs from start to finish without errors in under 5 minutes.")
+"""
+            uts_dest.write_text(uts_content, encoding="utf-8")
+            logger.info(f"✓ Created {uts_dest}")
+
         # Create other necessary dirs
         (docs_dir / "contracts").mkdir(exist_ok=True)
 
@@ -147,8 +171,10 @@ FAST_MODEL=openrouter/nousresearch/hermes-3-llama-3.1-405b:free
         gitignore_entries = [
             "# AC-CDD Configuration",
             ".env",
-            ".ac_cdd/.env",
+            ".ac_cdd/",  # Ignore entire state directory
+            ".ac_cdd/project_state_local.json",
             "dev_documents/project_state.json",
+            "dev_documents/project_state_local.json",
         ]
 
         if gitignore_path.exists():
@@ -276,12 +302,32 @@ jobs:
         Prepares the environment for execution:
         1. Fixes permissions of key directories.
         2. Syncs dependencies using uv.
+
+        NOTE: When running inside Docker (detected by /.dockerenv or DOCKER_CONTAINER env var),
+        we intentionally skip 'uv sync' to avoid creating a .venv whose activate script
+        hardcodes VIRTUAL_ENV=/app/.venv. This path leaks onto the host machine when the user
+        runs 'source .venv/bin/activate' from their host shell, causing a persistent
+        'VIRTUAL_ENV does not match' warning in uv.
         """
+        import os
+        from pathlib import Path as _Path
+
         # Fix permissions first
-        docs_dir = Path(settings.paths.documents_dir)
+        docs_dir = _Path(settings.paths.documents_dir)
         await self.fix_permissions(docs_dir)
 
-        # Sync dependencies
+        # Detect Docker environment
+        in_docker = _Path("/.dockerenv").exists() or os.environ.get("DOCKER_CONTAINER") == "true"
+
+        if in_docker:
+            logger.info(
+                "[ProjectManager] Running inside Docker — skipping 'uv sync' to avoid "
+                "contaminating the host .venv with Docker-internal paths (/app/.venv). "
+                "The user should run 'uv sync' on their host machine instead."
+            )
+            return
+
+        # Sync dependencies (host-only path)
         from ac_cdd_core.process_runner import ProcessRunner
 
         runner = ProcessRunner()
@@ -400,6 +446,8 @@ jobs:
             "MANAGER_INSTRUCTION.md",
             "MANAGER_INQUIRY_PROMPT.md",
             "PLAN_REVIEW_PROMPT.md",
+            "QA_TUTORIAL_INSTRUCTION.md",
+            "QA_AUDITOR_INSTRUCTION.md",
         ]
 
         # Source directory: package templates (always available)

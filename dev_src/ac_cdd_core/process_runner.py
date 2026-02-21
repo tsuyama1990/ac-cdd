@@ -1,4 +1,5 @@
 import asyncio
+import subprocess
 from pathlib import Path
 
 from .utils import logger
@@ -62,8 +63,10 @@ class ProcessRunner:
                                 logger.error("DEBUG: .git/index.lock EXISTS (Lock contention)")
                         except Exception as e:
                             logger.error(f"DEBUG failed: {e}")
-                else:
-                    logger.debug(f"Command failed (expected) [{returncode}]: {cmd_str}")
+                    raise subprocess.CalledProcessError(
+                        returncode, cmd, output=stdout_str, stderr=stderr_str
+                    )  # noqa: TRY301
+                logger.debug(f"Command failed (expected) [{returncode}]: {cmd_str}")
         except Exception as e:
             logger.error(f"Execution failed for '{cmd_str}': {e}")
             return "", str(e), -1

@@ -1,8 +1,10 @@
+import asyncio
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from rich.console import Console
+from rich.panel import Panel
 
 from .config import settings
 from .domain_models import AuditResult
@@ -47,34 +49,60 @@ class CycleNodes(IGraphNodes):
                 pass
         return result
 
-    async def _run_static_analysis(self) -> tuple[bool, str]:
+    async def _run_static_analysis(self, target_files: list[str] | None = None) -> tuple[bool, str]:
         """Runs local static analysis (mypy, ruff) and returns (success, output)."""
         console.print("[bold cyan]Running Static Analysis (mypy, ruff)...[/bold cyan]")
         output = []
         success = True
 
-        # Run mypy
+        # Helper for output truncation
+        def truncate_output(text: str, max_lines: int = 50, max_chars: int = 2000) -> str:
+            lines = text.splitlines()
+            original_line_count = len(lines)
+            if original_line_count > max_lines:
+                text = (
+                    "\n".join(lines[:max_lines])
+                    + f"\n... (truncated {original_line_count - max_lines} more lines)"
+                )
+            if len(text) > max_chars:
+                text = text[:max_chars] + f"\n... (truncated {len(text) - max_chars} more chars)"
+            return text
+
+        # Determine targets
+        # If target_files provided, use them; otherwise defaults to "." (all)
+        targets = target_files if target_files is not None else ["."]
+
+        # If explicit targets are empty list, skip
+        if target_files is not None and not target_files:
+            console.print("[dim]No files to analyze.[/dim]")
+            return True, "No files to analyze."
+
+        # Run mypy (Only on .py files or ".")
         try:
-            # Using settings checks if possible, or default
-            mypy_cmd = ["uv", "run", "mypy", "."]
-            stdout, stderr, code = await self.git.runner.run_command(mypy_cmd, check=False)
-            if code != 0:
-                success = False
-                output.append("### mypy Errors")
-                output.append(f"```\n{stdout}{stderr}\n```")
-            else:
-                console.print("[green]mypy passed[/green]")
+            mypy_targets = [f for f in targets if f == "." or f.endswith(".py")]
+            if mypy_targets:
+                # --no-error-summary to keep it concise
+                mypy_cmd = ["uv", "run", "mypy", "--no-error-summary", *mypy_targets]
+                stdout, stderr, code = await self.git.runner.run_command(mypy_cmd, check=False)
+                if code != 0:
+                    success = False
+                    details = truncate_output(stdout + stderr)
+                    output.append("### mypy Errors")
+                    output.append(f"```\n{details}\n```")
+                else:
+                    console.print("[green]mypy passed[/green]")
         except Exception as e:
             output.append(f"Failed to run mypy: {e}")
 
-        # Run ruff
+        # Run ruff (Checks all supported files)
         try:
-            ruff_cmd = ["uv", "run", "ruff", "check", "."]
+            ruff_cmd = ["uv", "run", "ruff", "check", *targets]
             stdout, stderr, code = await self.git.runner.run_command(ruff_cmd, check=False)
             if code != 0:
                 success = False
+                details = truncate_output(stdout + stderr)
                 output.append("### ruff Errors")
-                output.append(f"```\n{stdout}{stderr}\n```")
+                output.append(f"```\n{details}\n```")
             else:
                 console.print("[green]ruff passed[/green]")
         except Exception as e:
@@ -173,20 +201,52 @@ class CycleNodes(IGraphNodes):
                 f"{feedback}\n\n"
                 f"Please revise your implementation to address the above feedback and create a new PR."
             )
+            # Send message
             await self.jules._send_message(self.jules._get_session_url(session_id), feedback_msg)
+            # Replace fixed sleep with smart polling for state transition
+            console.print(
+                "[dim]Waiting for Jules to process feedback (expecting IN_PROGRESS)...[/dim]"
+            )
+
+            # Poll for state change (up to 60s)
+            state_transitioned = False
+            for attempt in range(12):  # 12 * 5s = 60s
+                await asyncio.sleep(5)
+                current_state = await self.jules.get_session_state(session_id)
+                console.print(f"[dim]State check ({attempt + 1}/12): {current_state}[/dim]")
+
+                if current_state in ["IN_PROGRESS", "QUEUED", "RUNNING"]:
+                    state_transitioned = True
+                    console.print(
+                        "[green]Jules session is now active. Proceeding to monitor...[/green]"
+                    )
+                    break
+                if current_state == "FAILED":
+                    console.print("[red]Jules session failed during feedback wait.[/red]")
+                    return None
+
+            if not state_transitioned:
+                console.print(
+                    "[yellow]Warning: Jules session state did not change to IN_PROGRESS after 60s. "
+                    "Assuming message received but state lagging, or task finished very quickly.[/yellow]"
+                )
 
             # Wait for Jules to process feedback and create new PR
+            # We pass a flag or rely on wait_for_completion to handle the "re-completion"
             result = await self.jules.wait_for_completion(session_id)
 
             if result.get("status") == "success" or result.get("pr_url"):
                 return {"status": "ready_for_audit", "pr_url": result.get("pr_url")}
+
+            # If we get here, it means wait_for_completion returned but no success/PR
+            console.print(
+                "[yellow]Jules session finished without new PR. Creating new session...[/yellow]"
+            )
+            return None  # noqa: TRY300
+
         except Exception as e:
             console.print(
                 f"[yellow]Failed to send feedback to existing session: {e}. Creating new session...[/yellow]"
-            )
-        else:
-            console.print(
-                "[yellow]Jules session did not produce PR after feedback. Creating new session...[/yellow]"
             )
         return None
 
@@ -271,6 +331,17 @@ class CycleNodes(IGraphNodes):
                     )
                     if retry_result:
                         return retry_result
+
+                    # FALLBACK: Reuse failed, creating new session
+                    # We MUST inject the feedback here or the new session won't know what to fix
+                    console.print(
+                        "[yellow]Session reuse failed. Creating NEW session with feedback injected...[/yellow]"
+                    )
+                    instruction += (
+                        f"\n\n# PREVIOUS AUDIT FEEDBACK (MUST FIX)\n{last_audit.feedback}"
+                    )
+                    if cycle_manifest.pr_url:
+                        instruction += f"\n\nPrevious PR: {cycle_manifest.pr_url}"
                 elif session_state == "FAILED":
                     # Session failed - create new session
                     console.print(
@@ -410,9 +481,6 @@ class CycleNodes(IGraphNodes):
         context_docs = await self._read_files(context_paths)
 
         # DYNAMIC: Get all files changed in the current branch (what's in the PR)
-        from .services.git_ops import GitManager
-
-        git = GitManager()
 
         try:
             # Initialize with current state
@@ -424,11 +492,11 @@ class CycleNodes(IGraphNodes):
             if pr_url:
                 console.print(f"[dim]Checking out PR: {pr_url}[/dim]")
                 try:
-                    await git.checkout_pr(pr_url)
+                    await self.git.checkout_pr(pr_url)
                     console.print("[dim]Successfully checked out PR branch[/dim]")
 
                     # ROBUSTNESS: Commit ID Check with Polling
-                    current_commit = await git.get_current_commit()
+                    current_commit = await self.git.get_current_commit()
                     last_audited = state.get("last_audited_commit")
 
                     if current_commit and current_commit == last_audited:
@@ -452,13 +520,45 @@ class CycleNodes(IGraphNodes):
                             poll_index += 1
 
                             # Check for new commit
-                            new_commit = await git.get_current_commit()
+                            try:
+                                await self.git.pull_changes()
+                            except Exception as e:
+                                console.print(
+                                    f"[yellow]Warning: Could not pull changes during polling: {e}[/yellow]"
+                                )
+
+                            new_commit = await self.git.get_current_commit()
                             if new_commit and new_commit != last_audited:
                                 console.print(
                                     f"[bold green]New commit detected: {new_commit[:7]}. Proceeding with audit.[/bold green]"
                                 )
                                 current_commit = new_commit
                                 break
+
+                            # ALSO CHECK JULES STATUS
+                            # If Jules is finished, we shouldn't wait for new commits forever.
+                            # We should assume the current state is final and audit it.
+                            jules_session_id = state.get("jules_session_name")
+                            # Try other keys if needed, e.g. from cycle manifest
+                            if not jules_session_id:
+                                # Fallback to looking up current cycle
+                                mgr = StateManager()
+                                cycle_manifest = mgr.get_cycle(state.get("cycle_id", "00"))
+                                if cycle_manifest:
+                                    jules_session_id = cycle_manifest.jules_session_id
+
+                            if jules_session_id:
+                                try:
+                                    jules_status = await self.jules.get_session_state(
+                                        jules_session_id
+                                    )
+                                    if jules_status in ["COMPLETED", "SUCCEEDED", "FAILED"]:
+                                        console.print(
+                                            f"[bold yellow]Jules session is {jules_status}. Stop polling and proceed with audit.[/bold yellow]"
+                                        )
+                                        break
+                                except Exception:  # noqa: S110
+                                    pass  # Ignore status check errors, keep polling
                         else:
                             # Timeout: No new commit after max wait time
                             console.print(
@@ -490,9 +590,21 @@ class CycleNodes(IGraphNodes):
             # Feature branch is where we accumulate all cycles
             # We compare to the PREVIOUS state of feature branch (before this cycle's changes)
             base_branch = state.get("feature_branch") or state.get("integration_branch", "main")
+
+            # CRITICAL FIX: dynamic base branch detection
+            if pr_url:
+                try:
+                    # If we have a PR, use its actual base branch to ensure we only review PR changes
+                    pr_base = await self.git.get_pr_base_branch(pr_url)
+                    if pr_base:
+                        console.print(f"[dim]Detected PR base branch: {pr_base}[/dim]")
+                        base_branch = pr_base
+                except Exception as e:
+                    console.print(f"[yellow]Warning: Could not get PR base branch: {e}[/yellow]")
+
             console.print(f"[dim]Comparing changes against base branch: {base_branch}[/dim]")
 
-            changed_file_paths = await git.get_changed_files(base_branch=base_branch)
+            changed_file_paths = await self.git.get_changed_files(base_branch=base_branch)
             console.print(
                 f"[dim]Auditor: Found {len(changed_file_paths)} changed files to review[/dim]"
             )
@@ -560,7 +672,7 @@ class CycleNodes(IGraphNodes):
                     # git check-ignore returns 0 for ignored files, 1 for not ignored
                     filtered_files = []
                     for file_path in reviewable_files:
-                        _, _, code = await git.runner.run_command(
+                        _, _, code = await self.git.runner.run_command(
                             ["git", "check-ignore", "-q", file_path], check=False
                         )
                         if code != 0:  # Not ignored, keep it
@@ -617,6 +729,7 @@ class CycleNodes(IGraphNodes):
             console.print("[dim]Falling back to static target files configuration[/dim]")
             # Fallback to original behavior
             target_paths = settings.get_target_files()
+            reviewable_files = target_paths
             target_files = await self._read_files(target_paths)
 
         # Select model based on AUDITOR_MODEL_MODE setting
@@ -628,7 +741,7 @@ class CycleNodes(IGraphNodes):
 
         # Run static analysis BEFORE or PARALLEL to LLM?
         # Running before gives us clear fail signal.
-        static_ok, static_log = await self._run_static_analysis()
+        static_ok, static_log = await self._run_static_analysis(target_files=reviewable_files)
 
         audit_feedback = await self.llm_reviewer.review_code(
             target_files=target_files,
@@ -637,7 +750,13 @@ class CycleNodes(IGraphNodes):
             model=model,
         )
 
-        status = "approved" if "NO ISSUES FOUND" in audit_feedback.upper() else "rejected"
+        if "-> APPROVE" in audit_feedback:
+            status = "approved"
+        elif "-> REJECT" in audit_feedback:
+            status = "rejected"
+        else:
+            # Fallback for robustness
+            status = "approved" if "NO ISSUES FOUND" in audit_feedback.upper() else "rejected"
 
         # OVERRIDE: If static analysis failed, force rejection and append log
         if not static_ok:
@@ -660,7 +779,7 @@ class CycleNodes(IGraphNodes):
         if feature_branch:
             try:
                 console.print(f"[dim]Returning to feature branch: {feature_branch}[/dim]")
-                await git.checkout_branch(feature_branch)
+                await self.git.checkout_branch(feature_branch)
                 console.print("[dim]Successfully returned to feature branch[/dim]")
             except Exception as e:
                 console.print(f"[yellow]Warning: Could not return to feature branch: {e}[/yellow]")
@@ -847,3 +966,216 @@ class CycleNodes(IGraphNodes):
         if status == "cycle_completed":
             return "end"
         return "end"  # failed etc.
+
+    async def qa_session_node(self, state: CycleState) -> dict[str, Any]:  # noqa: C901, PLR0912
+        """Node for QA Agent (Tutorial Generation)."""
+        console.print("[bold cyan]Starting QA Session (Tutorial Generation)...[/bold cyan]")
+
+        # Prepare Inputs
+        docs_dir = settings.paths.documents_dir
+        qa_instruction = settings.get_template("QA_TUTORIAL_INSTRUCTION.md").read_text()
+        full_prompt = f"{qa_instruction}\n\nTask: Generate the tutorials based on Final UAT."
+
+        # Context Files
+        files_to_send = []
+        if (docs_dir / "USER_TEST_SCENARIO.md").exists():
+            files_to_send.append(str(docs_dir / "USER_TEST_SCENARIO.md"))
+        if (docs_dir / "system_prompts/SYSTEM_ARCHITECTURE.md").exists():
+            files_to_send.append(str(docs_dir / "system_prompts/SYSTEM_ARCHITECTURE.md"))
+        if (Path.cwd() / "pyproject.toml").exists():
+            files_to_send.append(str(Path.cwd() / "pyproject.toml"))
+
+        # Add existing tutorials to context if retrying, so Agent can edit them
+        tutorials_dir = Path.cwd() / "tutorials"
+        if tutorials_dir.exists():
+            for py_file in tutorials_dir.glob("*.py"):
+                files_to_send.append(str(py_file))
+
+        try:
+            # Load persistent state
+            mgr = StateManager()
+            manifest = mgr.load_manifest()
+
+            # Use persistent QA session ID if available, otherwise generate default
+            persistent_qa_id = manifest.qa_session_id if manifest else None
+            # Also check memory state as fallback
+            memory_qa_id = state.jules_session_name
+
+            session_id = state.project_session_id or settings.current_session_id
+
+            # Determine priority between persistent and memory
+            qa_session_id = persistent_qa_id or memory_qa_id or f"qa-{session_id}"
+
+            # FEEDBACK LOOP: If rejected, try to reuse existing session
+            if state.get("status") == "rejected" and state.get("audit_result"):
+                # Check Retry Limit
+                current_retries = state.qa_retry_count
+                if current_retries >= 5:  # MAX_QA_RETRIES
+                    console.print(
+                        f"[bold red]Max QA retries ({current_retries}) exceeded. Stopping loop.[/bold red]"
+                    )
+                    return {"status": "max_retries", "error": "Max QA retries exceeded"}
+
+                feedback = state.audit_result.feedback if state.audit_result else ""
+                console.print(
+                    f"[bold yellow]Sending Audit Feedback to Existing QA Session: {qa_session_id}... (Retry {current_retries + 1}/5)[/bold yellow]"
+                )
+
+                # Reuse existing session
+                result = await self._send_audit_feedback_to_session(
+                    session_id=qa_session_id,
+                    feedback=f"# AUDIT REJECTION FEEDBACK\n\n{feedback}\n\nPlease fix the issues and Create a New PR.",
+                )
+
+                # Increment retry count
+                next_retries = current_retries + 1
+
+                if result:
+                    return {
+                        "status": "ready_for_audit",
+                        "pr_url": result.get("pr_url"),
+                        "jules_session_name": qa_session_id,
+                        "qa_retry_count": next_retries,
+                    }
+
+                # If reuse failed (e.g. 404), inject feedback into NEW session prompt
+                console.print(
+                    "[yellow]Could not reuse session. Starting new session with feedback...[/yellow]"
+                )
+                full_prompt += f"\n\n# PREVIOUS AUDIT FEEDBACK (MUST FIX)\n{feedback}"
+                # Reset ID to allow new session creation logic
+                qa_session_id = f"qa-{session_id}"
+
+                # We still count this as a retry since we are continuing the loop
+                # Returning the incremented count in the final return block logic implies we need
+                # to pass it through run_session or return it here?
+                # Actually, if we fall through to run_session, we should return the updated count there too.
+                # Let's update the state variable for the fall-through case.
+                state.qa_retry_count = next_retries
+
+            # START NEW SESSION (First attempt or Fallback)
+            result = await self.jules.run_session(
+                session_id=qa_session_id,
+                prompt=full_prompt,
+                files=files_to_send,
+                require_plan_approval=False,
+            )
+
+            # Capture the REAL session name and PERSIST it
+            real_session_name = result.get("session_name") or qa_session_id
+
+            # Save to disk
+            if mgr and real_session_name:
+                try:
+                    mgr.update_project_state(qa_session_id=real_session_name)
+                    console.print(f"[dim]Persisted QA Session ID: {real_session_name}[/dim]")
+                except Exception as e:
+                    console.print(f"[red]Failed to persist QA Session ID: {e}[/red]")
+
+            # Include current retries in result to persist state
+            ret_dict = {
+                "jules_session_name": real_session_name,
+                "qa_retry_count": state.qa_retry_count,
+            }
+
+            if result.get("pr_url"):
+                ret_dict.update(
+                    {
+                        "status": "ready_for_audit",
+                        "pr_url": result["pr_url"],
+                    }
+                )
+                return ret_dict
+
+            if result.get("status") == "success":  # No PR but success?
+                ret_dict["status"] = "ready_for_audit"
+                return ret_dict
+
+            return {"status": "failed", "error": "jules failed to produce tutorials"}  # noqa: TRY300
+
+        except Exception as e:
+            return {"status": "failed", "error": str(e)}
+
+    async def qa_auditor_node(self, state: CycleState) -> dict[str, Any]:
+        """Node for QA Auditor (Reviewing Tutorials)."""
+        console.print("[bold magenta]Starting QA Auditor...[/bold magenta]")
+
+        instruction = settings.get_template("QA_AUDITOR_INSTRUCTION.md").read_text()
+
+        # Prepare Context Files (UAT + Arch)
+        docs_dir = settings.paths.documents_dir
+        context_files = {}
+        for fname in ["USER_TEST_SCENARIO.md", "system_prompts/SYSTEM_ARCHITECTURE.md"]:
+            p = docs_dir / fname
+            if p.exists():
+                context_files[fname] = p.read_text(encoding="utf-8")
+
+        # Target Files (Tutorials)
+        # We need to read the actual notebooks from disk (or from PR)
+        # Assuming Jules committed them to the branch / PR.
+        # We should check out the PR if available.
+
+        git = GitManager()
+        pr_url = state.get("pr_url")
+
+        if pr_url:
+            try:
+                await git.checkout_pr(pr_url)
+                console.print(f"[dim]Checked out PR: {pr_url}[/dim]")
+            except Exception as e:
+                console.print(f"[yellow]Failed to checkout PR: {e}. using current files.[/yellow]")
+
+        tutorials_dir = Path.cwd() / "tutorials"
+        target_files = {}
+        if tutorials_dir.exists():
+            for py_file in tutorials_dir.glob("*.py"):
+                target_files[f"tutorials/{py_file.name}"] = py_file.read_text(encoding="utf-8")
+
+        if not target_files:
+            console.print("[red]No tutorials found to audit![/red]")
+            return {"status": "failed", "error": "No tutorials generated"}
+
+        # Run Review
+        audit_feedback = await self.llm_reviewer.review_code(
+            target_files=target_files,
+            context_docs=context_files,
+            instruction=instruction,
+            model=settings.reviewer.fast_model,
+        )
+
+        status = "approved"
+        if "-> APPROVE" in audit_feedback:
+            status = "approved"
+        elif "-> REJECT" in audit_feedback:
+            status = "rejected"
+        else:
+            status = "approved" if "NO ISSUES FOUND" in audit_feedback.upper() else "rejected"
+
+        result = AuditResult(
+            status=status.upper(),
+            is_approved=(status == "approved"),
+            reason="QA Audit Complete",
+            feedback=audit_feedback,
+        )
+
+        console.print(
+            Panel(
+                f"Status: {status}\nReason: {result.reason}",
+                title="QA Audit Result",
+                border_style="green" if status == "approved" else "red",
+            )
+        )
+
+        return {
+            "audit_result": result,
+            "status": status,  # "approved" or "rejected"
+        }
+
+    def route_qa(self, state: CycleState) -> str:
+        """Route QA Auditor outcome."""
+        status = state.get("status")
+        if status == "approved":
+            return "end"  # Finish
+        if status == "rejected":
+            return "retry_fix"  # Back to qa_session
+        return "failed"

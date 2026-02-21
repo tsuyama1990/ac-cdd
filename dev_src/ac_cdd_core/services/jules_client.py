@@ -3,6 +3,7 @@ import json
 import os
 import sys
 import unittest.mock
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -171,11 +172,25 @@ class JulesClient:
                 self._raise_jules_session_error(repo_url)
 
             branch = await self.git.get_current_branch()
+
+            # Handle detached HEAD state (Jules cannot clone 'HEAD')
+            if branch == "HEAD":
+                timestamp = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
+                branch = f"jules-sync-{timestamp}"
+                logger.warning(f"Detached HEAD detected. Creating temporary sync branch: {branch}")
+                # Safely create and switch to the temp branch so we can push it
+                await self.git.runner.run_command(["git", "checkout", "-b", branch], check=True)
+
             if "PYTEST_CURRENT_TEST" not in os.environ:
                 try:
+                    # Sync with remote before pushing to handle external changes (PRs, etc.)
+                    # We use run_command directly to avoid strict checking on pull (it might fail if upstream missing)
+                    await self.git.runner.run_command(
+                        ["git", "pull", "--rebase", "origin", branch], check=False
+                    )
                     await self.git.push_branch(branch)
                 except Exception as e:
-                    logger.warning(f"Could not push branch: {e}")
+                    logger.warning(f"Could not sync/push branch: {e}")
         except Exception as e:
             if "PYTEST_CURRENT_TEST" in os.environ:
                 return "test-owner", "test-repo", "main"
@@ -222,9 +237,15 @@ class JulesClient:
 
         require_approval = bool(payload.get("requirePlanApproval", False))
         title = payload.get("title")
+        automation_mode = str(payload.get("automationMode", "AUTO_CREATE_PR"))
 
         resp = self.api_client.create_session(
-            source, prompt, require_approval, branch=branch, title=str(title) if title else None
+            source,
+            prompt,
+            require_approval,
+            branch=branch,
+            title=str(title) if title else None,
+            automation_mode=automation_mode,
         )
         return str(resp.get("name", ""))
 

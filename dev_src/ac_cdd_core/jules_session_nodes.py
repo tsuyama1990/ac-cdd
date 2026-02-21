@@ -18,89 +18,114 @@ class JulesSessionNodes:
         """Initialize with reference to JulesClient for API calls."""
         self.client = jules_client
 
-    async def monitor_session(self, state: JulesSessionState) -> JulesSessionState:  # noqa: C901
-        """Monitor Jules session and detect state changes."""
-        # Check timeout
-        elapsed = asyncio.get_event_loop().time() - state.start_time
-        if elapsed > state.timeout_seconds:
-            logger.warning(f"Session timeout after {elapsed}s")
-            state.status = SessionStatus.TIMEOUT
-            state.error = f"Timed out after {elapsed}s"
-            return state
+    async def monitor_session(self, state: JulesSessionState) -> JulesSessionState:  # noqa: C901, PLR0912
+        """Monitor Jules session and detect state changes with batched polling."""
+        # Batch polling loop to reduce graph steps
+        # Poll for ~60 seconds (12 checks * 5s interval)
+        POLL_BATCH_SIZE = 12
 
-        try:
-            async with httpx.AsyncClient() as client:
-                # Fetch session state
-                response = await client.get(state.session_url, headers=self.client._get_headers())
-                response.raise_for_status()
-                data = response.json()
+        for _ in range(POLL_BATCH_SIZE):
+            # Check timeout
+            elapsed = asyncio.get_event_loop().time() - state.start_time
+            if elapsed > state.timeout_seconds:
+                logger.warning(f"Session timeout after {elapsed}s")
+                state.status = SessionStatus.TIMEOUT
+                state.error = f"Timed out after {elapsed}s"
+                return state
 
-                state.jules_state = data.get("state")
-                state.raw_data = data
+            try:
+                async with httpx.AsyncClient() as client:
+                    # Fetch session state
+                    response = await client.get(
+                        state.session_url, headers=self.client._get_headers()
+                    )
+                    response.raise_for_status()
+                    data = response.json()
 
-                logger.info(f"Jules session state: {state.jules_state}")
+                    new_jules_state = data.get("state")
+                    if state.jules_state != new_jules_state:
+                        state.previous_jules_state = state.jules_state
+                    state.jules_state = new_jules_state
+                    state.raw_data = data
 
-                # Check for failure
-                if state.jules_state == "FAILED":
-                    # Debug output for failed state
-                    import json
+                    logger.info(f"Jules session state: {state.jules_state}")
 
-                    logger.error(f"Jules Session FAILED. Response: {json.dumps(data, indent=2)}")
+                    # Check for failure
+                    if state.jules_state == "FAILED":
+                        # Debug output for failed state
+                        import json
 
-                    error_msg = data.get("error", {}).get("message", "Unknown error")
+                        logger.error(
+                            f"Jules Session FAILED. Response: {json.dumps(data, indent=2)}"
+                        )
 
-                    # Resilience: Check if a PR was created despite the failure
-                    # (Sometimes Jules marks session FAILED due to timeout/minor error but PR exists)
-                    pr_found = False
+                        error_msg = data.get("error", {}).get("message", "Unknown error")
 
-                    # Check in outputs
-                    for output in data.get("outputs", []):
-                        if "github_pull_request" in str(output.get("type", "")):
-                            pr_found = True
-                            break
+                        # Resilience: Check if a PR was created despite the failure
+                        # (Sometimes Jules marks session FAILED due to timeout/minor error but PR exists)
+                        pr_found = False
 
-                    # Check in activities (if outputs empty)
-                    if not pr_found:
-                        activities = self.client.list_activities(state.session_url.split("/")[-1])
-                        for act in activities:
-                            if "pullRequest" in str(act) or "CreatePullRequest" in str(act):
+                        # Check in outputs
+                        for output in data.get("outputs", []):
+                            if "github_pull_request" in str(output.get("type", "")):
                                 pr_found = True
                                 break
 
-                    if pr_found:
-                        logger.warning(
-                            "Session marked FAILED but PR activity detected. Proceeding to validation."
-                        )
-                        state.status = SessionStatus.CHECKING_PR
-                    else:
-                        state.status = SessionStatus.FAILED
-                        state.error = f"Jules Session Failed: {error_msg}"
-                    return state
+                        # Check in activities (if outputs empty)
+                        if not pr_found:
+                            activities = self.client.list_activities(
+                                state.session_url.split("/")[-1]
+                            )
+                            for act in activities:
+                                if "pullRequest" in str(act) or "CreatePullRequest" in str(act):
+                                    pr_found = True
+                                    break
 
-                # Process inquiries (questions and plan approvals)
-                await self._process_inquiries_in_monitor(state, client)
+                        if pr_found:
+                            logger.warning(
+                                "Session marked FAILED but PR activity detected. Proceeding to validation."
+                            )
+                            state.status = SessionStatus.CHECKING_PR
+                        else:
+                            state.status = SessionStatus.FAILED
+                            state.error = f"Jules Session Failed: {error_msg}"
+                        return state
 
-                # CRITICAL FIX: If an inquiry was detected, return immediately to handle it.
-                # Do NOT let "COMPLETED" status overwrite a pending question.
-                if state.status == SessionStatus.INQUIRY_DETECTED:
-                    return state
+                    # Process inquiries (questions and plan approvals)
+                    await self._process_inquiries_in_monitor(state, client)
 
-                # Check for completion
-                if state.jules_state in ["COMPLETED", "SUCCEEDED"]:
-                    state.status = SessionStatus.VALIDATING_COMPLETION
-                    return state
+                    # CRITICAL FIX: If an inquiry was detected, return immediately to handle it.
+                    # Do NOT let "COMPLETED" status overwrite a pending question.
+                    if state.status == SessionStatus.INQUIRY_DETECTED:
+                        return state
 
-                # Update activity count
-                await self._update_activity_count(state, client)
+                    # Reset validation flag if we are back in progress
+                    if state.jules_state not in ["COMPLETED", "SUCCEEDED"]:
+                        state.completion_validated = False
 
-                # Handle manual user input
-                await self.client._handle_manual_input(state.session_url)
+                    # Check for completion
+                    if (
+                        state.jules_state in ["COMPLETED", "SUCCEEDED"]
+                        and not state.completion_validated
+                    ):
+                        state.status = SessionStatus.VALIDATING_COMPLETION
+                        return state
 
-        except Exception as e:
-            logger.warning(f"Monitor loop error (transient): {e}")
+                    # Update activity count
+                    await self._update_activity_count(state, client)
 
-        # Continue monitoring
-        await self.client._sleep(state.poll_interval)
+                    # Handle manual user input
+                    await self.client._handle_manual_input(state.session_url)
+
+            except Exception as e:
+                logger.warning(f"Monitor loop error (transient): {e}")
+
+            # Continue monitoring loop
+            # We use a short sleep here because we are inside the batch loop
+            # state.poll_interval is typically long (120s), but for batching we want shorter interval (5s)
+            # We ignore state.poll_interval here and use fixed 5s for responsiveness
+            await self.client._sleep(5)
+
         return state
 
     async def _process_inquiries_in_monitor(

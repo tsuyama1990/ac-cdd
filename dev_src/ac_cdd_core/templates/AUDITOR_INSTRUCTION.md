@@ -44,8 +44,8 @@ You are reviewing code for **CYCLE {{cycle_id}} ONLY**.
 - ❌ **REJECT** for:
   - Violations of `SPEC.md`.
   - Violations of **CONSTITUTION** (OOM, Security, Hardcoding, I/O bottlenecks).
-- ❌ **DO NOT REJECT** for *minor* missing features not in `SPEC.md` (e.g., "Add logs", "Renaming variables").
-- ✅ **SUGGESTIONS**: You MUST list non-critical improvements (e.g., style, minor refactors) in the "Suggestions" section.
+  - **ANY SUGGESTIONS**: If you have `Suggestions` to improve the code (e.g. "Add logs", "Renaming variables", "Refactor loop"), you MUST **REJECT** the code so the Coder can improve it.
+- ✅ **APPROVE** ONLY if the code is **PERFECT** and requires **ZERO** changes (not even minor ones).
 
 **CONCRETE EXAMPLES:**
 
@@ -63,10 +63,10 @@ Spec: "Use `extra='forbid'`".
 Code: `class MyModel(BaseModel): pass`.
 - ❌ **REJECT**: "[Data Integrity] Model missing `extra='forbid'`."
 
-**Example 4: Minor Feature (YAGNI)**
+**Example 4: Minor Feature / Refactoring (Improvement Opportunity)**
 Spec: "Implement CSV loading."
-Code: Works but lacks extensive error logging.
-- ✅ **APPROVE** (But add Suggestion: "Consider adding logging").
+Code: Works but variable naming is unclear or could use utility function.
+- ❌ **REJECT** (Suggestion): "Refactor: Rename variable `x` to `csv_reader` for clarity."
 
 **REFERENCE MATERIALS:**
 - `ARCHITECT_INSTRUCTION.md`: Overall project structure (for context only)
@@ -105,7 +105,7 @@ Review the code critically.
 
 ## Output Format
 
-### If REJECTED:
+### If REJECTED (Critical Issues OR Suggestions):
 Output an **EXHAUSTIVE, STRUCTURED** list of issues.
 **CRITICAL INSTRUCTION**: Do NOT provide single examples. List **EVERY** file/line that contains a violation.
 
@@ -113,25 +113,21 @@ Format:
 ```text
 -> REJECT
 
-### Critical Issues
+### Critical Issues / Suggestions
 
-#### [Category Name] (e.g. Scalability, Maintainability)
+#### [Category Name] (e.g. Scalability, Maintainability, Refactoring)
 - **Issue**: [Concise description]
   - **Location**: `path/to/file.py` (Line XX)
-  - **Requirement**: [Constitution Rule or SPEC reference]
+  - **Requirement**: [Constitution Rule, SPEC reference, or Best Practice]
   - **Fix**: [Specific instruction]
 
 - **Issue**: ...
 ```
 
 ### If APPROVED:
-You **MUST** provide a list of suggestions for non-critical improvements (Styling, Docstrings, Minor Refactors).
+Use this ONLY if the code is **PERFECT**.
 
 Format:
 ```text
 -> APPROVE
-
-### Suggestions (Non-Blocking)
-- **Refactor**: Consider using `enumerate` in loop at `foo.py:20`.
-- **Maintainability**: Consider extracting `CONST_X` to config in future cycles.
 ```

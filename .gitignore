@@ -21,6 +21,9 @@ build/
 .ac_cdd_session.json
 # AC-CDD State
 dev_documents/project_state.json
+dev_documents/project_state_local.json
 
 # AC-CDD Configuration
-.ac_cdd/.env
+.ac_cdd/
+.ac_cdd/project_state_local.json
+uv.lock
