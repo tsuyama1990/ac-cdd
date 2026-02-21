@@ -17,6 +17,16 @@ async def test_audit_rejection_loop() -> None:
     mock_services.jules = AsyncMock()  # JulesClient is async
     mock_services.sandbox = MagicMock()
     mock_services.reviewer = MagicMock()
+    
+    # Mock Git to return a unique commit each time to simulate a new Jules commit
+    commit_counter = [0]
+    async def mock_get_commit() -> str:
+        commit_counter[0] += 1
+        return f"commit_{commit_counter[0]}"
+        
+    mock_services.git.get_current_commit = AsyncMock(side_effect=mock_get_commit)
+    # The auditor needs changed files to proceed
+    mock_services.git.get_changed_files = AsyncMock(return_value=["file.py"])
 
     # Mock Jules run session
     mock_services.jules.run_session = AsyncMock(return_value={"pr_url": "http://pr"})
