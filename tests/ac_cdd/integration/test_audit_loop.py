@@ -56,6 +56,8 @@ async def test_audit_rejection_loop() -> None:
         builder = GraphBuilder(mock_services)
 
     builder.nodes.llm_reviewer.review_code = mock_services.reviewer.review_code
+    # CRITICAL: inject the git mock so it doesn't try to run real git commands!
+    builder.nodes.git = mock_services.git
 
     # Increment iteration count to avoid infinite loop
     async def mock_coder_session(state: CycleState) -> dict:
