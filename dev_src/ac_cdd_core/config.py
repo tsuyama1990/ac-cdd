@@ -254,6 +254,11 @@ class Settings(BaseSettings):
         if local_dev_path.exists():
             return local_dev_path
 
+        # 4. Package templates (fallback for installed package)
+        package_template_path = Path(__file__).parent / "templates" / name
+        if package_template_path.exists():
+            return package_template_path
+
         return system_path
 
     def get_prompt_content(self, filename: str, default: str = "") -> str:

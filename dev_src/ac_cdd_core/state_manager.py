@@ -174,3 +174,33 @@ class StateManager:
         self.save_manifest(manifest)
 
         logger.info(f"Updated cycle {cycle_id}: {kwargs}")
+
+    def update_project_state(self, **kwargs: Any) -> None:
+        """
+        Update root-level fields of the project manifest and save immediately.
+
+        Args:
+            **kwargs: Fields to update (e.g., qa_session_id="...").
+
+        Raises:
+            SessionValidationError: If manifest not found.
+        """
+        manifest = self.load_manifest()
+        if not manifest:
+            msg = "No active project manifest found."
+            raise SessionValidationError(msg)
+
+        # Update fields
+        for key, value in kwargs.items():
+            if hasattr(manifest, key):
+                setattr(manifest, key, value)
+            else:
+                logger.warning(f"Attempted to update unknown manifest field: {key}")
+
+        # Update timestamp
+        manifest.last_updated = datetime.now(UTC)
+
+        # Save
+        self.save_manifest(manifest)
+
+        logger.info(f"Updated project state: {kwargs}")

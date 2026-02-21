@@ -3,6 +3,7 @@ import json
 import os
 import sys
 import unittest.mock
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -171,6 +172,19 @@ class JulesClient:
                 self._raise_jules_session_error(repo_url)
 
             branch = await self.git.get_current_branch()
+
+            # Handle detached HEAD state (Jules cannot clone 'HEAD')
+            if branch == "HEAD":
+                timestamp = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
+                branch = f"jules-sync-{timestamp}"
+                logger.warning(
+                    f"Detached HEAD detected. Creating temporary sync branch: {branch}"
+                )
+                # Safely create and switch to the temp branch so we can push it
+                await self.git.runner.run_command(
+                    ["git", "checkout", "-b", branch], check=True
+                )
+
             if "PYTEST_CURRENT_TEST" not in os.environ:
                 try:
                     # Sync with remote before pushing to handle external changes (PRs, etc.)

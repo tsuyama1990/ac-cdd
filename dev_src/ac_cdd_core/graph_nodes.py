@@ -484,9 +484,6 @@ class CycleNodes(IGraphNodes):
         context_docs = await self._read_files(context_paths)
 
         # DYNAMIC: Get all files changed in the current branch (what's in the PR)
-        from .services.git_ops import GitManager
-
-        git = GitManager()
 
         try:
             # Initialize with current state
@@ -498,11 +495,11 @@ class CycleNodes(IGraphNodes):
             if pr_url:
                 console.print(f"[dim]Checking out PR: {pr_url}[/dim]")
                 try:
-                    await git.checkout_pr(pr_url)
+                    await self.git.checkout_pr(pr_url)
                     console.print("[dim]Successfully checked out PR branch[/dim]")
 
                     # ROBUSTNESS: Commit ID Check with Polling
-                    current_commit = await git.get_current_commit()
+                    current_commit = await self.git.get_current_commit()
                     last_audited = state.get("last_audited_commit")
 
                     if current_commit and current_commit == last_audited:
@@ -527,17 +524,40 @@ class CycleNodes(IGraphNodes):
 
                             # Check for new commit
                             try:
-                                await git.pull_changes()
+                                await self.git.pull_changes()
                             except Exception as e:
                                 console.print(f"[yellow]Warning: Could not pull changes during polling: {e}[/yellow]")
 
-                            new_commit = await git.get_current_commit()
+                            new_commit = await self.git.get_current_commit()
                             if new_commit and new_commit != last_audited:
                                 console.print(
                                     f"[bold green]New commit detected: {new_commit[:7]}. Proceeding with audit.[/bold green]"
                                 )
                                 current_commit = new_commit
                                 break
+
+                            # ALSO CHECK JULES STATUS
+                            # If Jules is finished, we shouldn't wait for new commits forever.
+                            # We should assume the current state is final and audit it.
+                            jules_session_id = state.get("jules_session_name")
+                            # Try other keys if needed, e.g. from cycle manifest
+                            if not jules_session_id:
+                                # Fallback to looking up current cycle
+                                mgr = StateManager()
+                                cycle_manifest = mgr.get_cycle(state.get("cycle_id", "00"))
+                                if cycle_manifest:
+                                    jules_session_id = cycle_manifest.jules_session_id
+
+                            if jules_session_id:
+                                try:
+                                    jules_status = await self.jules.get_session_state(jules_session_id)
+                                    if jules_status in ["COMPLETED", "SUCCEEDED", "FAILED"]:
+                                        console.print(
+                                            f"[bold yellow]Jules session is {jules_status}. Stop polling and proceed with audit.[/bold yellow]"
+                                        )
+                                        break
+                                except Exception:
+                                    pass  # Ignore status check errors, keep polling
                         else:
                             # Timeout: No new commit after max wait time
                             console.print(
@@ -574,7 +594,7 @@ class CycleNodes(IGraphNodes):
             if pr_url:
                 try:
                     # If we have a PR, use its actual base branch to ensure we only review PR changes
-                    pr_base = await git.get_pr_base_branch(pr_url)
+                    pr_base = await self.git.get_pr_base_branch(pr_url)
                     if pr_base:
                         console.print(f"[dim]Detected PR base branch: {pr_base}[/dim]")
                         base_branch = pr_base
@@ -583,7 +603,7 @@ class CycleNodes(IGraphNodes):
 
             console.print(f"[dim]Comparing changes against base branch: {base_branch}[/dim]")
 
-            changed_file_paths = await git.get_changed_files(base_branch=base_branch)
+            changed_file_paths = await self.git.get_changed_files(base_branch=base_branch)
             console.print(
                 f"[dim]Auditor: Found {len(changed_file_paths)} changed files to review[/dim]"
             )
@@ -651,7 +671,7 @@ class CycleNodes(IGraphNodes):
                     # git check-ignore returns 0 for ignored files, 1 for not ignored
                     filtered_files = []
                     for file_path in reviewable_files:
-                        _, _, code = await git.runner.run_command(
+                        _, _, code = await self.git.runner.run_command(
                             ["git", "check-ignore", "-q", file_path], check=False
                         )
                         if code != 0:  # Not ignored, keep it
@@ -758,7 +778,7 @@ class CycleNodes(IGraphNodes):
         if feature_branch:
             try:
                 console.print(f"[dim]Returning to feature branch: {feature_branch}[/dim]")
-                await git.checkout_branch(feature_branch)
+                await self.git.checkout_branch(feature_branch)
                 console.print("[dim]Successfully returned to feature branch[/dim]")
             except Exception as e:
                 console.print(f"[yellow]Warning: Could not return to feature branch: {e}[/yellow]")
@@ -955,16 +975,10 @@ class CycleNodes(IGraphNodes):
         qa_instruction = settings.get_template("QA_TUTORIAL_INSTRUCTION.md").read_text()
         full_prompt = f"{qa_instruction}\n\nTask: Generate the tutorials based on Final UAT."
 
-        # Add Audit Feedback if present
-        if state.get("status") == "retry_fix" and state.get("audit_result"):
-             feedback = state.audit_result.feedback
-             full_prompt += f"\n\n# PREVIOUS AUDIT FEEDBACK (MUST FIX)\n{feedback}"
-             console.print("[bold yellow]Injecting Audit Feedback into QA Prompt...[/bold yellow]")
-
         # Context Files
         files_to_send = []
-        if (docs_dir / "FINAL_UAT.md").exists():
-            files_to_send.append(str(docs_dir / "FINAL_UAT.md"))
+        if (docs_dir / "USER_TEST_SCENARIO.md").exists():
+            files_to_send.append(str(docs_dir / "USER_TEST_SCENARIO.md"))
         if (docs_dir / "system_prompts/SYSTEM_ARCHITECTURE.md").exists():
              files_to_send.append(str(docs_dir / "system_prompts/SYSTEM_ARCHITECTURE.md"))
         if (Path.cwd() / "pyproject.toml").exists():
@@ -973,16 +987,66 @@ class CycleNodes(IGraphNodes):
         # Add existing tutorials to context if retrying, so Agent can edit them
         tutorials_dir = Path.cwd() / "tutorials"
         if tutorials_dir.exists():
-            for ipynb in tutorials_dir.glob("*.ipynb"):
-                files_to_send.append(str(ipynb))
+            for py_file in tutorials_dir.glob("*.py"):
+                files_to_send.append(str(py_file))
 
         try:
-            # Use a specific session ID for QA
+            # Load persistent state
+            mgr = StateManager()
+            manifest = mgr.load_manifest()
+            
+            # Use persistent QA session ID if available, otherwise generate default
+            persistent_qa_id = manifest.qa_session_id if manifest else None
+            # Also check memory state as fallback
+            memory_qa_id = state.jules_session_name
+            
             session_id = state.project_session_id or settings.current_session_id
-            # Append iteration to avoid caching if needed, or keep same session?
-            # Keeping same session allows context retention.
-            qa_session_id = f"qa-{session_id}"
+            
+            # Priority: Persistent > Memory > Default
+            qa_session_id = persistent_qa_id or memory_qa_id or f"qa-{session_id}"
 
+            # FEEDBACK LOOP: If rejected, try to reuse existing session
+            if state.get("status") == "rejected" and state.get("audit_result"):
+                 # Check Retry Limit
+                 current_retries = state.qa_retry_count
+                 if current_retries >= 5: # MAX_QA_RETRIES
+                     console.print(f"[bold red]Max QA retries ({current_retries}) exceeded. Stopping loop.[/bold red]")
+                     return {"status": "max_retries", "error": "Max QA retries exceeded"}
+
+                 feedback = state.audit_result.feedback
+                 console.print(f"[bold yellow]Sending Audit Feedback to Existing QA Session: {qa_session_id}... (Retry {current_retries + 1}/5)[/bold yellow]")
+                 
+                 # Reuse existing session
+                 result = await self._send_audit_feedback_to_session(
+                     session_id=qa_session_id,
+                     feedback=f"# AUDIT REJECTION FEEDBACK\n\n{feedback}\n\nPlease fix the issues and Create a New PR."
+                 )
+                 
+                 # Increment retry count
+                 next_retries = current_retries + 1
+                 
+                 if result:
+                     return {
+                        "status": "ready_for_audit", 
+                        "pr_url": result.get("pr_url"),
+                        "jules_session_name": qa_session_id,
+                        "qa_retry_count": next_retries
+                     }
+                 
+                 # If reuse failed (e.g. 404), inject feedback into NEW session prompt
+                 console.print("[yellow]Could not reuse session. Starting new session with feedback...[/yellow]")
+                 full_prompt += f"\n\n# PREVIOUS AUDIT FEEDBACK (MUST FIX)\n{feedback}"
+                 # Reset ID to allow new session creation logic
+                 qa_session_id = f"qa-{session_id}"
+                 
+                 # We still count this as a retry since we are continuing the loop
+                 # Returning the incremented count in the final return block logic implies we need 
+                 # to pass it through run_session or return it here? 
+                 # Actually, if we fall through to run_session, we should return the updated count there too.
+                 # Let's update the state variable for the fall-through case.
+                 state.qa_retry_count = next_retries
+
+            # START NEW SESSION (First attempt or Fallback)
             result = await self.jules.run_session(
                 session_id=qa_session_id,
                 prompt=full_prompt,
@@ -990,15 +1054,33 @@ class CycleNodes(IGraphNodes):
                 require_plan_approval=False,
             )
 
+            # Capture the REAL session name and PERSIST it
+            real_session_name = result.get("session_name") or qa_session_id
+            
+            # Save to disk
+            if mgr and real_session_name:
+                try:
+                    mgr.update_project_state(qa_session_id=real_session_name)
+                    console.print(f"[dim]Persisted QA Session ID: {real_session_name}[/dim]")
+                except Exception as e:
+                    console.print(f"[red]Failed to persist QA Session ID: {e}[/red]")
+
+            # Include current retries in result to persist state
+            ret_dict = {
+                "jules_session_name": real_session_name,
+                "qa_retry_count": state.qa_retry_count 
+            }
+
             if result.get("pr_url"):
-                return {
+                ret_dict.update({
                     "status": "ready_for_audit",
                     "pr_url": result["pr_url"],
-                    "jules_session_name": qa_session_id
-                }
+                })
+                return ret_dict
 
             if result.get("status") == "success": # No PR but success?
-                 return {"status": "ready_for_audit", "jules_session_name": qa_session_id}
+                 ret_dict["status"] = "ready_for_audit"
+                 return ret_dict
 
             return {"status": "failed", "error": "jules failed to produce tutorials"}  # noqa: TRY300
 
@@ -1014,7 +1096,7 @@ class CycleNodes(IGraphNodes):
         # Prepare Context Files (UAT + Arch)
         docs_dir = settings.paths.documents_dir
         context_files = {}
-        for fname in ["FINAL_UAT.md", "system_prompts/SYSTEM_ARCHITECTURE.md"]:
+        for fname in ["USER_TEST_SCENARIO.md", "system_prompts/SYSTEM_ARCHITECTURE.md"]:
             p = docs_dir / fname
             if p.exists():
                 context_files[fname] = p.read_text(encoding="utf-8")
@@ -1037,8 +1119,8 @@ class CycleNodes(IGraphNodes):
         tutorials_dir = Path.cwd() / "tutorials"
         target_files = {}
         if tutorials_dir.exists():
-            for ipynb in tutorials_dir.glob("*.ipynb"):
-                target_files[f"tutorials/{ipynb.name}"] = ipynb.read_text(encoding="utf-8")
+            for py_file in tutorials_dir.glob("*.py"):
+                target_files[f"tutorials/{py_file.name}"] = py_file.read_text(encoding="utf-8")
 
         if not target_files:
             console.print("[red]No tutorials found to audit![/red]")

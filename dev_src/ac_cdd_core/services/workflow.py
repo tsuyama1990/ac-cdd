@@ -95,17 +95,21 @@ class WorkflowService:
 
     async def run_cycle(
         self,
-        cycle_id: str,
+        cycle_id: str | None,
         resume: bool,
         auto: bool,
         start_iter: int,
         project_session_id: str | None,
     ) -> None:
-        if cycle_id.lower() == "all":
-            await self._run_all_cycles(resume, auto, start_iter, project_session_id)
-            return
+        try:
+             # Default to "all" behavior (resume pending) if no ID provided
+             if cycle_id is None or cycle_id.lower() == "all":
+                 await self._run_all_cycles(resume, auto, start_iter, project_session_id)
+                 return
 
-        await self._run_single_cycle(cycle_id, resume, auto, start_iter, project_session_id)
+             await self._run_single_cycle(cycle_id, resume, auto, start_iter, project_session_id)
+        finally:
+             await self.builder.cleanup()
 
     async def _run_all_cycles(
         self, resume: bool, auto: bool, start_iter: int, project_session_id: str | None
@@ -118,7 +122,7 @@ class WorkflowService:
         else:
             cycles_to_run = settings.default_cycles
 
-        console.print(f"[bold cyan]Running ALL Planned Cycles: {cycles_to_run}[/bold cyan]")
+        console.print(f"[bold cyan]Running Pending Cycles: {cycles_to_run}[/bold cyan]")
 
         for idx, cid in enumerate(cycles_to_run, 1):
             console.print(
@@ -132,6 +136,10 @@ class WorkflowService:
         # After all cycles, run QA/Tutorial Generation
         await self.generate_tutorials(project_session_id)
 
+        # Auto-finalize if requested
+        if auto:
+             await self.finalize_session(project_session_id)
+
     async def _run_single_cycle(
         self,
         cycle_id: str,
@@ -140,6 +148,14 @@ class WorkflowService:
         start_iter: int,
         project_session_id: str | None,
     ) -> None:
+        # Check completion status before starting
+        mgr = StateManager()
+        manifest = mgr.load_manifest()
+        if manifest:
+            cycle = next((c for c in manifest.cycles if c.id == cycle_id), None)
+            if cycle and cycle.status == "completed":
+                console.print(f"[yellow]Cycle {cycle_id} is already completed. Skipping.[/yellow]")
+                return
         with KeepAwake(reason=f"Running Implementation Cycle {cycle_id}"):
             console.rule(f"[bold green]Coder Phase: Cycle {cycle_id}[/bold green]")
 
@@ -308,6 +324,9 @@ class WorkflowService:
                         style="bold green",
                     )
                 )
+            elif final_state.get("status") == "max_retries":
+                 console.print(f"[bold yellow]QA Phase Warning: {final_state.get('error')}[/bold yellow]")
+                 console.print("[yellow]Proceeding with best-effort results.[/yellow]")
             elif final_state.get("error"):
                  console.print(f"[red]QA Phase Failed: {final_state['error']}[/red]")
             else:
@@ -399,6 +418,24 @@ class WorkflowService:
             sys_prompts_dir / "SYSTEM_ARCHITECTURE.md", phase_dir / "SYSTEM_ARCHITECTURE.md"
         )
 
+        # USER_TEST_SCENARIO.md (UAT)
+        await move_item(docs_dir / "USER_TEST_SCENARIO.md", phase_dir / "USER_TEST_SCENARIO.md")
+
+        # Tutorials
+        tutorials_dir = Path.cwd() / "tutorials"
+        if tutorials_dir.exists():
+            phase_tutorials_dir = phase_dir / "tutorials"
+            phase_tutorials_dir.mkdir(parents=True, exist_ok=True)
+            # Move contents of tutorials to phase archive
+            for item in tutorials_dir.iterdir():
+                await move_item(item, phase_tutorials_dir / item.name)
+            
+            # Clean up empty tutorials dir so it can be fresh? 
+            # Actually, if we moved everything, it might be empty or missing.
+            # But let's keep the dir structure if needed, or just let it regenerate.
+            # Best to leave an empty tutorials dir for next phase.
+            tutorials_dir.mkdir(exist_ok=True)
+
         # CYCLEnn directories
         if sys_prompts_dir.exists():
             for item in sys_prompts_dir.iterdir():
@@ -412,8 +449,9 @@ class WorkflowService:
             state_mgr.STATE_FILE.unlink()
             console.print("Project state reset (project_state.json archived and removed).")
 
-        # 4. Create empty ALL_SPEC.md for next phase
+        # 4. Create empty ALL_SPEC.md and USER_TEST_SCENARIO.md for next phase
         (docs_dir / "ALL_SPEC.md").touch()
+        (docs_dir / "USER_TEST_SCENARIO.md").touch()
 
         # 5. Commit the archiving
         try:

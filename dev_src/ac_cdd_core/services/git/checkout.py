@@ -38,6 +38,18 @@ class GitCheckoutMixin(BaseGitManager):
             ["git", "status", "--porcelain"], check=False
         )
         if stdout.strip():
+            # CRITICAL: Check for unmerged files (conflicts) before committing
+            # Codes: DD, AU, UD, UA, DU, AA, UU
+            lines = stdout.splitlines()
+            conflict_codes = {"DD", "AU", "UD", "UA", "DU", "AA", "UU"}
+            for line in lines:
+                # Porcelain v1: XY PATH (X=index, Y=worktree)
+                if line[:2] in conflict_codes:
+                    raise RuntimeError(
+                        f"Cannot auto-commit due to unresolved conflicts: {line[3:]}. "
+                        "Please resolve specific conflicts before proceeding."
+                    )
+
             logger.info("Uncommitted changes detected. Auto-committing...")
             await self._run_git(["add", "."])
             await self._run_git(["commit", "-m", message])
@@ -100,9 +112,9 @@ class GitCheckoutMixin(BaseGitManager):
         return True
 
     async def pull_changes(self) -> None:
-        """Pulls changes from the remote repository."""
-        logger.info("Pulling latest changes...")
-        await self._run_git(["pull"])
+        """Pulls changes from the remote repository using rebase."""
+        logger.info("Pulling latest changes (rebase)...")
+        await self._run_git(["pull", "--rebase"])
         logger.info("Changes pulled successfully.")
 
     async def push_branch(self, branch: str) -> None:

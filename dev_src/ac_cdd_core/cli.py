@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import shutil
 from typing import Annotated
 
@@ -11,6 +12,31 @@ from ac_cdd_core.services.workflow import WorkflowService
 from ac_cdd_core.state_manager import StateManager
 from ac_cdd_core.utils import get_command_prefix
 from rich.console import Console
+
+
+def _run_async(coro: object) -> None:
+    """Run an async coroutine with clean teardown.
+
+    Adds a small delay after completion so that aiohttp/litellm client
+    sessions (which are closed asynchronously) have time to shut down
+    before the event loop exits.  This eliminates the 'Unclosed client
+    session' ERROR that would otherwise appear at the very end of a run.
+    """
+
+    async def _runner() -> None:
+        try:
+            await coro  # type: ignore[misc]
+        finally:
+            # Give background I/O sessions (aiohttp, httpx) time to close.
+            await asyncio.sleep(0.25)
+
+    # Suppress asyncio's 'Task was destroyed but it is pending!' noise.
+    logging.getLogger("asyncio").setLevel(logging.CRITICAL)
+    try:
+        asyncio.run(_runner())
+    finally:
+        logging.getLogger("asyncio").setLevel(logging.WARNING)
+
 
 app = typer.Typer(help="AC-CDD: AI-Native Cycle-Based Contract-Driven Development Environment")
 console = Console()
@@ -111,14 +137,14 @@ def gen_cycles(
     """
     Architect Phase: Generate cycle specs based on requirements.
     """
-    asyncio.run(
+    _run_async(
         _WorkflowServiceHolder.get().run_gen_cycles(cycles, project_session_id, auto_run)
     )
 
 
 @app.command()
 def run_cycle(
-    cycle_id: Annotated[str, typer.Option("--id", help="Cycle ID (e.g., 01, 02)")] = "01",
+    cycle_id: Annotated[str | None, typer.Option("--id", help="Cycle ID (e.g., 01, 02). Defaults to resuming all pending.")] = None,
     resume: Annotated[bool, typer.Option("--resume", help="Resume an existing session")] = False,
     auto: Annotated[
         bool,
@@ -136,7 +162,7 @@ def run_cycle(
     By default, runs with automated code review (Committee of Auditors).
     Use --no-auto to disable automated auditing (not recommended).
     """
-    asyncio.run(
+    _run_async(
         _WorkflowServiceHolder.get().run_cycle(
             cycle_id=cycle_id,
             resume=resume,
@@ -158,7 +184,7 @@ def start_session(
     """
     Convenience command to start an end-to-end session with planning and optional auditing.
     """
-    asyncio.run(_WorkflowServiceHolder.get().start_session(prompt, audit_mode, max_retries))
+    _run_async(_WorkflowServiceHolder.get().start_session(prompt, audit_mode, max_retries))
 
 
 @app.command()
@@ -241,7 +267,7 @@ def finalize_session(
     """
     Finalize a development session by creating a PR to main.
     """
-    asyncio.run(_WorkflowServiceHolder.get().finalize_session(project_session_id))
+    _run_async(_WorkflowServiceHolder.get().finalize_session(project_session_id))
 
 
 @app.command()

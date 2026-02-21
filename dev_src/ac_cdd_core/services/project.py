@@ -302,12 +302,35 @@ jobs:
         Prepares the environment for execution:
         1. Fixes permissions of key directories.
         2. Syncs dependencies using uv.
+
+        NOTE: When running inside Docker (detected by /.dockerenv or DOCKER_CONTAINER env var),
+        we intentionally skip 'uv sync' to avoid creating a .venv whose activate script
+        hardcodes VIRTUAL_ENV=/app/.venv. This path leaks onto the host machine when the user
+        runs 'source .venv/bin/activate' from their host shell, causing a persistent
+        'VIRTUAL_ENV does not match' warning in uv.
         """
+        import os
+        from pathlib import Path as _Path
+
         # Fix permissions first
-        docs_dir = Path(settings.paths.documents_dir)
+        docs_dir = _Path(settings.paths.documents_dir)
         await self.fix_permissions(docs_dir)
 
-        # Sync dependencies
+        # Detect Docker environment
+        in_docker = (
+            _Path("/.dockerenv").exists()
+            or os.environ.get("DOCKER_CONTAINER") == "true"
+        )
+
+        if in_docker:
+            logger.info(
+                "[ProjectManager] Running inside Docker — skipping 'uv sync' to avoid "
+                "contaminating the host .venv with Docker-internal paths (/app/.venv). "
+                "The user should run 'uv sync' on their host machine instead."
+            )
+            return
+
+        # Sync dependencies (host-only path)
         from ac_cdd_core.process_runner import ProcessRunner
 
         runner = ProcessRunner()
@@ -427,6 +450,7 @@ jobs:
             "MANAGER_INQUIRY_PROMPT.md",
             "PLAN_REVIEW_PROMPT.md",
             "QA_TUTORIAL_INSTRUCTION.md",
+            "QA_AUDITOR_INSTRUCTION.md",
         ]
 
         # Source directory: package templates (always available)
