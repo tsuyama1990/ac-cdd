@@ -40,8 +40,10 @@ async def test_audit_rejection_loop() -> None:
 
     # Mock PlanAuditor to avoid model initialization
     from unittest.mock import patch
+    from ac_cdd_core.domain_models import AuditResult
 
     mock_auditor = MagicMock()
+    mock_auditor.run_audit = AsyncMock(return_value=(AuditResult(is_approved=False), "Feedback"))
     with patch("ac_cdd_core.services.plan_auditor.PlanAuditor", return_value=mock_auditor):
         # Build Graph
         builder = GraphBuilder(mock_services)
@@ -70,5 +72,6 @@ async def test_audit_rejection_loop() -> None:
             initial_state, {"configurable": {"thread_id": "test_thread"}, "recursion_limit": 50}
         )
 
-        assert mock_services.reviewer.review_code.call_count == 6
+        # 6 runs of the auditor node
+        assert mock_auditor.run_audit.call_count == 6
         assert final_state.get("final_fix") is True
