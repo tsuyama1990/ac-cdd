@@ -1,7 +1,7 @@
 import re
 
 file_path = "dev_src/ac_cdd_core/services/jules_client.py"
-with open(file_path, "r") as f:
+with open(file_path) as f:
     text = f.read()
 
 # Replace Imports

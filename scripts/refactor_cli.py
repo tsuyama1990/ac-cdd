@@ -2,7 +2,7 @@ import re
 
 # 1. Add resume_session to WorkflowService
 workflow_path = "dev_src/ac_cdd_core/services/workflow.py"
-with open(workflow_path, "r") as f:
+with open(workflow_path) as f:
     wf_text = f.read()
 
 resume_code = """    def resume_session(self, feature_branch: str, integration_branch: str | None, cycles: int) -> None:
@@ -52,7 +52,7 @@ with open(workflow_path, "w") as f:
 
 # 2. Refactor cli.py
 cli_path = "dev_src/ac_cdd_core/cli.py"
-with open(cli_path, "r") as f:
+with open(cli_path) as f:
     cli_text = f.read()
 
 # Delete _WorkflowServiceHolder
