@@ -91,26 +91,33 @@ class TestEndToEndWorkflow:
     ) -> None:
         # This test previously verified file persistence. Now we verify interaction with Git-backed SessionManager.
         mock_mgr = mock_sm_cls.return_value
+        # Prevent shutil.copy2 from trying to copy the MagicMock
+        mock_mgr.STATE_FILE.exists.return_value = False
+        
+        with patch("ac_cdd_core.services.workflow.GitManager") as mock_git_cls:
+            mock_git_cls.return_value.create_final_pr = AsyncMock(return_value="http://pr")
+            mock_git_cls.return_value.checkout_branch = AsyncMock()
+            mock_git_cls.return_value.pull_changes = AsyncMock()
 
-        # Simulate loading manifest
-        manifest = ProjectManifest(
-            project_session_id="p1",
-            feature_branch="feat/p1",
-            integration_branch="dev/p1",
-            cycles=[{"id": "01", "status": "planned"}]
-        )
-        mock_mgr.load_manifest = MagicMock(return_value=manifest)
+            # Simulate loading manifest
+            manifest = ProjectManifest(
+                project_session_id="p1",
+                feature_branch="feat/p1",
+                integration_branch="dev/p1",
+                cycles=[{"id": "01", "status": "planned"}]
+            )
+            mock_mgr.load_manifest = MagicMock(return_value=manifest)
 
-        # Setup Cleanup
-        workflow.builder.cleanup = AsyncMock()
+            # Setup Cleanup
+            workflow.builder.cleanup = AsyncMock()
 
-        # Setup build_coder_graph
-        mock_graph = AsyncMock()
-        mock_graph.ainvoke.return_value = {"status": "completed"}
-        workflow.builder.build_coder_graph.return_value = mock_graph
+            # Setup build_coder_graph
+            mock_graph = AsyncMock()
+            mock_graph.ainvoke.return_value = {"status": "completed"}
+            workflow.builder.build_coder_graph.return_value = mock_graph
 
-        await workflow._run_all_cycles(
-            resume=False, auto=True, start_iter=1, project_session_id=None
-        )
+            await workflow._run_all_cycles(
+                resume=False, auto=True, start_iter=1, project_session_id=None
+            )
 
-        mock_mgr.load_manifest.assert_called()
+            mock_mgr.load_manifest.assert_called()
