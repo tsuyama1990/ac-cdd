@@ -177,13 +177,9 @@ class JulesClient:
             if branch == "HEAD":
                 timestamp = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
                 branch = f"jules-sync-{timestamp}"
-                logger.warning(
-                    f"Detached HEAD detected. Creating temporary sync branch: {branch}"
-                )
+                logger.warning(f"Detached HEAD detected. Creating temporary sync branch: {branch}")
                 # Safely create and switch to the temp branch so we can push it
-                await self.git.runner.run_command(
-                    ["git", "checkout", "-b", branch], check=True
-                )
+                await self.git.runner.run_command(["git", "checkout", "-b", branch], check=True)
 
             if "PYTEST_CURRENT_TEST" not in os.environ:
                 try:

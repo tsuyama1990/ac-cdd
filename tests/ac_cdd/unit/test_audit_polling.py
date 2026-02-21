@@ -1,10 +1,10 @@
-import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from ac_cdd_core.graph_nodes import CycleNodes
 from ac_cdd_core.sandbox import SandboxRunner
 from ac_cdd_core.services.jules_client import JulesClient
+
 
 class TestAuditPolling:
     """Tests for the Audit Polling Logic in CycleNodes.auditor_node."""
@@ -19,7 +19,7 @@ class TestAuditPolling:
         mock_sandbox = MagicMock(spec=SandboxRunner)
         mock_jules = MagicMock(spec=JulesClient)
         nodes = CycleNodes(mock_sandbox, mock_jules)
-        
+
         # Mock GitManager and its methods
         nodes.git = AsyncMock()
         nodes.git.checkout_pr = AsyncMock()
@@ -27,7 +27,7 @@ class TestAuditPolling:
         nodes.git.pull_changes = AsyncMock()
         nodes.git.get_pr_base_branch = AsyncMock(return_value="main")
         nodes.git.get_changed_files = AsyncMock(return_value=["file.py"])
-        
+
         # Mock State
         state = {
             "pr_url": "https://github.com/org/repo/pull/123",
@@ -44,7 +44,7 @@ class TestAuditPolling:
         ]
 
         # Patch asyncio.sleep to run instantly
-        with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+        with patch("asyncio.sleep", new_callable=AsyncMock):
             # We also need to mock _read_files and llm_reviewer since run_audit continues after polling
             nodes._read_files = AsyncMock(return_value={"file.py": "content"})
             nodes._run_static_analysis = AsyncMock(return_value=(True, ""))
@@ -55,13 +55,13 @@ class TestAuditPolling:
             result = await nodes.auditor_node(state)
 
             # Assertions
-            
+
             # 1. Verify checkout_pr was called
             nodes.git.checkout_pr.assert_called_with("https://github.com/org/repo/pull/123")
-            
+
             # 2. Verify get_current_commit was called twice
             assert nodes.git.get_current_commit.call_count == 2
-            
+
             # 3. CRITICAL: Verify pull_changes was called inside the polling loop
             # This is what we are fixing!
             assert nodes.git.pull_changes.call_count >= 1

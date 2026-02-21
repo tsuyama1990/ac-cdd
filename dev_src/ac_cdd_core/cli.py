@@ -137,14 +137,15 @@ def gen_cycles(
     """
     Architect Phase: Generate cycle specs based on requirements.
     """
-    _run_async(
-        _WorkflowServiceHolder.get().run_gen_cycles(cycles, project_session_id, auto_run)
-    )
+    _run_async(_WorkflowServiceHolder.get().run_gen_cycles(cycles, project_session_id, auto_run))
 
 
 @app.command()
 def run_cycle(
-    cycle_id: Annotated[str | None, typer.Option("--id", help="Cycle ID (e.g., 01, 02). Defaults to resuming all pending.")] = None,
+    cycle_id: Annotated[
+        str | None,
+        typer.Option("--id", help="Cycle ID (e.g., 01, 02). Defaults to resuming all pending."),
+    ] = None,
     resume: Annotated[bool, typer.Option("--resume", help="Resume an existing session")] = False,
     auto: Annotated[
         bool,

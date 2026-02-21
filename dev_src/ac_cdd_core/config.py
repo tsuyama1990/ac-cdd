@@ -291,8 +291,6 @@ class Settings(BaseSettings):
             return [str(f) for f in p.glob("*.md")]
         return []
 
-        return targets
-
     def get_target_files(self) -> list[str]:
         targets = []
         src = self.paths.src

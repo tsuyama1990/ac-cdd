@@ -36,7 +36,9 @@ class ProjectManifest(BaseModel):
     project_session_id: str
     feature_branch: str | None = None  # Main development branch (feat/generate-architecture-*)
     integration_branch: str  # Final integration branch (for finalize-session)
-    qa_session_id: str | None = Field(default=None, description="Active QA/Tutorial Generation Session ID")
+    qa_session_id: str | None = Field(
+        default=None, description="Active QA/Tutorial Generation Session ID"
+    )
     cycles: list[CycleManifest] = Field(default_factory=list)
     last_updated: datetime = Field(default_factory=lambda: datetime.now(UTC))
 

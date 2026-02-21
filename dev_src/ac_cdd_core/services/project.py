@@ -65,8 +65,8 @@ class ProjectManager:
         # Create USER_TEST_SCENARIO.md (Target User Experience) if not exists
         uts_dest = docs_dir / "USER_TEST_SCENARIO.md"
         if uts_dest.exists() and uts_dest.is_dir():
-             logger.warning(f"Removing directory {uts_dest} to replace with file")
-             shutil.rmtree(uts_dest)
+            logger.warning(f"Removing directory {uts_dest} to replace with file")
+            shutil.rmtree(uts_dest)
 
         if not uts_dest.exists():
             uts_content = """# User Test Scenario & Tutorial Plan
@@ -317,10 +317,7 @@ jobs:
         await self.fix_permissions(docs_dir)
 
         # Detect Docker environment
-        in_docker = (
-            _Path("/.dockerenv").exists()
-            or os.environ.get("DOCKER_CONTAINER") == "true"
-        )
+        in_docker = _Path("/.dockerenv").exists() or os.environ.get("DOCKER_CONTAINER") == "true"
 
         if in_docker:
             logger.info(

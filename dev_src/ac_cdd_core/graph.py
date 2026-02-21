@@ -110,10 +110,7 @@ class GraphBuilder:
         workflow.add_conditional_edges(
             "qa_session",
             lambda state: "qa_auditor" if state.get("status") == "ready_for_audit" else END,
-            {
-                "qa_auditor": "qa_auditor",
-                END: END
-            }
+            {"qa_auditor": "qa_auditor", END: END},
         )
 
         # Router from Auditor
@@ -124,7 +121,7 @@ class GraphBuilder:
                 "end": END,
                 "retry_fix": "qa_session",
                 "failed": END,
-            }
+            },
         )
         return workflow
 

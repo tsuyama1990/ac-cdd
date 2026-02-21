@@ -1,7 +1,9 @@
-import pytest
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 from ac_cdd_core.graph_nodes import CycleNodes
 from ac_cdd_core.state import CycleState
+
 
 class TestAuditorPollingExit:
     """Tests for auditor_node polling logic."""
@@ -12,18 +14,20 @@ class TestAuditorPollingExit:
         # Setup mocks
         sandbox = MagicMock()
         jules = MagicMock()
-        jules.get_session_state = AsyncMock(side_effect=["RUNNING", "COMPLETED"]) # Simulate transition
-        
+        jules.get_session_state = AsyncMock(
+            side_effect=["RUNNING", "COMPLETED"]
+        )  # Simulate transition
+
         nodes = CycleNodes(sandbox, jules)
         nodes.git = AsyncMock()
-        
-        # Git behavior: 
+
+        # Git behavior:
         # get_current_commit returns same hash "abc" (no new commit)
         nodes.git.get_current_commit = AsyncMock(return_value="abc")
         nodes.git.pull_changes = AsyncMock()
-        nodes.git.checkout_pr = AsyncMock() # Skip PR checkout logic
-        nodes.git.get_changed_files = AsyncMock(return_value=["test.py"]) # To proceed to review
-        nodes.git.runner = AsyncMock() # Used in static analysis
+        nodes.git.checkout_pr = AsyncMock()  # Skip PR checkout logic
+        nodes.git.get_changed_files = AsyncMock(return_value=["test.py"])  # To proceed to review
+        nodes.git.runner = AsyncMock()  # Used in static analysis
         nodes.git.runner.run_command = AsyncMock(return_value=("", "", 0))
 
         # Mock reviewer to avoid LLM call
@@ -35,7 +39,7 @@ class TestAuditorPollingExit:
             cycle_id="01",
             last_audited_commit="abc",
             pr_url="https://github.com/test/pr/1",
-            jules_session_name="sessions/123"
+            jules_session_name="sessions/123",
         )
 
         # Run auditor

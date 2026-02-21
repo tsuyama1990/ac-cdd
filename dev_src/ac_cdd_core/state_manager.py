@@ -25,7 +25,7 @@ class StateManager:
         self.root = Path(project_root)
         self.STATE_DIR = self.root / ".ac_cdd"
         self.STATE_FILE = self.STATE_DIR / "project_state_local.json"
-        
+
         # Migration: Rename old file if it exists and new one doesn't
         old_state_file = self.STATE_DIR / "project_state.json"
         if old_state_file.exists() and not self.STATE_FILE.exists():

@@ -102,14 +102,14 @@ class WorkflowService:
         project_session_id: str | None,
     ) -> None:
         try:
-             # Default to "all" behavior (resume pending) if no ID provided
-             if cycle_id is None or cycle_id.lower() == "all":
-                 await self._run_all_cycles(resume, auto, start_iter, project_session_id)
-                 return
+            # Default to "all" behavior (resume pending) if no ID provided
+            if cycle_id is None or cycle_id.lower() == "all":
+                await self._run_all_cycles(resume, auto, start_iter, project_session_id)
+                return
 
-             await self._run_single_cycle(cycle_id, resume, auto, start_iter, project_session_id)
+            await self._run_single_cycle(cycle_id, resume, auto, start_iter, project_session_id)
         finally:
-             await self.builder.cleanup()
+            await self.builder.cleanup()
 
     async def _run_all_cycles(
         self, resume: bool, auto: bool, start_iter: int, project_session_id: str | None
@@ -138,9 +138,9 @@ class WorkflowService:
 
         # Auto-finalize if requested
         if auto:
-             await self.finalize_session(project_session_id)
+            await self.finalize_session(project_session_id)
 
-    async def _run_single_cycle(
+    async def _run_single_cycle(  # noqa: PLR0915
         self,
         cycle_id: str,
         resume: bool,
@@ -288,11 +288,15 @@ class WorkflowService:
         qa_instruction_path = docs_dir / "system_prompts" / "QA_TUTORIAL_INSTRUCTION.md"
 
         if not qa_instruction_path.exists():
-            console.print("[yellow]Skipping Tutorial Generation: QA_TUTORIAL_INSTRUCTION.md not found.[/yellow]")
+            console.print(
+                "[yellow]Skipping Tutorial Generation: QA_TUTORIAL_INSTRUCTION.md not found.[/yellow]"
+            )
             return
 
         if not qa_instruction_path.exists():
-            console.print("[yellow]Skipping Tutorial Generation: QA_TUTORIAL_INSTRUCTION.md not found.[/yellow]")
+            console.print(
+                "[yellow]Skipping Tutorial Generation: QA_TUTORIAL_INSTRUCTION.md not found.[/yellow]"
+            )
             return
 
         # Build QA Graph
@@ -304,7 +308,7 @@ class WorkflowService:
             cycle_id="qa-tutorials",
             project_session_id=project_session_id,
             current_phase="qa",
-            status="start"
+            status="start",
         )
 
         thread_id = f"qa-{project_session_id}"
@@ -318,19 +322,21 @@ class WorkflowService:
             final_state = await graph.ainvoke(initial_state, config)
 
             if final_state.get("audit_result") and final_state.get("audit_result").is_approved:
-                 console.print(
+                console.print(
                     Panel(
                         f"QA Tutorials Generated & Verified.\nPR: {final_state.get('pr_url')}",
                         style="bold green",
                     )
                 )
             elif final_state.get("status") == "max_retries":
-                 console.print(f"[bold yellow]QA Phase Warning: {final_state.get('error')}[/bold yellow]")
-                 console.print("[yellow]Proceeding with best-effort results.[/yellow]")
+                console.print(
+                    f"[bold yellow]QA Phase Warning: {final_state.get('error')}[/bold yellow]"
+                )
+                console.print("[yellow]Proceeding with best-effort results.[/yellow]")
             elif final_state.get("error"):
-                 console.print(f"[red]QA Phase Failed: {final_state['error']}[/red]")
+                console.print(f"[red]QA Phase Failed: {final_state['error']}[/red]")
             else:
-                 console.print("[yellow]QA Phase completed with uncertain status.[/yellow]")
+                console.print("[yellow]QA Phase completed with uncertain status.[/yellow]")
 
         except Exception as e:
             console.print(f"[bold red]Tutorial Generation Failed:[/bold red] {e}")
@@ -418,7 +424,7 @@ class WorkflowService:
             sys_prompts_dir / "SYSTEM_ARCHITECTURE.md", phase_dir / "SYSTEM_ARCHITECTURE.md"
         )
 
-        # USER_TEST_SCENARIO.md (UAT)
+        # UAT Scenario
         await move_item(docs_dir / "USER_TEST_SCENARIO.md", phase_dir / "USER_TEST_SCENARIO.md")
 
         # Tutorials
@@ -429,8 +435,8 @@ class WorkflowService:
             # Move contents of tutorials to phase archive
             for item in tutorials_dir.iterdir():
                 await move_item(item, phase_tutorials_dir / item.name)
-            
-            # Clean up empty tutorials dir so it can be fresh? 
+
+            # Clean up empty tutorials dir so it can be fresh?
             # Actually, if we moved everything, it might be empty or missing.
             # But let's keep the dir structure if needed, or just let it regenerate.
             # Best to leave an empty tutorials dir for next phase.

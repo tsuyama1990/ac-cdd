@@ -49,9 +49,7 @@ class CycleNodes(IGraphNodes):
                 pass
         return result
 
-    async def _run_static_analysis(
-        self, target_files: list[str] | None = None
-    ) -> tuple[bool, str]:
+    async def _run_static_analysis(self, target_files: list[str] | None = None) -> tuple[bool, str]:
         """Runs local static analysis (mypy, ruff) and returns (success, output)."""
         console.print("[bold cyan]Running Static Analysis (mypy, ruff)...[/bold cyan]")
         output = []
@@ -67,10 +65,7 @@ class CycleNodes(IGraphNodes):
                     + f"\n... (truncated {original_line_count - max_lines} more lines)"
                 )
             if len(text) > max_chars:
-                text = (
-                    text[:max_chars]
-                    + f"\n... (truncated {len(text) - max_chars} more chars)"
-                )
+                text = text[:max_chars] + f"\n... (truncated {len(text) - max_chars} more chars)"
             return text
 
         # Determine targets
@@ -88,9 +83,7 @@ class CycleNodes(IGraphNodes):
             if mypy_targets:
                 # --no-error-summary to keep it concise
                 mypy_cmd = ["uv", "run", "mypy", "--no-error-summary", *mypy_targets]
-                stdout, stderr, code = await self.git.runner.run_command(
-                    mypy_cmd, check=False
-                )
+                stdout, stderr, code = await self.git.runner.run_command(mypy_cmd, check=False)
                 if code != 0:
                     success = False
                     details = truncate_output(stdout + stderr)
@@ -104,9 +97,7 @@ class CycleNodes(IGraphNodes):
         # Run ruff (Checks all supported files)
         try:
             ruff_cmd = ["uv", "run", "ruff", "check", *targets]
-            stdout, stderr, code = await self.git.runner.run_command(
-                ruff_cmd, check=False
-            )
+            stdout, stderr, code = await self.git.runner.run_command(ruff_cmd, check=False)
             if code != 0:
                 success = False
                 details = truncate_output(stdout + stderr)
@@ -213,18 +204,22 @@ class CycleNodes(IGraphNodes):
             # Send message
             await self.jules._send_message(self.jules._get_session_url(session_id), feedback_msg)
             # Replace fixed sleep with smart polling for state transition
-            console.print("[dim]Waiting for Jules to process feedback (expecting IN_PROGRESS)...[/dim]")
+            console.print(
+                "[dim]Waiting for Jules to process feedback (expecting IN_PROGRESS)...[/dim]"
+            )
 
             # Poll for state change (up to 60s)
             state_transitioned = False
             for attempt in range(12):  # 12 * 5s = 60s
                 await asyncio.sleep(5)
                 current_state = await self.jules.get_session_state(session_id)
-                console.print(f"[dim]State check ({attempt+1}/12): {current_state}[/dim]")
+                console.print(f"[dim]State check ({attempt + 1}/12): {current_state}[/dim]")
 
                 if current_state in ["IN_PROGRESS", "QUEUED", "RUNNING"]:
                     state_transitioned = True
-                    console.print("[green]Jules session is now active. Proceeding to monitor...[/green]")
+                    console.print(
+                        "[green]Jules session is now active. Proceeding to monitor...[/green]"
+                    )
                     break
                 if current_state == "FAILED":
                     console.print("[red]Jules session failed during feedback wait.[/red]")
@@ -244,7 +239,9 @@ class CycleNodes(IGraphNodes):
                 return {"status": "ready_for_audit", "pr_url": result.get("pr_url")}
 
             # If we get here, it means wait_for_completion returned but no success/PR
-            console.print("[yellow]Jules session finished without new PR. Creating new session...[/yellow]")
+            console.print(
+                "[yellow]Jules session finished without new PR. Creating new session...[/yellow]"
+            )
             return None  # noqa: TRY300
 
         except Exception as e:
@@ -526,7 +523,9 @@ class CycleNodes(IGraphNodes):
                             try:
                                 await self.git.pull_changes()
                             except Exception as e:
-                                console.print(f"[yellow]Warning: Could not pull changes during polling: {e}[/yellow]")
+                                console.print(
+                                    f"[yellow]Warning: Could not pull changes during polling: {e}[/yellow]"
+                                )
 
                             new_commit = await self.git.get_current_commit()
                             if new_commit and new_commit != last_audited:
@@ -550,13 +549,15 @@ class CycleNodes(IGraphNodes):
 
                             if jules_session_id:
                                 try:
-                                    jules_status = await self.jules.get_session_state(jules_session_id)
+                                    jules_status = await self.jules.get_session_state(
+                                        jules_session_id
+                                    )
                                     if jules_status in ["COMPLETED", "SUCCEEDED", "FAILED"]:
                                         console.print(
                                             f"[bold yellow]Jules session is {jules_status}. Stop polling and proceed with audit.[/bold yellow]"
                                         )
                                         break
-                                except Exception:
+                                except Exception:  # noqa: S110
                                     pass  # Ignore status check errors, keep polling
                         else:
                             # Timeout: No new commit after max wait time
@@ -966,7 +967,7 @@ class CycleNodes(IGraphNodes):
             return "end"
         return "end"  # failed etc.
 
-    async def qa_session_node(self, state: CycleState) -> dict[str, Any]:
+    async def qa_session_node(self, state: CycleState) -> dict[str, Any]:  # noqa: C901, PLR0912
         """Node for QA Agent (Tutorial Generation)."""
         console.print("[bold cyan]Starting QA Session (Tutorial Generation)...[/bold cyan]")
 
@@ -980,9 +981,9 @@ class CycleNodes(IGraphNodes):
         if (docs_dir / "USER_TEST_SCENARIO.md").exists():
             files_to_send.append(str(docs_dir / "USER_TEST_SCENARIO.md"))
         if (docs_dir / "system_prompts/SYSTEM_ARCHITECTURE.md").exists():
-             files_to_send.append(str(docs_dir / "system_prompts/SYSTEM_ARCHITECTURE.md"))
+            files_to_send.append(str(docs_dir / "system_prompts/SYSTEM_ARCHITECTURE.md"))
         if (Path.cwd() / "pyproject.toml").exists():
-             files_to_send.append(str(Path.cwd() / "pyproject.toml"))
+            files_to_send.append(str(Path.cwd() / "pyproject.toml"))
 
         # Add existing tutorials to context if retrying, so Agent can edit them
         tutorials_dir = Path.cwd() / "tutorials"
@@ -994,57 +995,63 @@ class CycleNodes(IGraphNodes):
             # Load persistent state
             mgr = StateManager()
             manifest = mgr.load_manifest()
-            
+
             # Use persistent QA session ID if available, otherwise generate default
             persistent_qa_id = manifest.qa_session_id if manifest else None
             # Also check memory state as fallback
             memory_qa_id = state.jules_session_name
-            
+
             session_id = state.project_session_id or settings.current_session_id
-            
-            # Priority: Persistent > Memory > Default
+
+            # Determine priority between persistent and memory
             qa_session_id = persistent_qa_id or memory_qa_id or f"qa-{session_id}"
 
             # FEEDBACK LOOP: If rejected, try to reuse existing session
             if state.get("status") == "rejected" and state.get("audit_result"):
-                 # Check Retry Limit
-                 current_retries = state.qa_retry_count
-                 if current_retries >= 5: # MAX_QA_RETRIES
-                     console.print(f"[bold red]Max QA retries ({current_retries}) exceeded. Stopping loop.[/bold red]")
-                     return {"status": "max_retries", "error": "Max QA retries exceeded"}
+                # Check Retry Limit
+                current_retries = state.qa_retry_count
+                if current_retries >= 5:  # MAX_QA_RETRIES
+                    console.print(
+                        f"[bold red]Max QA retries ({current_retries}) exceeded. Stopping loop.[/bold red]"
+                    )
+                    return {"status": "max_retries", "error": "Max QA retries exceeded"}
 
-                 feedback = state.audit_result.feedback
-                 console.print(f"[bold yellow]Sending Audit Feedback to Existing QA Session: {qa_session_id}... (Retry {current_retries + 1}/5)[/bold yellow]")
-                 
-                 # Reuse existing session
-                 result = await self._send_audit_feedback_to_session(
-                     session_id=qa_session_id,
-                     feedback=f"# AUDIT REJECTION FEEDBACK\n\n{feedback}\n\nPlease fix the issues and Create a New PR."
-                 )
-                 
-                 # Increment retry count
-                 next_retries = current_retries + 1
-                 
-                 if result:
-                     return {
-                        "status": "ready_for_audit", 
+                feedback = state.audit_result.feedback if state.audit_result else ""
+                console.print(
+                    f"[bold yellow]Sending Audit Feedback to Existing QA Session: {qa_session_id}... (Retry {current_retries + 1}/5)[/bold yellow]"
+                )
+
+                # Reuse existing session
+                result = await self._send_audit_feedback_to_session(
+                    session_id=qa_session_id,
+                    feedback=f"# AUDIT REJECTION FEEDBACK\n\n{feedback}\n\nPlease fix the issues and Create a New PR.",
+                )
+
+                # Increment retry count
+                next_retries = current_retries + 1
+
+                if result:
+                    return {
+                        "status": "ready_for_audit",
                         "pr_url": result.get("pr_url"),
                         "jules_session_name": qa_session_id,
-                        "qa_retry_count": next_retries
-                     }
-                 
-                 # If reuse failed (e.g. 404), inject feedback into NEW session prompt
-                 console.print("[yellow]Could not reuse session. Starting new session with feedback...[/yellow]")
-                 full_prompt += f"\n\n# PREVIOUS AUDIT FEEDBACK (MUST FIX)\n{feedback}"
-                 # Reset ID to allow new session creation logic
-                 qa_session_id = f"qa-{session_id}"
-                 
-                 # We still count this as a retry since we are continuing the loop
-                 # Returning the incremented count in the final return block logic implies we need 
-                 # to pass it through run_session or return it here? 
-                 # Actually, if we fall through to run_session, we should return the updated count there too.
-                 # Let's update the state variable for the fall-through case.
-                 state.qa_retry_count = next_retries
+                        "qa_retry_count": next_retries,
+                    }
+
+                # If reuse failed (e.g. 404), inject feedback into NEW session prompt
+                console.print(
+                    "[yellow]Could not reuse session. Starting new session with feedback...[/yellow]"
+                )
+                full_prompt += f"\n\n# PREVIOUS AUDIT FEEDBACK (MUST FIX)\n{feedback}"
+                # Reset ID to allow new session creation logic
+                qa_session_id = f"qa-{session_id}"
+
+                # We still count this as a retry since we are continuing the loop
+                # Returning the incremented count in the final return block logic implies we need
+                # to pass it through run_session or return it here?
+                # Actually, if we fall through to run_session, we should return the updated count there too.
+                # Let's update the state variable for the fall-through case.
+                state.qa_retry_count = next_retries
 
             # START NEW SESSION (First attempt or Fallback)
             result = await self.jules.run_session(
@@ -1056,7 +1063,7 @@ class CycleNodes(IGraphNodes):
 
             # Capture the REAL session name and PERSIST it
             real_session_name = result.get("session_name") or qa_session_id
-            
+
             # Save to disk
             if mgr and real_session_name:
                 try:
@@ -1068,19 +1075,21 @@ class CycleNodes(IGraphNodes):
             # Include current retries in result to persist state
             ret_dict = {
                 "jules_session_name": real_session_name,
-                "qa_retry_count": state.qa_retry_count 
+                "qa_retry_count": state.qa_retry_count,
             }
 
             if result.get("pr_url"):
-                ret_dict.update({
-                    "status": "ready_for_audit",
-                    "pr_url": result["pr_url"],
-                })
+                ret_dict.update(
+                    {
+                        "status": "ready_for_audit",
+                        "pr_url": result["pr_url"],
+                    }
+                )
                 return ret_dict
 
-            if result.get("status") == "success": # No PR but success?
-                 ret_dict["status"] = "ready_for_audit"
-                 return ret_dict
+            if result.get("status") == "success":  # No PR but success?
+                ret_dict["status"] = "ready_for_audit"
+                return ret_dict
 
             return {"status": "failed", "error": "jules failed to produce tutorials"}  # noqa: TRY300
 
@@ -1110,11 +1119,11 @@ class CycleNodes(IGraphNodes):
         pr_url = state.get("pr_url")
 
         if pr_url:
-             try:
-                 await git.checkout_pr(pr_url)
-                 console.print(f"[dim]Checked out PR: {pr_url}[/dim]")
-             except Exception as e:
-                 console.print(f"[yellow]Failed to checkout PR: {e}. using current files.[/yellow]")
+            try:
+                await git.checkout_pr(pr_url)
+                console.print(f"[dim]Checked out PR: {pr_url}[/dim]")
+            except Exception as e:
+                console.print(f"[yellow]Failed to checkout PR: {e}. using current files.[/yellow]")
 
         tutorials_dir = Path.cwd() / "tutorials"
         target_files = {}
@@ -1138,9 +1147,9 @@ class CycleNodes(IGraphNodes):
         if "-> APPROVE" in audit_feedback:
             status = "approved"
         elif "-> REJECT" in audit_feedback:
-             status = "rejected"
+            status = "rejected"
         else:
-             status = "approved" if "NO ISSUES FOUND" in audit_feedback.upper() else "rejected"
+            status = "approved" if "NO ISSUES FOUND" in audit_feedback.upper() else "rejected"
 
         result = AuditResult(
             status=status.upper(),
@@ -1159,14 +1168,14 @@ class CycleNodes(IGraphNodes):
 
         return {
             "audit_result": result,
-            "status": status, # "approved" or "rejected"
+            "status": status,  # "approved" or "rejected"
         }
 
     def route_qa(self, state: CycleState) -> str:
         """Route QA Auditor outcome."""
         status = state.get("status")
         if status == "approved":
-            return "end" # Finish
+            return "end"  # Finish
         if status == "rejected":
-            return "retry_fix" # Back to qa_session
+            return "retry_fix"  # Back to qa_session
         return "failed"

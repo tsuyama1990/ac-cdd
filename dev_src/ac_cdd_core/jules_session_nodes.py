@@ -18,7 +18,7 @@ class JulesSessionNodes:
         """Initialize with reference to JulesClient for API calls."""
         self.client = jules_client
 
-    async def monitor_session(self, state: JulesSessionState) -> JulesSessionState:  # noqa: C901
+    async def monitor_session(self, state: JulesSessionState) -> JulesSessionState:  # noqa: C901, PLR0912
         """Monitor Jules session and detect state changes with batched polling."""
         # Batch polling loop to reduce graph steps
         # Poll for ~60 seconds (12 checks * 5s interval)
@@ -36,7 +36,9 @@ class JulesSessionNodes:
             try:
                 async with httpx.AsyncClient() as client:
                     # Fetch session state
-                    response = await client.get(state.session_url, headers=self.client._get_headers())
+                    response = await client.get(
+                        state.session_url, headers=self.client._get_headers()
+                    )
                     response.raise_for_status()
                     data = response.json()
 
@@ -53,7 +55,9 @@ class JulesSessionNodes:
                         # Debug output for failed state
                         import json
 
-                        logger.error(f"Jules Session FAILED. Response: {json.dumps(data, indent=2)}")
+                        logger.error(
+                            f"Jules Session FAILED. Response: {json.dumps(data, indent=2)}"
+                        )
 
                         error_msg = data.get("error", {}).get("message", "Unknown error")
 
@@ -69,7 +73,9 @@ class JulesSessionNodes:
 
                         # Check in activities (if outputs empty)
                         if not pr_found:
-                            activities = self.client.list_activities(state.session_url.split("/")[-1])
+                            activities = self.client.list_activities(
+                                state.session_url.split("/")[-1]
+                            )
                             for act in activities:
                                 if "pullRequest" in str(act) or "CreatePullRequest" in str(act):
                                     pr_found = True
@@ -98,7 +104,10 @@ class JulesSessionNodes:
                         state.completion_validated = False
 
                     # Check for completion
-                    if state.jules_state in ["COMPLETED", "SUCCEEDED"] and not state.completion_validated:
+                    if (
+                        state.jules_state in ["COMPLETED", "SUCCEEDED"]
+                        and not state.completion_validated
+                    ):
                         state.status = SessionStatus.VALIDATING_COMPLETION
                         return state
 

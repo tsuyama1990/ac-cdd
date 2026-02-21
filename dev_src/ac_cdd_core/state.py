@@ -32,10 +32,8 @@ class CycleState(BaseModel):
     audit_feedback: list[str] = Field(default_factory=list)
     audit_pass_count: int = 0
     audit_retries: int = 0
-    audit_pass_count: int = 0
-    audit_retries: int = 0
     audit_logs: str = ""
-    
+
     # QA/Tutorial State
     qa_retry_count: int = 0
 

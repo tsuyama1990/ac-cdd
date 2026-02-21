@@ -26,17 +26,13 @@ class GitCheckoutMixin(BaseGitManager):
                 await self._run_git(cmd)
 
         except Exception:
-            logger.error(
-                f"Failed to checkout '{target}'. Please check git status."
-            )
+            logger.error(f"Failed to checkout '{target}'. Please check git status.")
             raise
 
     async def _auto_commit_if_dirty(self, message: str = "Auto-save before checkout") -> None:
         """Automatically commits changes if the working directory is dirty."""
         # Check for uncommitted changes
-        stdout, _, _ = await self.runner.run_command(
-            ["git", "status", "--porcelain"], check=False
-        )
+        stdout, _, _ = await self.runner.run_command(["git", "status", "--porcelain"], check=False)
         if stdout.strip():
             # CRITICAL: Check for unmerged files (conflicts) before committing
             # Codes: DD, AU, UD, UA, DU, AA, UU
@@ -45,17 +41,13 @@ class GitCheckoutMixin(BaseGitManager):
             for line in lines:
                 # Porcelain v1: XY PATH (X=index, Y=worktree)
                 if line[:2] in conflict_codes:
-                    raise RuntimeError(
-                        f"Cannot auto-commit due to unresolved conflicts: {line[3:]}. "
-                        "Please resolve specific conflicts before proceeding."
-                    )
+                    error_msg = f"Cannot auto-commit due to unresolved conflicts: {line[3:]}. Please resolve specific conflicts before proceeding."
+                    raise RuntimeError(error_msg)
 
             logger.info("Uncommitted changes detected. Auto-committing...")
             await self._run_git(["add", "."])
             await self._run_git(["commit", "-m", message])
             logger.info("✓ Auto-committed changes.")
-
-
 
     async def checkout_pr(self, pr_url: str) -> None:
         """Checks out the Pull Request branch using GitHub CLI."""
@@ -81,11 +73,11 @@ class GitCheckoutMixin(BaseGitManager):
                 [self.gh_cmd, "pr", "view", pr_url, "--json", "baseRefName", "-q", ".baseRefName"],
                 check=True,
             )
-            base_branch = stdout.strip()
+            base_branch = str(stdout).strip()
             if base_branch:
                 return base_branch
             logger.warning(f"Could not determine base branch for PR {pr_url}, defaulting to main")
-            return "main"
+            return "main"  # noqa: TRY300
         except Exception as e:
             logger.warning(f"Failed to get PR base branch: {e}")
             return "main"
