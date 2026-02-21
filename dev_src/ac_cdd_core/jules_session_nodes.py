@@ -18,8 +18,21 @@ class JulesSessionNodes:
         """Initialize with reference to JulesClient for API calls."""
         self.client = jules_client
 
-    async def monitor_session(self, state: JulesSessionState) -> JulesSessionState:  # noqa: C901, PLR0912
+
+    def _compute_diff(self, original: JulesSessionState, current: JulesSessionState) -> dict[str, Any]:
+        """Compute dictionary of changed fields for LangGraph checkpointer."""
+        updates = {}
+        for field in current.model_fields:
+            old_val = getattr(original, field)
+            new_val = getattr(current, field)
+            if old_val != new_val:
+                updates[field] = new_val
+        return updates
+
+    async def monitor_session(self, _state_in: JulesSessionState) -> dict[str, Any]:  # noqa: C901, PLR0912
         """Monitor Jules session and detect state changes with batched polling."""
+        state = _state_in.model_copy(deep=True)
+
         # Batch polling loop to reduce graph steps
         # Poll for ~60 seconds (12 checks * 5s interval)
         POLL_BATCH_SIZE = 12
@@ -31,7 +44,7 @@ class JulesSessionNodes:
                 logger.warning(f"Session timeout after {elapsed}s")
                 state.status = SessionStatus.TIMEOUT
                 state.error = f"Timed out after {elapsed}s"
-                return state
+                return self._compute_diff(_state_in, state)
 
             try:
                 async with httpx.AsyncClient() as client:
@@ -89,7 +102,7 @@ class JulesSessionNodes:
                         else:
                             state.status = SessionStatus.FAILED
                             state.error = f"Jules Session Failed: {error_msg}"
-                        return state
+                        return self._compute_diff(_state_in, state)
 
                     # Process inquiries (questions and plan approvals)
                     await self._process_inquiries_in_monitor(state, client)
@@ -97,7 +110,7 @@ class JulesSessionNodes:
                     # CRITICAL FIX: If an inquiry was detected, return immediately to handle it.
                     # Do NOT let "COMPLETED" status overwrite a pending question.
                     if state.status == SessionStatus.INQUIRY_DETECTED:
-                        return state
+                        return self._compute_diff(_state_in, state)
 
                     # Reset validation flag if we are back in progress
                     if state.jules_state not in ["COMPLETED", "SUCCEEDED"]:
@@ -109,7 +122,7 @@ class JulesSessionNodes:
                         and not state.completion_validated
                     ):
                         state.status = SessionStatus.VALIDATING_COMPLETION
-                        return state
+                        return self._compute_diff(_state_in, state)
 
                     # Update activity count
                     await self._update_activity_count(state, client)
@@ -126,7 +139,7 @@ class JulesSessionNodes:
             # We ignore state.poll_interval here and use fixed 5s for responsiveness
             await self.client._sleep(5)
 
-        return state
+        return self._compute_diff(_state_in, state)
 
     async def _process_inquiries_in_monitor(
         self, state: JulesSessionState, client: httpx.AsyncClient
@@ -168,11 +181,13 @@ class JulesSessionNodes:
         except Exception:  # noqa: S110
             pass
 
-    async def answer_inquiry(self, state: JulesSessionState) -> JulesSessionState:
+    async def answer_inquiry(self, _state_in: JulesSessionState) -> dict[str, Any]:
         """Answer Jules' inquiry using Manager Agent."""
+        state = _state_in.model_copy(deep=True)
+
         if not state.current_inquiry or not state.current_inquiry_id:
             state.status = SessionStatus.MONITORING
-            return state
+            return self._compute_diff(_state_in, state)
 
         console.print(
             f"\n[bold magenta]Jules Question Detected:[/bold magenta] {state.current_inquiry}"
@@ -210,10 +225,12 @@ class JulesSessionNodes:
             state.processed_activity_ids.add(state.current_inquiry_id)
 
         state.status = SessionStatus.MONITORING
-        return state
+        return self._compute_diff(_state_in, state)
 
-    async def validate_completion(self, state: JulesSessionState) -> JulesSessionState:  # noqa: C901
+    async def validate_completion(self, _state_in: JulesSessionState) -> dict[str, Any]:  # noqa: C901
         """Validate if COMPLETED state is genuine or if work is still ongoing."""
+        state = _state_in.model_copy(deep=True)
+
         try:
             async with httpx.AsyncClient() as client:
                 # Fetch recent activities
@@ -248,7 +265,7 @@ class JulesSessionNodes:
                     if has_session_completed:
                         state.completion_validated = True
                         state.status = SessionStatus.CHECKING_PR
-                        return state
+                        return self._compute_diff(_state_in, state)
 
                     # If we found a STALE completion, we must NOT fall back to checking PRs
                     # because we are likely in a feedback loop where state hasn't updated yet.
@@ -264,7 +281,7 @@ class JulesSessionNodes:
                                 "Stale completion detected (ignored). Waiting for new Agent activity..."
                             )
                             state.status = SessionStatus.MONITORING
-                            return state
+                            return self._compute_diff(_state_in, state)
 
                     # Logic removed: Checking for ongoing work indicators via keywords caused infinite loops.
 
@@ -273,7 +290,7 @@ class JulesSessionNodes:
                     if not has_session_completed:
                         distress_state = await self._check_for_distress_in_messages(state, client)
                         if distress_state:
-                            return distress_state
+                            return self._compute_diff(_state_in, distress_state)
 
                     # If Jules API says COMPLETED, we should trust it and proceed to PR check.
                     # If PR is missing, check_pr will handle it by requesting PR creation.
@@ -287,13 +304,15 @@ class JulesSessionNodes:
         )
         state.completion_validated = True
         state.status = SessionStatus.CHECKING_PR
-        return state
+        return self._compute_diff(_state_in, state)
 
-    async def check_pr(self, state: JulesSessionState) -> JulesSessionState:  # noqa: C901
+    async def check_pr(self, _state_in: JulesSessionState) -> dict[str, Any]:  # noqa: C901
         """Check for PR in session outputs and activities."""
+        state = _state_in.model_copy(deep=True)
+
         if not state.raw_data:
             state.status = SessionStatus.REQUESTING_PR_CREATION
-            return state
+            return self._compute_diff(_state_in, state)
 
         # Check session outputs
         for output in state.raw_data.get("outputs", []):
@@ -303,7 +322,7 @@ class JulesSessionNodes:
                     console.print(f"\n[bold green]PR Created: {pr_url}[/bold green]")
                     state.pr_url = pr_url
                     state.status = SessionStatus.SUCCESS
-                    return state
+                    return self._compute_diff(_state_in, state)
 
         # Check activities
         try:
@@ -326,14 +345,14 @@ class JulesSessionNodes:
                                 logger.info(f"Found PR in activities: {pr_url}")
                                 state.pr_url = pr_url
                                 state.status = SessionStatus.SUCCESS
-                                return state
+                                return self._compute_diff(_state_in, state)
         except Exception as e:
             logger.debug(f"Failed to check activities for PR: {e}")
 
         # No PR found
         console.print("[yellow]Session Completed but NO PR found.[/yellow]")
         state.status = SessionStatus.REQUESTING_PR_CREATION
-        return state
+        return self._compute_diff(_state_in, state)
 
     async def _check_for_distress_in_messages(
         self, state: JulesSessionState, client: httpx.AsyncClient
@@ -385,8 +404,10 @@ class JulesSessionNodes:
             logger.warning(f"Failed to check last message content: {e}")
         return None
 
-    async def request_pr_creation(self, state: JulesSessionState) -> JulesSessionState:
+    async def request_pr_creation(self, _state_in: JulesSessionState) -> dict[str, Any]:
         """Request Jules to create a PR manually."""
+        state = _state_in.model_copy(deep=True)
+
         console.print("[cyan]Attempting to create PR manually...[/cyan]")
         console.print("[cyan]Sending message to Jules to commit and create PR...[/cyan]")
 
@@ -405,10 +426,12 @@ class JulesSessionNodes:
 
         state.status = SessionStatus.WAITING_FOR_PR
         state.fallback_elapsed_seconds = 0
-        return state
+        return self._compute_diff(_state_in, state)
 
-    async def wait_for_pr(self, state: JulesSessionState) -> JulesSessionState:  # noqa: C901
+    async def wait_for_pr(self, _state_in: JulesSessionState) -> dict[str, Any]:  # noqa: C901
         """Wait for PR creation after manual request, with session state re-validation."""
+        state = _state_in.model_copy(deep=True)
+
         await self.client._sleep(10)
         state.fallback_elapsed_seconds += 10
 
@@ -417,7 +440,7 @@ class JulesSessionNodes:
             logger.warning(f"Timeout ({state.fallback_max_wait}s) waiting for Jules to create PR")
             state.status = SessionStatus.TIMEOUT
             state.error = f"Timeout waiting for PR after {state.fallback_max_wait}s"
-            return state
+            return self._compute_diff(_state_in, state)
 
         try:
             async with httpx.AsyncClient() as client:
@@ -433,7 +456,7 @@ class JulesSessionNodes:
                         )
                         state.status = SessionStatus.MONITORING
                         state.jules_state = current_state
-                        return state
+                        return self._compute_diff(_state_in, state)
 
                 # Check for PR and new activities
                 act_url = f"{state.session_url}/activities"
@@ -455,7 +478,7 @@ class JulesSessionNodes:
                                 console.print(f"[bold green]PR Created: {pr_url}[/bold green]")
                                 state.pr_url = pr_url
                                 state.status = SessionStatus.SUCCESS
-                                return state
+                                return self._compute_diff(_state_in, state)
 
                         # Log new activities
                         act_id = activity.get("name", activity.get("id"))
@@ -475,4 +498,4 @@ class JulesSessionNodes:
             )
 
         # Continue waiting
-        return state
+        return self._compute_diff(_state_in, state)

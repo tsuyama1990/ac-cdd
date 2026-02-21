@@ -1,10 +1,7 @@
 import asyncio
-import json
 import os
 import sys
 import unittest.mock
-from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any
 
 try:
@@ -17,12 +14,14 @@ import httpx
 from ac_cdd_core.agents import get_manager_agent
 from ac_cdd_core.config import settings
 from ac_cdd_core.services.git_ops import GitManager
-from ac_cdd_core.state_manager import StateManager
 from ac_cdd_core.utils import logger
 from google.auth.transport.requests import Request as GoogleAuthRequest
 from rich.console import Console
 
 from .jules.api import JulesApiClient
+from .jules.context_builder import JulesContextBuilder
+from .jules.git_context import JulesGitContext
+from .jules.inquiry_handler import JulesInquiryHandler
 
 console = Console()
 
@@ -80,6 +79,13 @@ class JulesClient:
             api_key_to_use = self.credentials.token
 
         self.api_client = JulesApiClient(api_key=api_key_to_use)
+        self.context_builder = JulesContextBuilder(self.git)
+        self.git_context = JulesGitContext(self.git)
+        self.inquiry_handler = JulesInquiryHandler(
+            manager_agent=self.manager_agent,
+            context_builder=self.context_builder,
+            client_ref=self
+        )
 
     async def _sleep(self, seconds: float) -> None:
         """Async sleep wrapper for easier mocking in tests."""
@@ -130,8 +136,8 @@ class JulesClient:
             errmsg = "Missing JULES_API_KEY or ADC credentials."
             raise JulesSessionError(errmsg)
 
-        owner, repo_name, branch = await self._prepare_git_context()
-        full_prompt = self._construct_run_prompt(
+        owner, repo_name, branch = await self.git_context.prepare_git_context()
+        full_prompt = self.context_builder.construct_run_prompt(
             prompt, files, extra.get("target_files"), extra.get("context_files")
         )
 
@@ -158,73 +164,6 @@ class JulesClient:
         result = await self.wait_for_completion(session_name, require_plan_approval=False)
         result["session_name"] = session_name
         return result
-
-    async def _prepare_git_context(self) -> tuple[str, str, str]:
-        try:
-            repo_url = await self.git.get_remote_url()
-            if "github.com" in repo_url:
-                parts = repo_url.replace(".git", "").split("/")
-                repo_name = parts[-1]
-                owner = parts[-2].split(":")[-1]
-            elif "PYTEST_CURRENT_TEST" in os.environ:
-                repo_name, owner = "test-repo", "test-owner"
-            else:
-                self._raise_jules_session_error(repo_url)
-
-            branch = await self.git.get_current_branch()
-
-            # Handle detached HEAD state (Jules cannot clone 'HEAD')
-            if branch == "HEAD":
-                timestamp = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
-                branch = f"jules-sync-{timestamp}"
-                logger.warning(f"Detached HEAD detected. Creating temporary sync branch: {branch}")
-                # Safely create and switch to the temp branch so we can push it
-                await self.git.runner.run_command(["git", "checkout", "-b", branch], check=True)
-
-            if "PYTEST_CURRENT_TEST" not in os.environ:
-                try:
-                    # Sync with remote before pushing to handle external changes (PRs, etc.)
-                    # We use run_command directly to avoid strict checking on pull (it might fail if upstream missing)
-                    await self.git.runner.run_command(
-                        ["git", "pull", "--rebase", "origin", branch], check=False
-                    )
-                    await self.git.push_branch(branch)
-                except Exception as e:
-                    logger.warning(f"Could not sync/push branch: {e}")
-        except Exception as e:
-            if "PYTEST_CURRENT_TEST" in os.environ:
-                return "test-owner", "test-repo", "main"
-            if isinstance(e, JulesSessionError):
-                raise
-            emsg = f"Failed to determine/push git context: {e}"
-            raise JulesSessionError(emsg) from e
-        else:
-            return owner, repo_name, branch
-
-    def _raise_jules_session_error(self, repo_url: str) -> None:
-        msg = f"Unsupported repository URL format: {repo_url}"
-        raise JulesSessionError(msg)
-
-    def _construct_run_prompt(
-        self,
-        prompt: str,
-        files: list[str] | None,
-        target_files: list[str] | None,
-        context_files: list[str] | None,
-    ) -> str:
-        full_prompt = prompt
-        if target_files or context_files:
-            full_prompt += "\n\n" + "#" * 20 + "\nFILE CONTEXT:\n"
-            if context_files:
-                full_prompt += "\nREAD-ONLY CONTEXT (Do not edit):\n" + "\n".join(context_files)
-            if target_files:
-                full_prompt += "\n\nTARGET FILES (To be implemented/edited):\n" + "\n".join(
-                    target_files
-                )
-        elif files:
-            file_list_str = "\n".join(files)
-            full_prompt += f"\n\nPlease focus on the following files:\n{file_list_str}"
-        return full_prompt
 
     async def _create_jules_session(self, payload: dict[str, Any]) -> str:
         """Wrapper to call create_session via api_client."""
@@ -264,59 +203,6 @@ class JulesClient:
         result = await self.wait_for_completion(session_name)
         result["session_name"] = session_name
         return result
-
-    async def _check_for_inquiry(
-        self, client: httpx.AsyncClient, session_url: str, processed_ids: set[str]
-    ) -> tuple[str, str] | None:
-        """Checks if the session is waiting for user feedback."""
-        try:
-            page_token = ""
-            # Check up to 3 pages (300 activities) to capture inquiries buried by logs
-            for _ in range(3):
-                act_url = f"{session_url}/activities?pageSize=100"
-                if page_token:
-                    act_url += f"&pageToken={page_token}"
-
-                act_resp = await client.get(act_url, headers=self._get_headers(), timeout=10.0)
-
-                if act_resp.status_code == httpx.codes.OK:
-                    data = act_resp.json()
-                    activities = data.get("activities", [])
-
-                    # Search activities
-                    for act in activities:
-                        act_id = act.get("name", act.get("id"))
-                        # Skip already processed activities to prevent duplicates
-                        if act_id in processed_ids:
-                            continue
-                        msg = self._extract_activity_message(act)
-                        if msg:
-                            # But we should process any pending inquiry.
-                            return (msg, act_id)
-
-                    page_token = data.get("nextPageToken")
-                    if not page_token:
-                        break
-        except Exception as e:
-            logger.warning(f"Failed to check for inquiry: {e}")
-        return None
-
-    def _extract_activity_message(self, act: dict[str, Any]) -> str | None:
-        msg = None
-        if "inquiryAsked" in act:
-            # Jules is asking a question
-            inquiry = act["inquiryAsked"]
-            msg = inquiry.get("inquiry", inquiry.get("question"))
-        elif "agentMessaged" in act:
-            msg = act["agentMessaged"].get("agentMessage")
-        elif "userActionRequired" in act:
-            details = act["userActionRequired"]
-            msg = details.get("reason", "User action required (check console).")
-        if not msg:
-            msg = act.get("message")
-        if msg and "Jules is working" in msg:
-            return None
-        return msg
 
     async def wait_for_completion(
         self, session_name: str, require_plan_approval: bool = False
@@ -439,7 +325,7 @@ class JulesClient:
                     if data:
                         state = data.get("state")
                         logger.info(f"Jules session state: {state}")
-                        await self._process_inquiries(
+                        await self.inquiry_handler.process_inquiries(
                             client,
                             session_url,
                             state,
@@ -531,7 +417,7 @@ class JulesClient:
 
                 # If awaiting feedback, track the latest inquiry
                 if state == "AWAITING_USER_FEEDBACK":
-                    msg = self._extract_activity_message(act)
+                    msg = self.inquiry_handler.extract_activity_message(act)
                     if msg:
                         ts = act.get("createTime", "")
                         if ts >= latest_ts:
@@ -548,286 +434,6 @@ class JulesClient:
             logger.info(f"Initialized with {len(processed_ids)} existing activities to ignore.")
         except Exception as e:
             logger.warning(f"Failed to fetch initial activities: {e}")
-
-    def _load_cycle_docs(self, current_cycle: str, context_parts: list[str]) -> None:
-        """Load SPEC.md and UAT.md for the current cycle."""
-        spec_path = Path(f"dev_documents/system_prompts/CYCLE{current_cycle}/SPEC.md")
-        if spec_path.exists():
-            spec_content = spec_path.read_text(encoding="utf-8")
-            context_parts.append(f"\n## Cycle Specification\n```markdown\n{spec_content}\n```\n")
-
-        uat_path = Path(f"dev_documents/system_prompts/CYCLE{current_cycle}/UAT.md")
-        if uat_path.exists():
-            uat_content = uat_path.read_text(encoding="utf-8")
-            context_parts.append(f"\n## User Acceptance Tests\n```markdown\n{uat_content}\n```\n")
-
-    async def _load_changed_files(self, context_parts: list[str]) -> None:
-        """Load content of changed files in the current branch."""
-        changed_files = await self.git.get_changed_files()
-        if not changed_files:
-            return
-
-        context_parts.append(f"\n## Changed Files ({len(changed_files)} files)\n")
-
-        max_files = 10  # Prevent context overflow
-        max_file_size = 5000  # chars per file
-
-        for filepath in changed_files[:max_files]:
-            try:
-                file_path = Path(filepath)
-                if file_path.exists() and file_path.suffix in [
-                    ".py",
-                    ".md",
-                    ".toml",
-                    ".json",
-                    ".yaml",
-                    ".yml",
-                ]:
-                    content = file_path.read_text(encoding="utf-8")
-                    if len(content) > max_file_size:
-                        content = content[:max_file_size] + "\n... (truncated)"
-                    context_parts.append(
-                        f"\n### {filepath}\n```{file_path.suffix[1:]}\n{content}\n```\n"
-                    )
-            except Exception as e:
-                logger.debug(f"Could not read {filepath}: {e}")
-                continue
-
-    def _load_architecture_summary(self, context_parts: list[str]) -> None:
-        """Load system architecture summary."""
-        arch_path = Path("dev_documents/system_prompts/SYSTEM_ARCHITECTURE.md")
-        if not arch_path.exists():
-            return
-
-        arch_content = arch_path.read_text(encoding="utf-8")
-        summary_end = arch_content.find("\n## ")
-        if summary_end > 0:
-            arch_summary = arch_content[:summary_end]
-            context_parts.append(
-                f"\n## System Architecture (Summary)\n```markdown\n{arch_summary}\n```\n"
-            )
-
-    async def _build_question_context(self, question: str) -> str:
-        """
-        Builds comprehensive context for answering Jules' questions.
-        Includes: current cycle SPEC, changed files, and their contents.
-        """
-        context_parts = [f"# Jules' Question\n{question}\n"]
-
-        try:
-            # 1. Get current cycle information from session manifest
-            mgr = StateManager()
-            manifest = mgr.load_manifest()
-
-            # Find current active cycle (in_progress) or fallback to last cycle if needed
-            current_cycle_id: str | None = None
-            if manifest:
-                for cycle in manifest.cycles:
-                    if cycle.status == "in_progress":
-                        current_cycle_id = cycle.id
-                        break
-
-            if current_cycle_id:
-                context_parts.append(f"\n# Current Cycle: {current_cycle_id}\n")
-                self._load_cycle_docs(current_cycle_id, context_parts)
-
-            await self._load_changed_files(context_parts)
-            self._load_architecture_summary(context_parts)
-
-        except Exception as e:
-            logger.warning(f"Failed to build full context for Jules question: {e}")
-            return question
-
-        full_context = "\n".join(context_parts)
-        instruction = settings.get_prompt_content(
-            "MANAGER_INQUIRY_PROMPT.md",
-            default=(
-                "**Instructions for Answering Jules' Question**:\n"
-                "Focus on ROOT CAUSE ANALYSIS. Diagnose the underlying cause, "
-                "guide investigation, and provide targeted solutions."
-            ),
-        )
-        full_context += f"\n\n---\n{instruction}"
-
-        return full_context
-
-    async def _fetch_pending_plan(
-        self, client: httpx.AsyncClient, session_url: str, processed_ids: set[str]
-    ) -> tuple[dict[str, Any], str] | None:
-        """Fetches a pending plan from activities if one exists."""
-        act_url = f"{session_url}/activities"
-        try:
-            act_resp = await client.get(act_url, headers=self._get_headers(), timeout=10.0)
-            if act_resp.status_code != httpx.codes.OK:
-                logger.warning(f"Failed to fetch activities: HTTP {act_resp.status_code}")
-                return None
-
-            activities = act_resp.json().get("activities", [])
-            logger.debug(f"Checking {len(activities)} activities for planGenerated")
-
-            for activity in activities:
-                if "planGenerated" in activity:
-                    plan_generated = activity.get("planGenerated", {})
-                    plan = plan_generated.get("plan", {})
-                    plan_id = plan.get("id")
-                    logger.info(f"Found planGenerated activity with plan ID: {plan_id}")
-                    if plan_id and plan_id not in processed_ids:
-                        logger.info(f"Plan {plan_id} is new, will process")
-                        return (plan, plan_id)
-                    logger.debug(f"Plan {plan_id} already processed, skipping")
-        except Exception as e:
-            logger.warning(f"Failed to check for plan: {e}", exc_info=True)
-        else:
-            return None
-        return None
-
-    async def _build_plan_review_context(self, plan: dict[str, Any]) -> str:
-        """Builds context for plan review including specs and plan content."""
-        mgr = StateManager()
-        manifest = mgr.load_manifest()
-
-        current_cycle_id = None
-        if manifest:
-            for cycle in manifest.cycles:
-                if cycle.status == "in_progress":
-                    current_cycle_id = cycle.id
-                    break
-
-        context_parts: list[str] = []
-        if current_cycle_id:
-            context_parts.append(f"# CURRENT CYCLE: {current_cycle_id}\n")
-            self._load_cycle_docs(current_cycle_id, context_parts)
-
-        plan_steps = plan.get("steps", [])
-        plan_text = json.dumps(plan_steps, indent=2)
-        context_parts.append(f"# GENERATED PLAN TO REVIEW\n{plan_text}\n")
-
-        intro = (
-            str(
-                settings.get_prompt_content(
-                    "PLAN_REVIEW_PROMPT.md",
-                    default=(
-                        "Jules has generated an implementation plan. Please review it against the specifications.\n"
-                        "If the plan is acceptable, reply with just 'APPROVE' (single word).\n"
-                        "If there are issues, reply with specific feedback to correct the plan.\n"
-                        "Do NOT approve if the plan is missing critical steps or violates requirements."
-                    ),
-                )
-            )
-            + "\n"
-        )
-        return intro + "\n".join(context_parts)
-
-    async def _handle_plan_approval(
-        self,
-        client: httpx.AsyncClient,
-        session_url: str,
-        processed_ids: set[str],
-        rejection_count: list[int],
-        max_rejections: int,
-    ) -> None:
-        """Handles automated plan review and approval."""
-        session_name = "sessions/" + session_url.split("/sessions/")[-1]
-
-        result = await self._fetch_pending_plan(client, session_url, processed_ids)
-        if not result:
-            return
-
-        plan, plan_id = result
-        self.console.print(f"\n[bold magenta]Plan Approval Requested:[/bold magenta] {plan_id}")
-
-        # Check if we've exceeded max rejections
-        if rejection_count[0] >= max_rejections:
-            self.console.print(
-                f"[bold yellow]Max plan rejections ({max_rejections}) reached. Auto-approving plan.[/bold yellow]"
-            )
-            await self.approve_plan(session_name, plan_id)
-            processed_ids.add(plan_id)
-            return
-
-        full_context = await self._build_plan_review_context(plan)
-
-        self.console.print("[dim]Auditing Plan...[/dim]")
-        try:
-            mgr_response = await self.manager_agent.run(full_context)
-            reply = mgr_response.output.strip()
-
-            if "APPROVE" in reply.upper() and len(reply) < 50:
-                self.console.print("[bold green]Plan Approved by Auditor.[/bold green]")
-                await self.approve_plan(session_name, plan_id)
-            else:
-                self.console.print("[bold yellow]Plan Rejected. Sending Feedback...[/bold yellow]")
-                rejection_count[0] += 1
-                await self._send_message(session_url, reply)
-
-            processed_ids.add(plan_id)
-        except Exception as e:
-            logger.error(f"Plan audit failed: {e}")
-
-    async def _process_inquiries(
-        self,
-        client: httpx.AsyncClient,
-        session_url: str,
-        state: str,
-        processed_ids: set[str],
-        rejection_count: list[int],
-        max_rejections: int,
-        require_plan_approval: bool = True,
-    ) -> None:
-        # States where we should check for inquiries (based on Jules API spec)
-        active_states = [
-            "AWAITING_USER_FEEDBACK",
-            "AWAITING_PLAN_APPROVAL",
-            "COMPLETED",
-            "PLANNING",
-            "IN_PROGRESS",
-        ]
-        if state not in active_states:
-            return
-
-        # Always check for plan approval first (if enabled)
-        # This ensures we catch it even if the state string is different than expected
-        if require_plan_approval:
-            await self._handle_plan_approval(
-                client, session_url, processed_ids, rejection_count, max_rejections
-            )
-
-        # Then handle regular inquiries (skip already processed activities)
-        inquiry = await self._check_for_inquiry(client, session_url, processed_ids)
-        if not inquiry:
-            return
-
-        question, act_id = inquiry
-        if act_id and act_id not in processed_ids:
-            self.console.print(
-                f"\n[bold magenta]Jules Question Detected:[/bold magenta] {question}"
-            )
-            self.console.print("[dim]Consulting Manager Agent with full context...[/dim]")
-
-            try:
-                # Build comprehensive context including current cycle SPEC and changed files
-                enhanced_context = await self._build_question_context(question)
-
-                self.console.print(f"[dim]Context size: {len(enhanced_context)} chars[/dim]")
-
-                mgr_response = await self.manager_agent.run(enhanced_context)
-                reply_text = mgr_response.output
-                reply_text += "\n\n(System Note: If task complete/blocker resolved, proceed to create PR. Do not wait.)"
-
-                self.console.print(f"[bold cyan]Manager Agent Reply:[/bold cyan] {reply_text}")
-                await self._send_message(session_url, reply_text)
-                processed_ids.add(act_id)
-                await self._sleep(5)
-            except Exception as e:
-                logger.error(f"Manager Agent failed: {e}")
-                # Fallback: send a basic response
-                fallback_msg = (
-                    f"I encountered an error processing your question. "
-                    f"Please refer to the SPEC.md in dev_documents/system_prompts/ for guidance. "
-                    f"Original question: {question}"
-                )
-                await self._send_message(session_url, fallback_msg)
-                processed_ids.add(act_id)
 
     async def _check_success_state(  # noqa: C901
         self, client: httpx.AsyncClient, session_url: str, data: dict[str, Any], state: str
@@ -1052,7 +658,7 @@ class JulesClient:
                                 # Log new activities to show progress
                                 act_id = activity.get("name", activity.get("id"))
                                 if act_id and act_id not in processed_fallback_ids:
-                                    msg = self._extract_activity_message(activity)
+                                    msg = self.inquiry_handler.extract_activity_message(activity)
                                     if msg:
                                         self.console.print(f"[dim]Jules: {msg}[/dim]")
                                     processed_fallback_ids.add(act_id)

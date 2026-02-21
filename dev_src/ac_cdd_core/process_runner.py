@@ -65,7 +65,7 @@ class ProcessRunner:
                             logger.error(f"DEBUG failed: {e}")
                     raise subprocess.CalledProcessError(
                         returncode, cmd, output=stdout_str, stderr=stderr_str
-                    )  # noqa: TRY301
+                    )
                 logger.debug(f"Command failed (expected) [{returncode}]: {cmd_str}")
         except Exception as e:
             logger.error(f"Execution failed for '{cmd_str}': {e}")

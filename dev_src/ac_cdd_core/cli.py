@@ -42,40 +42,6 @@ app = typer.Typer(help="AC-CDD: AI-Native Cycle-Based Contract-Driven Developmen
 console = Console()
 
 
-class _WorkflowServiceHolder:
-    """Holder for lazy-initialized workflow service."""
-
-    _instance: WorkflowService | None = None
-
-    @classmethod
-    def get(cls) -> WorkflowService:
-        """Get or create the workflow service instance."""
-        if cls._instance is None:
-            cls._instance = WorkflowService()
-        return cls._instance
-
-
-def _is_docker_environment() -> bool:
-    """Detect if running inside a Docker container."""
-    import os
-    from pathlib import Path
-
-    # Method 1: Check for /.dockerenv file (most reliable)
-    if Path("/.dockerenv").exists():
-        return True
-
-    # Method 2: Check cgroup for docker
-    try:
-        with Path("/proc/self/cgroup").open() as f:
-            if "docker" in f.read():
-                return True
-    except (FileNotFoundError, PermissionError):
-        pass
-
-    # Method 3: Check environment variable
-    return os.environ.get("DOCKER_CONTAINER") == "true"
-
-
 def check_environment() -> None:
     """Check that all required tools and keys are present."""
     if not utils.check_api_key():
@@ -137,7 +103,7 @@ def gen_cycles(
     """
     Architect Phase: Generate cycle specs based on requirements.
     """
-    _run_async(_WorkflowServiceHolder.get().run_gen_cycles(cycles, project_session_id, auto_run))
+    _run_async(WorkflowService().run_gen_cycles(cycles, project_session_id, auto_run))
 
 
 @app.command()
@@ -164,7 +130,7 @@ def run_cycle(
     Use --no-auto to disable automated auditing (not recommended).
     """
     _run_async(
-        _WorkflowServiceHolder.get().run_cycle(
+        WorkflowService().run_cycle(
             cycle_id=cycle_id,
             resume=resume,
             auto=auto,
@@ -185,7 +151,7 @@ def start_session(
     """
     Convenience command to start an end-to-end session with planning and optional auditing.
     """
-    _run_async(_WorkflowServiceHolder.get().start_session(prompt, audit_mode, max_retries))
+    _run_async(WorkflowService().start_session(prompt, audit_mode, max_retries))
 
 
 @app.command()
@@ -210,55 +176,7 @@ def resume_session(
     Example:
         ac-cdd resume-session feat/generate-architecture-20260110-1640 --cycles 8
     """
-    _resume_session(feature_branch, integration_branch, cycles)
-
-
-def _resume_session(feature_branch: str, integration_branch: str | None, cycles: int) -> None:
-    """Resume session with existing branches."""
-    from datetime import UTC, datetime
-
-    from rich.console import Console
-
-    from .domain_models import CycleManifest, ProjectManifest
-    from .state_manager import StateManager
-
-    console = Console()
-
-    # Generate session ID
-    session_id = f"resume-{datetime.now(UTC).strftime('%Y%m%d-%H%M%S')}"
-
-    # Use feature branch name for integration if not provided
-    if not integration_branch:
-        # Extract timestamp from feature branch
-        # feat/generate-architecture-20260110-1640 -> dev/architect-cycle-00-20260110-1640/integration
-        parts = feature_branch.split("-")
-        if len(parts) >= 3:
-            timestamp = "-".join(parts[-2:])
-            integration_branch = f"dev/architect-cycle-00-{timestamp}/integration"
-        else:
-            integration_branch = f"dev/{feature_branch}/integration"
-
-    console.print("[bold cyan]Resuming session with existing branches:[/bold cyan]")
-    console.print(f"  Feature branch: [green]{feature_branch}[/green]")
-    console.print(f"  Integration branch: [green]{integration_branch}[/green]")
-    console.print(f"  Cycles: [green]{cycles}[/green]")
-
-    # Create manifest
-    mgr = StateManager()
-    manifest = ProjectManifest(
-        project_session_id=session_id,
-        feature_branch=feature_branch,
-        integration_branch=integration_branch,
-        cycles=[CycleManifest(id=f"{i:02}", status="planned") for i in range(1, cycles + 1)],
-    )
-
-    mgr.save_manifest(manifest)
-
-    console.print("\n[bold green]✅ Session resumed![/bold green]")
-    console.print(f"Session ID: [cyan]{session_id}[/cyan]")
-    console.print("\nYou can now run:")
-    console.print("  [bold]ac-cdd run-cycle --id 01[/bold]")
-    console.print("  [bold]ac-cdd run-cycle --id all[/bold]")
+    WorkflowService().resume_session(feature_branch, integration_branch, cycles)
 
 
 @app.command()
@@ -268,7 +186,7 @@ def finalize_session(
     """
     Finalize a development session by creating a PR to main.
     """
-    _run_async(_WorkflowServiceHolder.get().finalize_session(project_session_id))
+    _run_async(WorkflowService().finalize_session(project_session_id))
 
 
 @app.command()

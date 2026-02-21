@@ -432,8 +432,8 @@ class CycleNodes(IGraphNodes):
                         last_error=str(e),
                     )
 
-                    # Recursively retry (this will create a new session)
-                    return await self.coder_session_node(state)
+                    # Return state to let Graph handle the loop
+                    return {"status": "coder_retry", "session_restart_count": new_restart_count}
                 console.print(
                     f"[red]Max session restarts ({max_restarts}) reached. Failing cycle.[/red]"
                 )
@@ -461,7 +461,8 @@ class CycleNodes(IGraphNodes):
                             last_error=result.get("error", "Unknown error"),
                         )
 
-                        return await self.coder_session_node(state)
+                        # Return state to let Graph handle the loop
+                        return {"status": "coder_retry", "session_restart_count": new_restart_count}
 
                 return {"status": "failed", "error": result.get("error")}
             return {"status": "failed", "error": "Jules failed to produce PR"}
@@ -503,76 +504,34 @@ class CycleNodes(IGraphNodes):
                         console.print(
                             f"[bold yellow]Robustness Check: Commit {current_commit[:7]} already audited.[/bold yellow]"
                         )
-                        console.print("[dim]Polling for new commit from Jules...[/dim]")
-                        import asyncio
+                        console.print("[dim]Checking if Jules is still running...[/dim]")
 
-                        # Poll for new commit with exponential backoff
-                        max_wait_time = 300  # 5 minutes total
-                        elapsed_time = 0
-                        wait_intervals = [30, 60, 120]  # 30s, 60s, 120s
-                        poll_index = 0
+                        jules_session_id = state.get("jules_session_name")
+                        if not jules_session_id:
+                            mgr = StateManager()
+                            cycle_manifest = mgr.get_cycle(state.get("cycle_id", "00"))
+                            if cycle_manifest:
+                                jules_session_id = cycle_manifest.jules_session_id
 
-                        while elapsed_time < max_wait_time:
-                            wait_time = wait_intervals[min(poll_index, len(wait_intervals) - 1)]
-                            console.print(f"[dim]Waiting {wait_time}s for new commit...[/dim]")
-                            await asyncio.sleep(wait_time)
-                            elapsed_time += wait_time
-                            poll_index += 1
-
-                            # Check for new commit
+                        if jules_session_id:
                             try:
-                                await self.git.pull_changes()
-                            except Exception as e:
-                                console.print(
-                                    f"[yellow]Warning: Could not pull changes during polling: {e}[/yellow]"
-                                )
-
-                            new_commit = await self.git.get_current_commit()
-                            if new_commit and new_commit != last_audited:
-                                console.print(
-                                    f"[bold green]New commit detected: {new_commit[:7]}. Proceeding with audit.[/bold green]"
-                                )
-                                current_commit = new_commit
-                                break
-
-                            # ALSO CHECK JULES STATUS
-                            # If Jules is finished, we shouldn't wait for new commits forever.
-                            # We should assume the current state is final and audit it.
-                            jules_session_id = state.get("jules_session_name")
-                            # Try other keys if needed, e.g. from cycle manifest
-                            if not jules_session_id:
-                                # Fallback to looking up current cycle
-                                mgr = StateManager()
-                                cycle_manifest = mgr.get_cycle(state.get("cycle_id", "00"))
-                                if cycle_manifest:
-                                    jules_session_id = cycle_manifest.jules_session_id
-
-                            if jules_session_id:
-                                try:
-                                    jules_status = await self.jules.get_session_state(
-                                        jules_session_id
+                                jules_status = await self.jules.get_session_state(jules_session_id)
+                                if jules_status not in ["COMPLETED", "SUCCEEDED", "FAILED"]:
+                                    console.print(
+                                        "[bold yellow]Jules session still active. Delegating wait logic to graph router.[/bold yellow]"
                                     )
-                                    if jules_status in ["COMPLETED", "SUCCEEDED", "FAILED"]:
-                                        console.print(
-                                            f"[bold yellow]Jules session is {jules_status}. Stop polling and proceed with audit.[/bold yellow]"
-                                        )
-                                        break
-                                except Exception:  # noqa: S110
-                                    pass  # Ignore status check errors, keep polling
-                        else:
-                            # Timeout: No new commit after max wait time
-                            console.print(
-                                f"[bold yellow]No new commit after {max_wait_time}s. "
-                                f"Skipping audit and waiting for Jules to complete.[/bold yellow]"
-                            )
-                            # Return early with a special status to skip audit
-                            return {
-                                "status": "waiting_for_jules",
-                                "audit_result": state.get(
-                                    "audit_result"
-                                ),  # Keep previous audit result
-                                "last_audited_commit": last_audited,
-                            }
+                                    # Return early with a special status
+                                    return {
+                                        "status": "waiting_for_jules",
+                                        "audit_result": state.get("audit_result"),
+                                        "last_audited_commit": last_audited,
+                                    }
+                            except Exception:  # noqa: S110
+                                pass
+
+                        console.print(
+                            "[bold yellow]Jules session complete. Proceeding with audit on same commit.[/bold yellow]"
+                        )
 
                     # Store for return
                     new_last_audited_commit = current_commit
@@ -935,6 +894,8 @@ class CycleNodes(IGraphNodes):
             return "completed"
 
         status = state.get("status")
+        if status == "coder_retry":
+            return "coder_retry"
         if status == "ready_for_audit":
             return "ready_for_audit"
         if status in {"failed", "architect_failed"}:

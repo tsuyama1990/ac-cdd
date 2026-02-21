@@ -1,9 +1,16 @@
 """State model for Jules session management using LangGraph."""
 
 from enum import Enum
-from typing import Any
+from typing import Annotated, Any
 
 from pydantic import BaseModel, Field
+
+
+def add_set(a: set[str] | None, b: set[str] | None) -> set[str]:
+    a = a or set()
+    b = b or set()
+    return a | b
+
 
 
 class SessionStatus(str, Enum):
@@ -32,9 +39,9 @@ class JulesSessionState(BaseModel):
     previous_jules_state: str | None = None
 
     # Activity tracking
-    processed_activity_ids: set[str] = Field(default_factory=set)
-    processed_completion_ids: set[str] = Field(default_factory=set)
-    processed_inquiry_ids: set[str] = Field(default_factory=set)
+    processed_activity_ids: Annotated[set[str], add_set] = Field(default_factory=set)
+    processed_completion_ids: Annotated[set[str], add_set] = Field(default_factory=set)
+    processed_inquiry_ids: Annotated[set[str], add_set] = Field(default_factory=set)
     last_activity_count: int = 0
 
     # Inquiry handling
@@ -52,7 +59,7 @@ class JulesSessionState(BaseModel):
     # Fallback PR creation tracking
     fallback_elapsed_seconds: int = 0
     fallback_max_wait: int = 900
-    processed_fallback_ids: set[str] = Field(default_factory=set)
+    processed_fallback_ids: Annotated[set[str], add_set] = Field(default_factory=set)
 
     # Timing
     start_time: float = 0.0

@@ -203,9 +203,9 @@ ac-cdd gen-cycles
 This acts as the **Architect**:
 - Reads `ALL_SPEC.md`
 - Generates `SYSTEM_ARCHITECTURE.md`, `SPEC.md`, and `UAT.md`
-- Creates a **development session** and branches (e.g., `dev/session-{timestamp}`)
+- Creates an **integration branch** (e.g., `dev/int-{timestamp}`)
 
-**Session is saved** to `.ac_cdd_session.json` for automatic resumption.
+**Session state is saved** to `.ac_cdd/project_state.json` for automatic resumption.
 
 ### 3. Run Development Cycles
 
@@ -222,10 +222,9 @@ ac-cdd run-cycle --id 01 --no-auto
 ```
 
 Each cycle:
-- Creates branch: `dev/session-{timestamp}/cycle{id}`
-- Implements features via Jules
+- Implements features via Jules on a temporary branch targeting the integration branch
 - Runs **Committee of Auditors** automatically (3 auditors × 2 reviews each)
-- Auto-merges to **integration branch** (not main)
+- Auto-merges successful PRs down to the **integration branch** (not main)
 
 ### 4. Finalize Session
 
