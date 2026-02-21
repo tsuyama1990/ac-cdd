@@ -50,19 +50,18 @@ async def test_auditor_node_includes_static_errors(mock_dependencies: tuple[Any,
             return_value=("", "", 1)
         )  # 1 means not ignored
 
-        # CRITICAL: Mock static analysis behavior via run_command logic
-        # CycleNodes._run_static_analysis calls nodes.git.runner.run_command for mypy/ruff
-        # We need to distinguish calls.
-
         async def mock_run_command_side_effect(
-            cmd: list[str], check: bool = False
+            cmd: list[str], check: bool = False, **kwargs: Any
         ) -> tuple[str, str, int]:
             cmd_str = " ".join(cmd)
+            print(f"DEBUG MOCK: {cmd_str}")
             if "mypy" in cmd_str:
                 return "mypy failure", "error", 1  # Fail
             if "ruff" in cmd_str:
                 return "ruff success", "", 0  # Pass
-            return "", "", 0  # check-ignore etc
+            if "check-ignore" in cmd_str:
+                return "", "", 1  # 1 means NOT ignored
+            return "", "", 0
 
         mock_git_instance.runner.run_command = AsyncMock(side_effect=mock_run_command_side_effect)
 

@@ -8,208 +8,97 @@ plugins: hypothesis-6.148.7, logfire-4.16.0, langsmith-0.4.59, asyncio-1.3.0, co
 asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
 collecting ... collected 1 item
 
-tests/ac_cdd/integration/test_end_to_end_workflow.py::TestEndToEndWorkflow::test_session_persistence_across_commands Running Pending Cycles: ['01']
-Starting Cycle 01 (1/1)
-────────────────────────────────────────────────────────────────────────────────────────────────────────────── Coder Phase: Cycle 01 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────
-✅ Cycle 01 Implementation Request Sent!
-
-Jules has created a Pull Request with the implementation.
-
-Next Steps:
-1. Review the Pull Request on GitHub.
-2. Merge the PR if the implementation and tests pass.
-3. Pull the changes locally:
-   git checkout main && git pull
-4. Proceed to the next cycle:
-   uv run manage.py run-cycle --id 02
-Completed Cycle 01 (1/1)
-────────────────────────────────────────────────────────────────────────────────────────────────────────── QA Phase: Tutorial Generation ───────────────────────────────────────────────────────────────────────────────────────────────────────────
-Running QA Tutorial Generation Graph...
-Tutorial Generation Failed: object MagicMock can't be used in 'await' expression
-────────────────────────────────────────────────────────────────────────────────────────────────────────── Finalizing Development Session ──────────────────────────────────────────────────────────────────────────────────────────────────────────
-✅ Final PR Created!
-
-PR URL: http://pr
-
-Next Steps:
-1. Review the PR on GitHub
-2. Merge to main when ready
-3. The integration branch will be automatically deleted
-
-To start a new session, run: uv run manage.py gen-cycles
-
-Archiving session artifacts to /home/tomo/project/ac-cdd/dev_documents/phase_4...
-Finalization failed: [Errno 2] No such file or directory: "<MagicMock name='StateManager().STATE_FILE' id='140442950746032'>"
+tests/ac_cdd/unit/test_auditor_static_checks.py::test_auditor_node_includes_static_errors Starting Auditor...
+Checking out PR: http://pr
+Warning: Could not checkout PR: object MagicMock can't be used in 'await' expression
+Proceeding with current branch (may review wrong code!)
+Warning: Could not get PR base branch: object MagicMock can't be used in 'await' expression
+Comparing changes against base branch: feat/1
+Auditor: Found 1 changed files to review
+DEBUG MOCK: git check-ignore -q test.py
+Filtered out 1 gitignored files
+Warning: No reviewable application files found in changes. Using fallback.
+DEBUG: Fallback target files: <MagicMock name='settings.get_target_files()' id='139979911210496'>
+DEBUG: After filtering: []
+Auditor: Final review target: 0 files (context excluded)
+DEBUG: Final reviewable files: []
+DEBUG: Successfully read 0 files
+Running Static Analysis (mypy, ruff)...
+No files to analyze.
+Returning to feature branch: feat/1
+Warning: Could not return to feature branch: object MagicMock can't be used in 'await' expression
+DEBUG RESULT: {'audit_result': AuditResult(status='APPROVED', is_approved=True, reason='AI Audit Complete', feedback='NO ISSUES FOUND', critical_issues=[], suggestions=[]), 'status': 'approved', 'last_audited_commit': None}
 FAILED
 
 =================================== FAILURES ===================================
-________ TestEndToEndWorkflow.test_session_persistence_across_commands _________
+___________________ test_auditor_node_includes_static_errors ___________________
 
-self = <ac_cdd_core.services.workflow.WorkflowService object at 0x7fbb6c467320>
-project_session_id = None
+mock_dependencies = (<MagicMock id='139979909279056'>, <MagicMock id='139979909682032'>)
 
-    async def finalize_session(self, project_session_id: str | None) -> None:
-        console.rule("[bold cyan]Finalizing Development Session[/bold cyan]")
-        ensure_api_key()
-    
-        mgr = StateManager()
-        manifest = mgr.load_manifest()
-    
-        sid = project_session_id or (manifest.project_session_id if manifest else None)
-        integration_branch = manifest.integration_branch if manifest else None
-    
-        if not sid or not integration_branch:
-            console.print("[red]No active session found to finalize.[/red]")
-            sys.exit(1)
-    
-        git = GitManager()
-        try:
-            pr_url = await git.create_final_pr(
-                integration_branch=integration_branch,
-                title=f"Finalize Development Session: {sid}",
-                body=f"This PR merges all implemented cycles from session {sid} into main.",
-            )
-            console.print(SuccessMessages.session_finalized(pr_url))
-    
-            # Archive and reset for next phase
-            # Archive and reset for next phase
->           await self._archive_and_reset_state()
-
-dev_src/ac_cdd_core/services/workflow.py:370: 
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
-dev_src/ac_cdd_core/services/workflow.py:454: in _archive_and_reset_state
-    shutil.copy2(str(state_mgr.STATE_FILE), str(phase_dir / "project_state.json"))
-/usr/lib/python3.12/shutil.py:475: in copy2
-    copyfile(src, dst, follow_symlinks=follow_symlinks)
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
-
-src = "<MagicMock name='StateManager().STATE_FILE' id='140442950746032'>"
-dst = '/home/tomo/project/ac-cdd/dev_documents/phase_4/project_state.json'
-
-    def copyfile(src, dst, *, follow_symlinks=True):
-        """Copy data from src to dst in the most efficient way possible.
-    
-        If follow_symlinks is not set and src is a symbolic link, a new
-        symlink will be created instead of copying the file it points to.
-    
+    @pytest.mark.asyncio
+    async def test_auditor_node_includes_static_errors(mock_dependencies: tuple[Any, Any]) -> None:
         """
-        sys.audit("shutil.copyfile", src, dst)
+        Verify that if static analysis fails, the feedback includes errors and status is rejected.
+        """
+        sandbox, jules = mock_dependencies
     
-        if _samefile(src, dst):
-            raise SameFileError("{!r} and {!r} are the same file".format(src, dst))
+        # Patch dependencies inside CycleNodes init or instance
+        # Since we can't easily patch GitManager inside __init__ without patching the class import,
+        # we'll instantiate first and then mock the attribute.
     
-        file_size = 0
-        for i, fn in enumerate([src, dst]):
-            try:
-                st = _stat(fn)
-            except OSError:
-                # File most likely does not exist
-                pass
-            else:
-                # XXX What about other special files? (sockets, devices...)
-                if stat.S_ISFIFO(st.st_mode):
-                    fn = fn.path if isinstance(fn, os.DirEntry) else fn
-                    raise SpecialFileError("`%s` is a named pipe" % fn)
-                if _WINDOWS and i == 0:
-                    file_size = st.st_size
+        with (
+            patch("ac_cdd_core.graph_nodes.GitManager") as MockGit,
+            patch("ac_cdd_core.graph_nodes.AuditOrchestrator"),
+            patch("ac_cdd_core.graph_nodes.LLMReviewer"),
+            patch("ac_cdd_core.graph_nodes.settings"),
+        ):
+            # Setup mocks
+            mock_git_instance = MockGit.return_value
     
-        if not follow_symlinks and _islink(src):
-            os.symlink(os.readlink(src), dst)
-        else:
->           with open(src, 'rb') as fsrc:
-                 ^^^^^^^^^^^^^^^
-E           FileNotFoundError: [Errno 2] No such file or directory: "<MagicMock name='StateManager().STATE_FILE' id='140442950746032'>"
+            # Mock LLM Reviewer to return Approval
+            mock_llm = MagicMock()
+            mock_llm.review_code = AsyncMock(return_value="NO ISSUES FOUND")
+    
+            nodes = CycleNodes(sandbox, jules)
+            nodes.llm_reviewer = mock_llm
+            nodes.git = mock_git_instance  # Ensure our mock instance is used
+    
+            # Mock _read_files to return empty dict
+            nodes._read_files = AsyncMock(return_value={})
+    
+            # Mock Git behavior for retrieving files (happy path)
+            mock_git_instance.get_changed_files = AsyncMock(return_value=["test.py"])
+            # Mock check-ignore
+            mock_git_instance.runner.run_command = AsyncMock(
+                return_value=("", "", 1)
+            )  # 1 means not ignored
+    
+            async def mock_run_command_side_effect(
+                cmd: list[str], check: bool = False, **kwargs: Any
+            ) -> tuple[str, str, int]:
+                cmd_str = " ".join(cmd)
+                print(f"DEBUG MOCK: {cmd_str}")
+                if "mypy" in cmd_str:
+                    return "mypy failure", "error", 1  # Fail
+                if "ruff" in cmd_str:
+                    return "ruff success", "", 0  # Pass
+                return "", "", 0  # check-ignore etc
+    
+            mock_git_instance.runner.run_command = AsyncMock(side_effect=mock_run_command_side_effect)
+    
+            # Run auditor_node
+            state = {"pr_url": "http://pr", "feature_branch": "feat/1"}
+            result = await nodes.auditor_node(state)
+    
+            # Assertions
+            print(f"DEBUG RESULT: {result}")
+>           assert result["status"] == "rejected"
+E           AssertionError: assert 'approved' == 'rejected'
+E             
+E             - rejected
+E             + approved
 
-/usr/lib/python3.12/shutil.py:260: FileNotFoundError
-
-During handling of the above exception, another exception occurred:
-
-self = <integration.test_end_to_end_workflow.TestEndToEndWorkflow object at 0x7fbb6c464f20>
-mock_sm_cls = <MagicMock name='StateManager' id='140442950329040'>
-workflow = <ac_cdd_core.services.workflow.WorkflowService object at 0x7fbb6c467320>
-
-    @patch("ac_cdd_core.services.workflow.StateManager")
-    async def test_session_persistence_across_commands(
-        self, mock_sm_cls: MagicMock, workflow: WorkflowService
-    ) -> None:
-        # This test previously verified file persistence. Now we verify interaction with Git-backed SessionManager.
-        mock_mgr = mock_sm_cls.return_value
-    
-        with patch("ac_cdd_core.services.workflow.GitManager") as mock_git_cls:
-            mock_git_cls.return_value.create_final_pr = AsyncMock(return_value="http://pr")
-            mock_git_cls.return_value.checkout_branch = AsyncMock()
-            mock_git_cls.return_value.pull_changes = AsyncMock()
-    
-            # Simulate loading manifest
-            manifest = ProjectManifest(
-                project_session_id="p1",
-                feature_branch="feat/p1",
-                integration_branch="dev/p1",
-                cycles=[{"id": "01", "status": "planned"}]
-            )
-            mock_mgr.load_manifest = MagicMock(return_value=manifest)
-    
-            # Setup Cleanup
-            workflow.builder.cleanup = AsyncMock()
-    
-            # Setup build_coder_graph
-            mock_graph = AsyncMock()
-            mock_graph.ainvoke.return_value = {"status": "completed"}
-            workflow.builder.build_coder_graph.return_value = mock_graph
-    
->           await workflow._run_all_cycles(
-                resume=False, auto=True, start_iter=1, project_session_id=None
-            )
-
-tests/ac_cdd/integration/test_end_to_end_workflow.py:117: 
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
-dev_src/ac_cdd_core/services/workflow.py:141: in _run_all_cycles
-    await self.finalize_session(project_session_id)
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
-
-self = <ac_cdd_core.services.workflow.WorkflowService object at 0x7fbb6c467320>
-project_session_id = None
-
-    async def finalize_session(self, project_session_id: str | None) -> None:
-        console.rule("[bold cyan]Finalizing Development Session[/bold cyan]")
-        ensure_api_key()
-    
-        mgr = StateManager()
-        manifest = mgr.load_manifest()
-    
-        sid = project_session_id or (manifest.project_session_id if manifest else None)
-        integration_branch = manifest.integration_branch if manifest else None
-    
-        if not sid or not integration_branch:
-            console.print("[red]No active session found to finalize.[/red]")
-            sys.exit(1)
-    
-        git = GitManager()
-        try:
-            pr_url = await git.create_final_pr(
-                integration_branch=integration_branch,
-                title=f"Finalize Development Session: {sid}",
-                body=f"This PR merges all implemented cycles from session {sid} into main.",
-            )
-            console.print(SuccessMessages.session_finalized(pr_url))
-    
-            # Archive and reset for next phase
-            # Archive and reset for next phase
-            await self._archive_and_reset_state()
-    
-        except Exception as e:
-            console.print(f"[bold red]Finalization failed:[/bold red] {e}")
->           sys.exit(1)
-E           SystemExit: 1
-
-dev_src/ac_cdd_core/services/workflow.py:374: SystemExit
------------------------------- Captured log call -------------------------------
-ERROR    AC-CDD:workflow.py:343 Tutorial Generation Failed
-Traceback (most recent call last):
-  File "/home/tomo/project/ac-cdd/dev_src/ac_cdd_core/services/workflow.py", line 322, in generate_tutorials
-    final_state = await graph.ainvoke(initial_state, config)
-                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-TypeError: object MagicMock can't be used in 'await' expression
+tests/ac_cdd/unit/test_auditor_static_checks.py:72: AssertionError
 =============================== warnings summary ===============================
 .venv/lib/python3.12/site-packages/pydantic/_internal/_config.py:323
   /home/tomo/project/ac-cdd/.venv/lib/python3.12/site-packages/pydantic/_internal/_config.py:323: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
@@ -225,18 +114,18 @@ dev_src/__init__.py                                                    0      0 
 dev_src/ac_cdd_core/__init__.py                                        0      0   100%
 dev_src/ac_cdd_core/agents.py                                         74     57    23%   16-19, 24-44, 49-72, 80-96, 110-122, 128-149
 dev_src/ac_cdd_core/cli.py                                           153    153     0%   1-348
-dev_src/ac_cdd_core/config.py                                        182     49    73%   18-27, 41, 49, 215, 221, 225-233, 237-247, 250-263, 266-285
+dev_src/ac_cdd_core/config.py                                        182     52    71%   18-27, 41, 49, 214-217, 221, 225-233, 237-247, 250-263, 266-285
 dev_src/ac_cdd_core/contracts/__init__.py                              0      0   100%
 dev_src/ac_cdd_core/domain_models.py                                  93      0   100%
 dev_src/ac_cdd_core/error_messages.py                                  7      7     0%   4-18
-dev_src/ac_cdd_core/graph.py                                          50     31    38%   20-26, 30-31, 35-42, 46-92, 95, 98, 102-127, 130
-dev_src/ac_cdd_core/graph_nodes.py                                   541    506     6%   30-36, 40-50, 54-111, 115-186, 195-251, 255-468, 472-746, 755-846, 854-890, 893-903, 907, 911-920, 924-929, 933-1058, 1062-1130, 1137-1142
+dev_src/ac_cdd_core/graph.py                                          50     50     0%   1-130
+dev_src/ac_cdd_core/graph_nodes.py                                   541    421    22%   40-50, 60-69, 81-111, 115-186, 195-251, 255-468, 497-537, 544, 558-560, 638, 645-646, 665, 682-692, 713, 715, 722-726, 742, 755-846, 854-890, 893-903, 907, 911-920, 924-929, 933-1058, 1062-1130, 1137-1142
 dev_src/ac_cdd_core/hash_utils.py                                     25     22    12%   7-30
 dev_src/ac_cdd_core/interfaces.py                                      5      0   100%
 dev_src/ac_cdd_core/jules_session_graph.py                            45     45     0%   3-110
 dev_src/ac_cdd_core/jules_session_nodes.py                           279    279     0%   3-505
 dev_src/ac_cdd_core/jules_session_state.py                            44     44     0%   3-75
-dev_src/ac_cdd_core/messages.py                                       56     18    68%   16-17, 29, 40-41, 46, 51-52, 66, 75, 95-96, 126, 150-151, 159-161
+dev_src/ac_cdd_core/messages.py                                       56     25    55%   16-17, 29, 40-41, 46, 51-52, 66, 75, 95-96, 110-111, 126, 136-137, 150-151, 156-161
 dev_src/ac_cdd_core/process_runner.py                                 39     33    15%   23-74
 dev_src/ac_cdd_core/sandbox.py                                        97     81    16%   18-25, 29-58, 66-119, 123, 127, 134-154, 158, 161-163
 dev_src/ac_cdd_core/service_container.py                              18      1    94%   22
@@ -245,12 +134,12 @@ dev_src/ac_cdd_core/services/artifacts.py                             14      8 
 dev_src/ac_cdd_core/services/audit_orchestrator.py                    72     60    17%   27-29, 37-120, 126-142
 dev_src/ac_cdd_core/services/contracts.py                             26     21    19%   16-43
 dev_src/ac_cdd_core/services/file_ops.py                             110     89    19%   28-59, 62-80, 88-103, 112-123, 126-137, 140-145, 149-171
-dev_src/ac_cdd_core/services/git/base.py                              28     16    43%   18-25, 29-36, 40-43
+dev_src/ac_cdd_core/services/git/base.py                              28     19    32%   12-14, 18-25, 29-36, 40-43
 dev_src/ac_cdd_core/services/git/branching.py                         88     77    12%   10-13, 17, 23-38, 43-50, 56-77, 81-108, 114-131, 135-165
 dev_src/ac_cdd_core/services/git/checkout.py                          95     79    17%   14-30, 35-50, 54-63, 70-83, 87-91, 95, 99-104, 108-110, 114-119, 123, 127-145
 dev_src/ac_cdd_core/services/git/merging.py                           80     70    12%   16-31, 35-50, 57-114, 118-174
 dev_src/ac_cdd_core/services/git/state.py                             56     45    20%   21-68, 74-80, 84-111
-dev_src/ac_cdd_core/services/git_ops.py                                9      0   100%
+dev_src/ac_cdd_core/services/git_ops.py                                9      1    89%   20
 dev_src/ac_cdd_core/services/jules/api.py                            117     94    20%   21-32, 38-51, 54-64, 69-91, 94-103, 106-107, 110-114, 125-136, 140-142, 145-167
 dev_src/ac_cdd_core/services/jules/context_builder.py                 79     67    15%   11, 20-32, 36-44, 48-76, 80-88, 97-134
 dev_src/ac_cdd_core/services/jules/git_context.py                     42     32    24%   14, 17-56, 59-60
@@ -263,15 +152,18 @@ dev_src/ac_cdd_core/services/project_setup/dependency_manager.py      50     42 
 dev_src/ac_cdd_core/services/project_setup/permission_manager.py      62     56    10%   13-74
 dev_src/ac_cdd_core/services/project_setup/template_manager.py        84     72    14%   12-30, 33-35, 41-62, 65-97, 100-167, 170-190, 193-239
 dev_src/ac_cdd_core/services/sandbox/sync.py                          31     21    32%   15-16, 25-48
-dev_src/ac_cdd_core/services/workflow.py                             249    108    57%   32-94, 104-112, 123, 157-158, 179-180, 193-197, 216-217, 225-228, 233-279, 291-294, 297-300, 324-339, 356-357, 385, 409-415, 433-443, 449, 455-472
+dev_src/ac_cdd_core/services/workflow.py                             249    249     0%   1-472
 dev_src/ac_cdd_core/session_manager.py                                65     48    26%   25, 29-38, 44-50, 56-64, 68-75, 83-107
 dev_src/ac_cdd_core/state.py                                          65     10    85%   82-85, 90-93, 96, 99
 dev_src/ac_cdd_core/state_manager.py                                  90     72    20%   25-37, 46-57, 69-86, 102-108, 112-115, 127-135, 151-176, 188-206
 dev_src/ac_cdd_core/tools.py                                          21     21     0%   1-48
-dev_src/ac_cdd_core/utils.py                                          72     28    61%   31-56, 72-77, 88, 94-96, 100, 119-120, 140-141, 155-159
+dev_src/ac_cdd_core/utils.py                                          72     54    25%   31-56, 65-78, 83-102, 112-113, 118-142, 151-160
 dev_src/ac_cdd_core/validators.py                                     41     41     0%   3-86
 ------------------------------------------------------------------------------------------------
-TOTAL                                                               3993   3043    24%
+TOTAL                                                               3993   3158    21%
 =========================== short test summary info ============================
-FAILED tests/ac_cdd/integration/test_end_to_end_workflow.py::TestEndToEndWorkflow::test_session_persistence_across_commands - SystemExit: 1
-========================= 1 failed, 1 warning in 2.74s =========================
+FAILED tests/ac_cdd/unit/test_auditor_static_checks.py::test_auditor_node_includes_static_errors - AssertionError: assert 'approved' == 'rejected'
+  
+  - rejected
+  + approved
+========================= 1 failed, 1 warning in 0.54s =========================
