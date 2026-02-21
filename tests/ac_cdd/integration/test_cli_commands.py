@@ -45,7 +45,7 @@ def test_gen_cycles_command(mock_dependencies: None) -> None:
     with patch("ac_cdd_core.cli.WorkflowService", return_value=mock_workflow):
         result = runner.invoke(app, ["gen-cycles", "--cycles", "3"])
         assert result.exit_code == 0
-        mock_workflow.run_gen_cycles.assert_awaited_once_with(3, None)
+        mock_workflow.run_gen_cycles.assert_awaited_once_with(3, None, False)
 
 
 def test_run_cycle_command(mock_dependencies: None) -> None:

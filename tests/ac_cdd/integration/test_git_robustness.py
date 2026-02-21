@@ -61,12 +61,10 @@ async def test_smart_checkout_dirty_recovery(mock_git_env: Path) -> None:
         git = GitManager()
         git.runner.run_command = AsyncMock(return_value=("", "", 0))
 
-        # Mock _stash_changes to return True (simulating dirty)
-        git._stash_changes = AsyncMock(return_value=True)
-        git._restore_stash = AsyncMock()
+        # Mock _auto_commit_if_dirty
+        git._auto_commit_if_dirty = AsyncMock()
 
-        # Should call stash, checkout, restore
+        # Should call auto-commit and checkout
         await git.smart_checkout("new-branch")
 
-        git._stash_changes.assert_called_once()
-        git._restore_stash.assert_called_once()
+        git._auto_commit_if_dirty.assert_called_once()

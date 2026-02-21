@@ -94,7 +94,10 @@ class TestEndToEndWorkflow:
 
         # Simulate loading manifest
         manifest = ProjectManifest(
-            project_session_id="p1", feature_branch="feat/p1", integration_branch="dev/p1"
+            project_session_id="p1", 
+            feature_branch="feat/p1", 
+            integration_branch="dev/p1",
+            cycles=[{"id": "01", "description": "Test"}]
         )
         mock_mgr.load_manifest = MagicMock(return_value=manifest)
 
