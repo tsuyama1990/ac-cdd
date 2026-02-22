@@ -10,6 +10,7 @@ from .sandbox import SandboxRunner
 from .service_container import ServiceContainer
 from .services.jules_client import JulesClient
 from .state import CycleState
+from .enums import FlowStatus
 
 
 class GraphBuilder:
@@ -57,10 +58,10 @@ class GraphBuilder:
             "coder_session",
             self.nodes.check_coder_outcome,
             {
-                "ready_for_audit": "auditor",
-                "failed": END,
-                "completed": "uat_evaluate",
-                "coder_retry": "coder_session",
+                FlowStatus.READY_FOR_AUDIT.value: "auditor",
+                FlowStatus.FAILED.value: END,
+                FlowStatus.COMPLETED.value: "uat_evaluate",
+                FlowStatus.CODER_RETRY.value: "coder_session",
             },
         )
 

@@ -96,10 +96,9 @@ async def test_coder_graph_execution(services: ServiceContainer, mock_jules: Mag
     initial_state = CycleState(cycle_id="01", iteration_count=0)
 
     with (
-        patch("ac_cdd_core.graph_nodes.AuditOrchestrator") as mock_audit_cls,
-        patch("ac_cdd_core.graph_nodes.LLMReviewer") as mock_reviewer_cls,
-        patch("ac_cdd_core.graph_nodes.GitManager") as mock_git_cls,
-        patch("ac_cdd_core.graph_nodes.StateManager") as mock_sm_cls,
+        patch("ac_cdd_core.services.auditor_usecase.LLMReviewer") as mock_reviewer_cls,
+        patch("ac_cdd_core.services.auditor_usecase.GitManager") as mock_git_cls,
+        patch("ac_cdd_core.services.coder_usecase.StateManager") as mock_sm_cls,
     ):
         mock_git = mock_git_cls.return_value
         mock_git.get_remote_url = AsyncMock(return_value="https://github.com/repo")
@@ -109,10 +108,6 @@ async def test_coder_graph_execution(services: ServiceContainer, mock_jules: Mag
         mock_manifest.branch_name = "feature-abc"
         mock_manifest.jules_session_id = None
         mock_sm.get_cycle.return_value = mock_manifest
-
-        # Mock Auditor (for older flow if used)
-        mock_audit_instance = mock_audit_cls.return_value
-        mock_audit_instance.run_audit = AsyncMock(return_value=MagicMock(status="approved"))
 
         # Mock Reviewer (for new flow: auditor_node)
         mock_reviewer_instance = mock_reviewer_cls.return_value
