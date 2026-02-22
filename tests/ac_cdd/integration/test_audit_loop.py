@@ -72,7 +72,7 @@ async def test_audit_rejection_loop() -> None:
 
     builder.nodes.coder_session_node = AsyncMock(side_effect=mock_coder_session)
 
-    builder.nodes.uat_evaluate_node = AsyncMock(return_value={"status": "cycle_completed"})
+    builder.nodes.uat_evaluate_node = AsyncMock(return_value={"status": "completed"})
 
     graph = builder.build_coder_graph()
 
