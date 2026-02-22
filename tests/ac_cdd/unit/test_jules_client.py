@@ -35,11 +35,11 @@ async def test_wait_for_completion_sucess_first_try(
     """Test finding PR immediately."""
     mock_client._sleep = AsyncMock()
 
-    # Return SUCCEEDED with PR
+    # Return COMPLETED with PR (official Jules API state - not SUCCEEDED)
     mock_response = MagicMock()
     mock_response.status_code = 200
     mock_response.json.return_value = {
-        "state": "SUCCEEDED",
+        "state": "COMPLETED",
         "outputs": [{"pullRequest": {"url": "https://pr"}}],
     }
     mock_httpx.get.return_value = mock_response
@@ -58,7 +58,7 @@ async def test_wait_for_completion_loop_success(
     """Test polling loop finds PR after few tries."""
     mock_client._sleep = AsyncMock()
 
-    # Sequence: RUNNING -> RUNNING -> SUCCEEDED
+    # Sequence: IN_PROGRESS -> IN_PROGRESS -> COMPLETED
     # NOTE: list_activities also calls GET, we need to handle that or distinguish by URL
 
     expected_calls = 2
@@ -70,12 +70,12 @@ async def test_wait_for_completion_loop_success(
         # Session Status
         # We use sleep call count to decide iteration
         if mock_client._sleep.call_count < expected_calls:
-            return MagicMock(status_code=200, json=lambda: {"state": "RUNNING"})
+            return MagicMock(status_code=200, json=lambda: {"state": "IN_PROGRESS"})
 
         return MagicMock(
             status_code=200,
             json=lambda: {
-                "state": "SUCCEEDED",
+                "state": "COMPLETED",
                 "outputs": [{"pullRequest": {"url": "https://pr"}}],
             },
         )
@@ -137,7 +137,7 @@ async def test_interactive_inquiry_handling(
         return MagicMock(
             status_code=200,
             json=lambda: {
-                "state": "SUCCEEDED",
+                "state": "COMPLETED",
                 "outputs": [{"pullRequest": {"url": "https://pr"}}],
             },
         )

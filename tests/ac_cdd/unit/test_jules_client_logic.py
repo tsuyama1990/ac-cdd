@@ -69,7 +69,7 @@ class TestJulesClientLogic(unittest.IsolatedAsyncioTestCase):
         # Responses
         r_session_completed = MagicMock()
         r_session_completed.status_code = 200
-        r_session_completed.json.return_value = {"state": "RUNNING", "outputs": []}
+        r_session_completed.json.return_value = {"state": "IN_PROGRESS", "outputs": []}
 
         r_acts_question = MagicMock()
         r_acts_question.status_code = 200
@@ -80,7 +80,7 @@ class TestJulesClientLogic(unittest.IsolatedAsyncioTestCase):
         r_session_success = MagicMock()
         r_session_success.status_code = 200
         r_session_success.json.return_value = {
-            "state": "SUCCEEDED",
+            "state": "COMPLETED",
             "outputs": [{"pullRequest": {"url": "http://github.com/pr/1"}}],
         }
 
@@ -143,7 +143,7 @@ class TestJulesClientLogic(unittest.IsolatedAsyncioTestCase):
         # Responses
         r_session_completed = MagicMock()
         r_session_completed.status_code = 200
-        r_session_completed.json.return_value = {"state": "RUNNING", "outputs": []}
+        r_session_completed.json.return_value = {"state": "IN_PROGRESS", "outputs": []}
 
         r_acts_old = MagicMock()
         r_acts_old.status_code = 200
@@ -156,7 +156,7 @@ class TestJulesClientLogic(unittest.IsolatedAsyncioTestCase):
         r_session_success = MagicMock()
         r_session_success.status_code = 200
         r_session_success.json.return_value = {
-            "state": "SUCCEEDED",
+            "state": "COMPLETED",
             "outputs": [{"pullRequest": {"url": "http://github.com/pr/1"}}],
         }
 
