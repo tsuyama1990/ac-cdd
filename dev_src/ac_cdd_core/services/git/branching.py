@@ -80,7 +80,15 @@ class GitBranchingMixin(BaseGitManager):
         if code == 0:
             logger.info(f"Integration branch {integration_branch} exists. Checking out...")
             await self._run_git(["checkout", integration_branch])
-            await self._run_git(["pull"])
+            try:
+                await self._run_git(["pull"])
+            except Exception as e:
+                logger.warning(f"Pull failed on existing branch (perhaps no upstream): {e}")
+                logger.info(f"Attempting to push {integration_branch} to origin...")
+                try:
+                    await self._run_git(["push", "-u", "origin", integration_branch])
+                except Exception as push_err:
+                    logger.error(f"Failed to push existing branch: {push_err}")
         else:
             logger.info(f"Creating new integration branch: {integration_branch}")
             await self._run_git(["checkout", "-b", integration_branch])
@@ -106,17 +114,22 @@ class GitBranchingMixin(BaseGitManager):
         if code == 0:
             logger.info(f"Feature branch {branch_name} already exists. Checking out...")
             await self._run_git(["checkout", branch_name])
-            # Optional: Pull if it tracks remote
-            import contextlib
-
-            with contextlib.suppress(Exception):
+            # Try to pull, but if it lacks upstream tracking, push it instead
+            try:
                 await self._run_git(["pull"])
+            except Exception as e:
+                logger.warning(f"Pull failed on existing branch (perhaps no upstream): {e}")
+                logger.info(f"Attempting to push {branch_name} to origin...")
+                try:
+                    await self._run_git(["push", "-u", "origin", branch_name])
+                except Exception as push_err:
+                    logger.error(f"Failed to push existing branch: {push_err}")
         else:
             await self._run_git(["checkout", "-b", branch_name])
             # Push the branch to origin
             await self._run_git(["push", "-u", "origin", branch_name])
 
-        logger.info(f"Created and pushed feature branch: {branch_name}")
+        logger.info(f"Created/verified and pushed feature branch: {branch_name}")
         return branch_name
 
     async def create_session_branch(
