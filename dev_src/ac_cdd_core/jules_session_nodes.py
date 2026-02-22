@@ -123,10 +123,7 @@ class JulesSessionNodes:
                         state.completion_validated = False
 
                     # Check for completion (official Jules API only has COMPLETED, not SUCCEEDED)
-                    if (
-                        state.jules_state == "COMPLETED"
-                        and not state.completion_validated
-                    ):
+                    if state.jules_state == "COMPLETED" and not state.completion_validated:
                         state.status = SessionStatus.VALIDATING_COMPLETION
                         return self._compute_diff(_state_in, state)
 
@@ -211,6 +208,7 @@ class JulesSessionNodes:
             mgr_response = await self.client.manager_agent.run(enhanced_context)
             reply_text = mgr_response.output
             from ac_cdd_core.config import settings
+
             followup = settings.get_prompt_content(
                 "MANAGER_INQUIRY_FOLLOWUP.md",
                 default="(System Note: If task complete/blocker resolved, proceed to create PR. Do not wait.)",
@@ -230,6 +228,7 @@ class JulesSessionNodes:
         except Exception as e:
             logger.error(f"Manager Agent failed: {e}")
             from ac_cdd_core.config import settings
+
             fallback_template = settings.get_prompt_content(
                 "MANAGER_INQUIRY_FALLBACK.md",
                 default="I encountered an error processing your question. Original question: {{question}}",
@@ -426,6 +425,7 @@ class JulesSessionNodes:
         console.print("[cyan]Sending message to Jules to commit and create PR...[/cyan]")
 
         from ac_cdd_core.config import settings
+
         message = settings.get_template("PR_CREATION_REQUEST.md").read_text()
 
         await self.client._send_message(state.session_url, message)
@@ -460,8 +460,12 @@ class JulesSessionNodes:
                     # Return to monitoring for any active/working state
                     # (official Jules API non-terminal states)
                     ACTIVE_STATES = {
-                        "IN_PROGRESS", "QUEUED", "PLANNING",
-                        "AWAITING_PLAN_APPROVAL", "AWAITING_USER_FEEDBACK", "PAUSED",
+                        "IN_PROGRESS",
+                        "QUEUED",
+                        "PLANNING",
+                        "AWAITING_PLAN_APPROVAL",
+                        "AWAITING_USER_FEEDBACK",
+                        "PAUSED",
                     }
                     if current_state in ACTIVE_STATES:
                         logger.info(

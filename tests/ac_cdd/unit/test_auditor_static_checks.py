@@ -52,7 +52,9 @@ async def test_auditor_node_includes_static_errors() -> None:
         patch.object(usecase, "_read_files", new_callable=AsyncMock) as mock_read,
     ):
         mock_settings.get_context_files.return_value = []
-        mock_settings.get_template.return_value = MagicMock(read_text=MagicMock(return_value="review these files"))
+        mock_settings.get_template.return_value = MagicMock(
+            read_text=MagicMock(return_value="review these files")
+        )
         mock_settings.get_target_files.return_value = ["src/test.py"]
         mock_settings.reviewer.smart_model = "gpt-4o"
         mock_settings.reviewer.fast_model = "gpt-3.5-turbo"

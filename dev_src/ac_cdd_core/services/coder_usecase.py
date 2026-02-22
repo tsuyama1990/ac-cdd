@@ -11,6 +11,7 @@ from rich.console import Console
 
 console = Console()
 
+
 class CoderUseCase:
     """
     Encapsulates the logic and interactions with the Coder AI (Jules).
@@ -41,7 +42,14 @@ class CoderUseCase:
             state_transitioned = False
             # Official Jules API states that mean "session is still active/in-flight":
             # QUEUED, PLANNING, AWAITING_PLAN_APPROVAL, AWAITING_USER_FEEDBACK, IN_PROGRESS, PAUSED
-            ACTIVE_STATES = {"IN_PROGRESS", "QUEUED", "PLANNING", "AWAITING_PLAN_APPROVAL", "AWAITING_USER_FEEDBACK", "PAUSED"}
+            ACTIVE_STATES = {
+                "IN_PROGRESS",
+                "QUEUED",
+                "PLANNING",
+                "AWAITING_PLAN_APPROVAL",
+                "AWAITING_USER_FEEDBACK",
+                "PAUSED",
+            }
             for attempt in range(12):  # 12 * 5s = 60s
                 await asyncio.sleep(5)
                 current_state = await self.jules.get_session_state(session_id)
@@ -102,8 +110,13 @@ class CoderUseCase:
                 try:
                     result = await self.jules.wait_for_completion(cycle_manifest.jules_session_id)
                     if result.get("status") == "success" or result.get("pr_url"):
-                        return {"status": FlowStatus.READY_FOR_AUDIT, "pr_url": result.get("pr_url")}
-                    console.print("[yellow]Jules session did not produce PR. Continuing...[/yellow]")
+                        return {
+                            "status": FlowStatus.READY_FOR_AUDIT,
+                            "pr_url": result.get("pr_url"),
+                        }
+                    console.print(
+                        "[yellow]Jules session did not produce PR. Continuing...[/yellow]"
+                    )
                 except Exception as e:
                     console.print(f"[yellow]Wait for completion failed: {e}[/yellow]")
             else:
@@ -165,14 +178,20 @@ class CoderUseCase:
                     console.print(
                         "[yellow]Session reuse failed. Creating NEW session with feedback injected...[/yellow]"
                     )
-                    instruction += "\n\n" + self._build_feedback_injection(last_audit.feedback, cycle_manifest.pr_url if cycle_manifest else None)
+                    instruction += "\n\n" + self._build_feedback_injection(
+                        last_audit.feedback, cycle_manifest.pr_url if cycle_manifest else None
+                    )
                 else:
                     console.print(
                         f"[yellow]Session in unexpected/failed state ({session_state}). Creating new session...[/yellow]"
                     )
-                    instruction += "\n\n" + self._build_feedback_injection(last_audit.feedback, cycle_manifest.pr_url if cycle_manifest else None)
+                    instruction += "\n\n" + self._build_feedback_injection(
+                        last_audit.feedback, cycle_manifest.pr_url if cycle_manifest else None
+                    )
             else:
-                console.print("[bold yellow]Injecting Audit Feedback into Coder Prompt...[/bold yellow]")
+                console.print(
+                    "[bold yellow]Injecting Audit Feedback into Coder Prompt...[/bold yellow]"
+                )
                 instruction += "\n\n" + self._build_feedback_injection(last_audit.feedback, None)
 
         target_files = settings.get_target_files()
@@ -239,23 +258,34 @@ class CoderUseCase:
                     last_error=error_msg,
                 )
 
-                return {"status": FlowStatus.CODER_RETRY, "session_restart_count": new_restart_count}
+                return {
+                    "status": FlowStatus.CODER_RETRY,
+                    "session_restart_count": new_restart_count,
+                }
 
-            console.print(f"[red]Max session restarts ({max_restarts}) reached. Failing cycle.[/red]")
+            console.print(
+                f"[red]Max session restarts ({max_restarts}) reached. Failing cycle.[/red]"
+            )
 
         return {"status": FlowStatus.FAILED, "error": error_msg}
 
     def _build_feedback_injection(self, feedback: str, pr_url: str | None) -> str:
         """Builds feedback injection block from template."""
         import re
+
         template = str(settings.get_template("AUDIT_FEEDBACK_INJECTION.md").read_text())
         result = template.replace("{{feedback}}", feedback)
         if pr_url:
-            result = result.replace(
-                "{{#pr_url}}\nPrevious PR: {{pr_url}}\n{{/pr_url}}",
-                f"Previous PR: {pr_url}",
+            # Replace the conditional {{#pr_url}}...{{/pr_url}} block with the resolved content
+            result = str(
+                re.sub(
+                    r"\{\{#pr_url\}\}\s*Previous PR: \{\{pr_url\}\}\s*\{\{/pr_url\}\}",
+                    f"Previous PR: {pr_url}",
+                    result,
+                    flags=re.DOTALL,
+                )
             )
         else:
-            # Remove the conditional block if no PR URL
+            # Remove the conditional block entirely if no PR URL
             result = str(re.sub(r"\{\{#pr_url\}\}.*?\{\{/pr_url\}\}", "", result, flags=re.DOTALL))
         return result.strip()

@@ -21,9 +21,7 @@ class TestSessionReuse:
         return jules
 
     @pytest.mark.asyncio
-    async def test_reuse_completed_session_for_auditor_reject(
-        self, mock_jules: MagicMock
-    ) -> None:
+    async def test_reuse_completed_session_for_auditor_reject(self, mock_jules: MagicMock) -> None:
         """Should REUSE COMPLETED session for Auditor Reject (send feedback to same session)."""
         mock_jules.get_session_state.return_value = "COMPLETED"
         mock_jules.wait_for_completion.return_value = {"status": "success", "pr_url": "http://pr"}
@@ -32,7 +30,9 @@ class TestSessionReuse:
         mock_manifest.jules_session_id = "sessions/123"
         mock_manifest.pr_url = None
 
-        audit = AuditResult(status="REJECTED", is_approved=False, reason="Needs work", feedback="Fix this issue")
+        audit = AuditResult(
+            status="REJECTED", is_approved=False, reason="Needs work", feedback="Fix this issue"
+        )
         state = CycleState(
             cycle_id="01",
             status=FlowStatus.RETRY_FIX,
@@ -57,9 +57,7 @@ class TestSessionReuse:
         assert result["status"] == FlowStatus.READY_FOR_AUDIT
 
     @pytest.mark.asyncio
-    async def test_create_new_session_if_failed(
-        self, mock_jules: MagicMock
-    ) -> None:
+    async def test_create_new_session_if_failed(self, mock_jules: MagicMock) -> None:
         """Should create NEW session if previous session FAILED."""
         mock_jules.get_session_state.return_value = "FAILED"
         mock_jules.run_session.return_value = {
@@ -72,7 +70,9 @@ class TestSessionReuse:
         mock_manifest.jules_session_id = "sessions/123"
         mock_manifest.pr_url = "https://pr"
 
-        audit = AuditResult(status="REJECTED", is_approved=False, reason="Needs work", feedback="Fix this issue")
+        audit = AuditResult(
+            status="REJECTED", is_approved=False, reason="Needs work", feedback="Fix this issue"
+        )
         state = CycleState(
             cycle_id="01",
             status=FlowStatus.RETRY_FIX,
@@ -86,6 +86,7 @@ class TestSessionReuse:
             instance.get_cycle.return_value = mock_manifest
 
             with patch("ac_cdd_core.services.coder_usecase.settings") as mock_settings:
+
                 def mock_get_template(name: str) -> MagicMock:
                     m = MagicMock()
                     if name == "AUDIT_FEEDBACK_INJECTION.md":
@@ -93,6 +94,7 @@ class TestSessionReuse:
                     else:
                         m.read_text.return_value = "Instruction"
                     return m
+
                 mock_settings.get_template.side_effect = mock_get_template
                 mock_settings.get_target_files.return_value = []
                 mock_settings.get_context_files.return_value = []
@@ -107,9 +109,7 @@ class TestSessionReuse:
         assert "PREVIOUS AUDIT FEEDBACK" in prompt
 
     @pytest.mark.asyncio
-    async def test_reuse_in_progress_session(
-        self, mock_jules: MagicMock
-    ) -> None:
+    async def test_reuse_in_progress_session(self, mock_jules: MagicMock) -> None:
         """Should REUSE IN_PROGRESS session (original behavior)."""
         mock_jules.get_session_state.return_value = "IN_PROGRESS"
         mock_jules.wait_for_completion.return_value = {"status": "success", "pr_url": "http://pr"}
@@ -118,7 +118,9 @@ class TestSessionReuse:
         mock_manifest.jules_session_id = "sessions/123"
         mock_manifest.pr_url = None
 
-        audit = AuditResult(status="REJECTED", is_approved=False, reason="Needs work", feedback="Fix this")
+        audit = AuditResult(
+            status="REJECTED", is_approved=False, reason="Needs work", feedback="Fix this"
+        )
         state = CycleState(
             cycle_id="01",
             status=FlowStatus.RETRY_FIX,

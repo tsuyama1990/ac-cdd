@@ -13,12 +13,15 @@ from rich.console import Console
 
 console = Console()
 
+
 class AuditorUseCase:
     """
     Encapsulates the logic and interactions for the Auditor AI (LLM / Aider).
     """
 
-    def __init__(self, jules_client: JulesClient, git_manager: GitManager, llm_reviewer: LLMReviewer) -> None:
+    def __init__(
+        self, jules_client: JulesClient, git_manager: GitManager, llm_reviewer: LLMReviewer
+    ) -> None:
         self.jules = jules_client
         self.git = git_manager
         self.llm_reviewer = llm_reviewer
@@ -135,7 +138,12 @@ class AuditorUseCase:
                                 # (SUCCEEDED does not exist in the official API)
                                 # Non-terminal (still working): IN_PROGRESS, QUEUED, PLANNING,
                                 #   AWAITING_PLAN_APPROVAL, AWAITING_USER_FEEDBACK, PAUSED
-                                TERMINAL_STATES = {"COMPLETED", "FAILED", "STATE_UNSPECIFIED", "UNKNOWN"}
+                                TERMINAL_STATES = {
+                                    "COMPLETED",
+                                    "FAILED",
+                                    "STATE_UNSPECIFIED",
+                                    "UNKNOWN",
+                                }
                                 if jules_status not in TERMINAL_STATES:
                                     console.print(
                                         f"[bold yellow]Jules session still active ({jules_status}). Delegating wait logic to graph router.[/bold yellow]"
@@ -177,24 +185,44 @@ class AuditorUseCase:
             ]
 
             excluded_patterns = [
-                "dev_src/", "dev_documents/", "tests/ac_cdd/", ".github/", "pyproject.toml",
-                "setup.py", "setup.cfg", "README.md", "LICENSE", ".gitignore", "Dockerfile",
-                "docker-compose", ".env",
+                "dev_src/",
+                "dev_documents/",
+                "tests/ac_cdd/",
+                ".github/",
+                "pyproject.toml",
+                "setup.py",
+                "setup.cfg",
+                "README.md",
+                "LICENSE",
+                ".gitignore",
+                "Dockerfile",
+                "docker-compose",
+                ".env",
             ]
 
             reviewable_files = [
-                f for f in reviewable_files
+                f
+                for f in reviewable_files
                 if (f.endswith(".py") or f.startswith("tests/"))
                 and not any(f.startswith(pattern) or pattern in f for pattern in excluded_patterns)
             ]
 
             build_artifact_patterns = [
-                ".egg-info/", "__pycache__/", ".pyc", ".pyo", ".pyd",
-                "dist/", "build/", ".pytest_cache/", ".mypy_cache/", ".ruff_cache/",
+                ".egg-info/",
+                "__pycache__/",
+                ".pyc",
+                ".pyo",
+                ".pyd",
+                "dist/",
+                "build/",
+                ".pytest_cache/",
+                ".mypy_cache/",
+                ".ruff_cache/",
             ]
 
             reviewable_files = [
-                f for f in reviewable_files
+                f
+                for f in reviewable_files
                 if not any(pattern in f for pattern in build_artifact_patterns)
             ]
 
@@ -209,7 +237,9 @@ class AuditorUseCase:
                             filtered_files.append(file_path)
                     reviewable_files = filtered_files
                 except Exception as e:
-                    console.print(f"[yellow]Warning: Could not filter gitignored files: {e}[/yellow]")
+                    console.print(
+                        f"[yellow]Warning: Could not filter gitignored files: {e}[/yellow]"
+                    )
 
             if not reviewable_files:
                 console.print(
@@ -218,7 +248,8 @@ class AuditorUseCase:
                 all_target_files = settings.get_target_files()
                 excluded_prefixes_fallback = ("tests/ac_cdd/",)
                 reviewable_files = [
-                    f for f in all_target_files
+                    f
+                    for f in all_target_files
                     if not any(f.startswith(prefix) for prefix in excluded_prefixes_fallback)
                 ]
 

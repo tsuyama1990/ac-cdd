@@ -17,9 +17,7 @@ class TestResumeLogic:
         return jules
 
     @patch("ac_cdd_core.services.coder_usecase.StateManager")
-    async def test_hot_resume_active(
-        self, mock_sm_cls: MagicMock, mock_jules: MagicMock
-    ) -> None:
+    async def test_hot_resume_active(self, mock_sm_cls: MagicMock, mock_jules: MagicMock) -> None:
         """Test that CoderUseCase resumes if session ID exists in manifest."""
         mock_mgr = mock_sm_cls.return_value
         cycle = CycleManifest(id="01", jules_session_id="jules-existing-123")

@@ -9,6 +9,7 @@ from rich.console import Console
 
 console = Console()
 
+
 class CommitteeUseCase:
     """
     Encapsulates the logic for managing the Committee of Auditors.

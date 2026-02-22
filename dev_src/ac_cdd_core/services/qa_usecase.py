@@ -15,12 +15,15 @@ from rich.panel import Panel
 
 console = Console()
 
+
 class QaUseCase:
     """
     Encapsulates the QA Session and Auditor logic.
     """
 
-    def __init__(self, jules_client: JulesClient, git_manager: GitManager, llm_reviewer: LLMReviewer) -> None:
+    def __init__(
+        self, jules_client: JulesClient, git_manager: GitManager, llm_reviewer: LLMReviewer
+    ) -> None:
         self.jules = jules_client
         self.git = git_manager
         self.llm_reviewer = llm_reviewer
@@ -33,7 +36,9 @@ class QaUseCase:
         )
         try:
             await self.jules._send_message(self.jules._get_session_url(session_id), feedback)
-            console.print("[dim]Waiting for Jules to process feedback (expecting IN_PROGRESS)...[/dim]")
+            console.print(
+                "[dim]Waiting for Jules to process feedback (expecting IN_PROGRESS)...[/dim]"
+            )
 
             state_transitioned = False
             for attempt in range(12):
@@ -41,9 +46,21 @@ class QaUseCase:
                 current_state = await self.jules.get_session_state(session_id)
                 console.print(f"[dim]State check ({attempt + 1}/12): {current_state}[/dim]")
 
-                if current_state in ["IN_PROGRESS", "QUEUED", "RUNNING"]:
+                # Official Jules API active states (non-terminal)
+                ACTIVE_STATES = {
+                    "IN_PROGRESS",
+                    "QUEUED",
+                    "PLANNING",
+                    "AWAITING_PLAN_APPROVAL",
+                    "AWAITING_USER_FEEDBACK",
+                    "PAUSED",
+                    "COMPLETED",  # Jules may complete quickly before returning to IN_PROGRESS
+                }
+                if current_state in ACTIVE_STATES:
                     state_transitioned = True
-                    console.print("[green]Jules session is now active. Proceeding to monitor...[/green]")
+                    console.print(
+                        f"[green]Jules session is now active ({current_state}). Proceeding to monitor...[/green]"
+                    )
                     break
                 if current_state == "FAILED":
                     console.print("[red]Jules session failed during feedback wait.[/red]")
@@ -60,14 +77,18 @@ class QaUseCase:
             if result.get("status") == "success" or result.get("pr_url"):
                 return {"status": FlowStatus.READY_FOR_AUDIT, "pr_url": result.get("pr_url")}
 
-            console.print("[yellow]Jules session finished without new PR. Creating new session...[/yellow]")
+            console.print(
+                "[yellow]Jules session finished without new PR. Creating new session...[/yellow]"
+            )
             return None  # noqa: TRY300
 
         except Exception as e:
-            console.print(f"[yellow]Failed to send feedback to existing session: {e}. Creating new session...[/yellow]")
+            console.print(
+                f"[yellow]Failed to send feedback to existing session: {e}. Creating new session...[/yellow]"
+            )
         return None
 
-    async def execute_qa_session(self, state: CycleState) -> dict[str, Any]:  # noqa: C901, PLR0912
+    async def execute_qa_session(self, state: CycleState) -> dict[str, Any]:  # noqa: C901, PLR0912, PLR0915
         """Node logic for QA Agent session."""
         console.print("[bold cyan]Starting QA Session (Tutorial Generation)...[/bold cyan]")
 
@@ -101,7 +122,9 @@ class QaUseCase:
             if state.status == FlowStatus.REJECTED and state.audit_result:
                 current_retries = state.qa_retry_count
                 if current_retries >= 5:
-                    console.print(f"[bold red]Max QA retries ({current_retries}) exceeded. Stopping loop.[/bold red]")
+                    console.print(
+                        f"[bold red]Max QA retries ({current_retries}) exceeded. Stopping loop.[/bold red]"
+                    )
                     return {"status": FlowStatus.MAX_RETRIES, "error": "Max QA retries exceeded"}
 
                 feedback = state.audit_result.feedback if state.audit_result else ""
@@ -109,9 +132,11 @@ class QaUseCase:
                     f"[bold yellow]Sending Audit Feedback to Existing QA Session: {qa_session_id}... (Retry {current_retries + 1}/5)[/bold yellow]"
                 )
 
+                feedback_template = settings.get_template("AUDIT_FEEDBACK_MESSAGE.md").read_text()
+                feedback_msg = str(feedback_template).replace("{{feedback}}", feedback)
                 result = await self._send_audit_feedback_to_session(
                     session_id=qa_session_id,
-                    feedback=f"# AUDIT REJECTION FEEDBACK\n\n{feedback}\n\nPlease fix the issues and Create a New PR.",
+                    feedback=feedback_msg,
                 )
 
                 next_retries = current_retries + 1
@@ -124,8 +149,14 @@ class QaUseCase:
                         "qa_retry_count": next_retries,
                     }
 
-                console.print("[yellow]Could not reuse session. Starting new session with feedback...[/yellow]")
-                full_prompt += f"\n\n# PREVIOUS AUDIT FEEDBACK (MUST FIX)\n{feedback}"
+                console.print(
+                    "[yellow]Could not reuse session. Starting new session with feedback...[/yellow]"
+                )
+                import re
+                injection_template = str(settings.get_template("AUDIT_FEEDBACK_INJECTION.md").read_text())
+                injection = injection_template.replace("{{feedback}}", feedback)
+                injection = str(re.sub(r"\{\{#pr_url\}\}.*?\{\{/pr_url\}\}", "", injection, flags=re.DOTALL)).strip()
+                full_prompt += f"\n\n{injection}"
                 qa_session_id = f"qa-{session_id}"
                 state.qa_retry_count = next_retries
 
@@ -208,7 +239,11 @@ class QaUseCase:
         elif "-> REJECT" in audit_feedback:
             status = FlowStatus.REJECTED
         else:
-            status = FlowStatus.APPROVED if "NO ISSUES FOUND" in audit_feedback.upper() else FlowStatus.REJECTED
+            status = (
+                FlowStatus.APPROVED
+                if "NO ISSUES FOUND" in audit_feedback.upper()
+                else FlowStatus.REJECTED
+            )
 
         result = AuditResult(
             status=status.upper(),

@@ -7,6 +7,7 @@ from rich.console import Console
 
 console = Console()
 
+
 class UatUseCase:
     """
     Encapsulates the logic for UAT Evaluation, Auto-Merge, and Refactoring Transition.

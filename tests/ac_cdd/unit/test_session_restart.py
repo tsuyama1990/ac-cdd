@@ -42,7 +42,8 @@ class TestSessionRestart:
 
         def wait_for_completion_side_effect(session_id):  # type: ignore[no-untyped-def]
             if "fail" in session_id:
-                raise JulesSessionError("Jules Session Failed: Unknown error")
+                error_msg = "Jules Session Failed: Unknown error"
+                raise JulesSessionError(error_msg)
             return {"status": "success", "pr_url": "https://github.com/pr/1"}
 
         mock_jules.run_session.side_effect = run_session_side_effect

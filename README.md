@@ -234,6 +234,77 @@ ac-cdd finalize-session
 
 Creates a **final Pull Request** from integration branch to `main`.
 
+## 📝 Customizing Prompts (Template Overrides)
+
+AC-CDD uses a layered template system. Every prompt sent to Jules or the auditing agents is loaded from a Markdown template file, which means you can **override any prompt** without touching the core codebase.
+
+### How It Works
+
+Template lookup priority (highest to lowest):
+
+1. **Your project override**: `dev_documents/system_prompts/<TEMPLATE_NAME>.md`
+2. **Built-in default**: bundled inside the AC-CDD package
+
+If the file exists in your project's `dev_documents/system_prompts/`, it takes precedence over the built-in default.
+
+### Available Templates
+
+#### Agent Instruction Templates (Main Prompts)
+
+| File | Used By | Description |
+|---|---|---|
+| `CODER_INSTRUCTION.md` | Jules (Coder) | Main prompt for the Coder agent when implementing features |
+| `REFACTOR_INSTRUCTION.md` | Jules (Coder) | Prompt used during refactoring cycles |
+| `AUDITOR_INSTRUCTION.md` | LLM Reviewer | Code review instructions for the Auditor agent |
+| `ARCHITECT_INSTRUCTION.md` | Architect node | System design and cycle planning instructions |
+| `MANAGER_INSTRUCTION.md` | Manager Agent | Orchestration and decision-making instructions |
+| `QA_TUTORIAL_INSTRUCTION.md` | QA Agent | Instructions for generating UAT test scripts |
+| `QA_AUDITOR_INSTRUCTION.md` | QA Auditor | Instructions for reviewing test results |
+
+#### Jules Interaction Templates (Message Prompts)
+
+These control what AC-CDD *says to Jules* during a session:
+
+| File | Used When | Description |
+|---|---|---|
+| `AUDIT_FEEDBACK_MESSAGE.md` | After Auditor rejects a PR | Message sent to an existing Jules session asking it to fix issues. Supports `{{feedback}}` variable. |
+| `AUDIT_FEEDBACK_INJECTION.md` | When creating a new session after rejection | Appended to the new session's instructions with prior audit feedback. Supports `{{feedback}}` and `{{pr_url}}` variables. |
+| `PR_CREATION_REQUEST.md` | When session completes without a PR | Message sent to Jules to request manual PR creation |
+| `MANAGER_INQUIRY_PROMPT.md` | When Jules asks a question | Instructions given to the Manager Agent for answering Jules' questions |
+| `MANAGER_INQUIRY_FOLLOWUP.md` | After Manager Agent answers Jules | Note appended to agent replies, reminding Jules to proceed |
+| `MANAGER_INQUIRY_FALLBACK.md` | When Manager Agent fails | Fallback message sent to Jules if the agent errors. Supports `{{question}}` variable. |
+| `PLAN_REVIEW_PROMPT.md` | When Jules requests plan approval | Instructions for the Manager Agent to review Jules' implementation plan |
+
+### Example: Customizing the Audit Feedback
+
+To change how AC-CDD communicates audit results to Jules, create a file in your project:
+
+```bash
+mkdir -p dev_documents/system_prompts
+cat > dev_documents/system_prompts/AUDIT_FEEDBACK_MESSAGE.md << 'EOF'
+# AUDIT FEEDBACK - ACTION REQUIRED
+
+The following issues were identified in your implementation:
+
+{{feedback}}
+
+**Please:**
+1. Read each issue carefully
+2. Implement the necessary changes
+3. Create a new Pull Request when done
+EOF
+```
+
+### Template Variables
+
+Some templates support `{{variable}}` substitution:
+
+| Variable | Available In | Description |
+|---|---|---|
+| `{{feedback}}` | `AUDIT_FEEDBACK_MESSAGE.md`, `AUDIT_FEEDBACK_INJECTION.md` | The full audit feedback text |
+| `{{pr_url}}` | `AUDIT_FEEDBACK_INJECTION.md` | URL of the previous PR (wrapped in `{{#pr_url}}...{{/pr_url}}` for conditional rendering) |
+| `{{question}}` | `MANAGER_INQUIRY_FALLBACK.md` | Jules' original question when the manager agent fails |
+
 ## Contributing
 
 If you want to modify the AC-CDD framework itself:
