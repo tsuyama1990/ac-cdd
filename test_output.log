@@ -1,0 +1,414 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.0.2, pluggy-1.6.0
+rootdir: /home/tomo/project/ac-cdd
+configfile: pyproject.toml
+plugins: hypothesis-6.148.7, logfire-4.16.0, langsmith-0.4.59, asyncio-1.3.0, cov-7.0.0, anyio-4.12.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 1 item
+
+tests/ac_cdd/integration/test_audit_loop.py DEBUG coder_session IN: iter=0, i=1, j=1, final_fix=False
+Starting Auditor...
+Checking out PR: http://pr
+Successfully checked out PR branch
+Detected PR base branch: main
+Comparing changes against base branch: main
+Auditor: Found 34 changed files to review
+Auditor: Reviewing 5 code files
+Auditor: Final review target: 5 files (context excluded)
+DEBUG: Final reviewable files: ['refactor_nodes.py', 'scripts/refactor_cli.py', 'scripts/refactor_jules.py', 'scripts/refactor_jules_client.py', 'scripts/refactor_project.py']
+DEBUG: Successfully read 5 files
+DEBUG: - refactor_nodes.py (3129 chars)
+DEBUG: - scripts/refactor_cli.py (3415 chars)
+DEBUG: - scripts/refactor_jules.py (2415 chars)
+DEBUG: - scripts/refactor_jules_client.py (3808 chars)
+DEBUG: - scripts/refactor_project.py (3535 chars)
+Running Static Analysis (mypy, ruff)...
+Static Analysis Failed. Extending feedback...
+Auditor #1 Rejected. Retry 2/2.
+DEBUG coder_session IN: iter=2, i=1, j=2, final_fix=False
+Starting Auditor...
+Checking out PR: http://pr
+Successfully checked out PR branch
+Detected PR base branch: main
+Comparing changes against base branch: main
+Auditor: Found 34 changed files to review
+Auditor: Reviewing 5 code files
+Auditor: Final review target: 5 files (context excluded)
+DEBUG: Final reviewable files: ['refactor_nodes.py', 'scripts/refactor_cli.py', 'scripts/refactor_jules.py', 'scripts/refactor_jules_client.py', 'scripts/refactor_project.py']
+DEBUG: Successfully read 5 files
+DEBUG: - refactor_nodes.py (3129 chars)
+DEBUG: - scripts/refactor_cli.py (3415 chars)
+DEBUG: - scripts/refactor_jules.py (2415 chars)
+DEBUG: - scripts/refactor_jules_client.py (3808 chars)
+DEBUG: - scripts/refactor_project.py (3535 chars)
+Running Static Analysis (mypy, ruff)...
+Static Analysis Failed. Extending feedback...
+Auditor #1 limit reached. Fixing code then moving to Auditor #2.
+DEBUG coder_session IN: iter=4, i=2, j=1, final_fix=False
+Starting Auditor...
+Checking out PR: http://pr
+Successfully checked out PR branch
+Detected PR base branch: main
+Comparing changes against base branch: main
+Auditor: Found 34 changed files to review
+Auditor: Reviewing 5 code files
+Auditor: Final review target: 5 files (context excluded)
+DEBUG: Final reviewable files: ['refactor_nodes.py', 'scripts/refactor_cli.py', 'scripts/refactor_jules.py', 'scripts/refactor_jules_client.py', 'scripts/refactor_project.py']
+DEBUG: Successfully read 5 files
+DEBUG: - refactor_nodes.py (3129 chars)
+DEBUG: - scripts/refactor_cli.py (3415 chars)
+DEBUG: - scripts/refactor_jules.py (2415 chars)
+DEBUG: - scripts/refactor_jules_client.py (3808 chars)
+DEBUG: - scripts/refactor_project.py (3535 chars)
+Running Static Analysis (mypy, ruff)...
+Static Analysis Failed. Extending feedback...
+Auditor #2 Rejected. Retry 2/2.
+DEBUG coder_session IN: iter=6, i=2, j=2, final_fix=False
+Starting Auditor...
+Checking out PR: http://pr
+Successfully checked out PR branch
+Detected PR base branch: main
+Comparing changes against base branch: main
+Auditor: Found 34 changed files to review
+Auditor: Reviewing 5 code files
+Auditor: Final review target: 5 files (context excluded)
+DEBUG: Final reviewable files: ['refactor_nodes.py', 'scripts/refactor_cli.py', 'scripts/refactor_jules.py', 'scripts/refactor_jules_client.py', 'scripts/refactor_project.py']
+DEBUG: Successfully read 5 files
+DEBUG: - refactor_nodes.py (3129 chars)
+DEBUG: - scripts/refactor_cli.py (3415 chars)
+DEBUG: - scripts/refactor_jules.py (2415 chars)
+DEBUG: - scripts/refactor_jules_client.py (3808 chars)
+DEBUG: - scripts/refactor_project.py (3535 chars)
+Running Static Analysis (mypy, ruff)...
+Static Analysis Failed. Extending feedback...
+Auditor #2 limit reached. Fixing code then moving to Auditor #3.
+DEBUG coder_session IN: iter=8, i=3, j=1, final_fix=False
+Starting Auditor...
+Checking out PR: http://pr
+Successfully checked out PR branch
+Detected PR base branch: main
+Comparing changes against base branch: main
+Auditor: Found 34 changed files to review
+Auditor: Reviewing 5 code files
+Auditor: Final review target: 5 files (context excluded)
+DEBUG: Final reviewable files: ['refactor_nodes.py', 'scripts/refactor_cli.py', 'scripts/refactor_jules.py', 'scripts/refactor_jules_client.py', 'scripts/refactor_project.py']
+DEBUG: Successfully read 5 files
+DEBUG: - refactor_nodes.py (3129 chars)
+DEBUG: - scripts/refactor_cli.py (3415 chars)
+DEBUG: - scripts/refactor_jules.py (2415 chars)
+DEBUG: - scripts/refactor_jules_client.py (3808 chars)
+DEBUG: - scripts/refactor_project.py (3535 chars)
+Running Static Analysis (mypy, ruff)...
+Static Analysis Failed. Extending feedback...
+Auditor #3 Rejected. Retry 2/2.
+DEBUG coder_session IN: iter=10, i=3, j=2, final_fix=False
+Starting Auditor...
+Checking out PR: http://pr
+Successfully checked out PR branch
+Detected PR base branch: main
+Comparing changes against base branch: main
+Auditor: Found 34 changed files to review
+Auditor: Reviewing 5 code files
+Auditor: Final review target: 5 files (context excluded)
+DEBUG: Final reviewable files: ['refactor_nodes.py', 'scripts/refactor_cli.py', 'scripts/refactor_jules.py', 'scripts/refactor_jules_client.py', 'scripts/refactor_project.py']
+DEBUG: Successfully read 5 files
+DEBUG: - refactor_nodes.py (3129 chars)
+DEBUG: - scripts/refactor_cli.py (3415 chars)
+DEBUG: - scripts/refactor_jules.py (2415 chars)
+DEBUG: - scripts/refactor_jules_client.py (3808 chars)
+DEBUG: - scripts/refactor_project.py (3535 chars)
+Running Static Analysis (mypy, ruff)...
+Static Analysis Failed. Extending feedback...
+Final Auditor limit reached. Fixing code then Merging.
+DEBUG coder_session IN: iter=12, i=3, j=2, final_fix=True
+DEBUG uat_evaluate IN: iter=13
+F
+
+=================================== FAILURES ===================================
+__________________________ test_audit_rejection_loop ___________________________
+
+    @pytest.mark.asyncio
+    async def test_audit_rejection_loop() -> None:
+        """
+        Test that the audit loop functions correctly when changes are requested.
+        Verifies that the graph iterates through 3 auditors * 2 reviews each = 6 cycles.
+        """
+        # Mock Services
+        mock_services = MagicMock()
+        mock_services.git = AsyncMock()
+        mock_services.jules = AsyncMock()  # JulesClient is async
+        mock_services.sandbox = MagicMock()
+        mock_services.reviewer = MagicMock()
+    
+        # Mock Git to return a unique commit each time to simulate a new Jules commit
+        commit_counter = [0]
+        async def mock_get_commit() -> str:
+            commit_counter[0] += 1
+            return f"commit_{commit_counter[0]}"
+    
+        mock_services.git.get_current_commit = AsyncMock(side_effect=mock_get_commit)
+        # The auditor needs changed files to proceed
+        mock_services.git.get_changed_files = AsyncMock(return_value=["file.py"])
+    
+        # Mock Jules run session
+        mock_services.jules.run_session = AsyncMock(return_value={"pr_url": "http://pr"})
+        mock_services.jules.continue_session = AsyncMock(return_value={"pr_url": "http://pr"})
+    
+        # Mock Sandbox
+        mock_services.sandbox.run_lint_check = AsyncMock(return_value=(True, "OK"))
+    
+        # Mock Reviewer
+        mock_services.reviewer.review_code = AsyncMock(return_value="CHANGES_REQUESTED: Please fix X.")
+    
+        # Mock PlanAuditor to avoid model initialization
+        from unittest.mock import patch
+        from ac_cdd_core.domain_models import AuditResult
+    
+        mock_auditor = MagicMock()
+        async def mock_run_audit(*args: Any, **kwargs: Any) -> tuple[AuditResult, str]:
+            print(f"DEBUG run_audit mock called")
+            return (AuditResult(is_approved=False), "Feedback")
+    
+        mock_auditor.run_audit = AsyncMock(side_effect=mock_run_audit)
+        with patch("ac_cdd_core.services.plan_auditor.PlanAuditor", return_value=mock_auditor):
+            # Build Graph
+            builder = GraphBuilder(mock_services)
+    
+            builder.nodes.llm_reviewer.review_code = mock_services.reviewer.review_code
+    
+            # Increment iteration count to avoid infinite loop
+            async def mock_coder_session(state: CycleState) -> dict:
+                current_iter = state.get("iteration_count", 1)
+                print(f"DEBUG coder_session IN: iter={current_iter}, i={state.get('current_auditor_index')}, j={state.get('current_auditor_review_count')}, final_fix={state.get('final_fix')}")
+                return {"status": "ready_for_audit", "pr_url": "http://pr", "iteration_count": current_iter + 1}
+    
+            builder.nodes.coder_session_node = AsyncMock(side_effect=mock_coder_session)
+    
+            async def mock_uat(state: CycleState) -> dict:
+                print(f"DEBUG uat_evaluate IN: iter={state.get('iteration_count')}")
+                return {"status": "cycle_completed"}
+    
+            builder.nodes.uat_evaluate_node = AsyncMock(side_effect=mock_uat)
+    
+            graph = builder.build_coder_graph()
+    
+            initial_state = CycleState(
+                cycle_id="01",
+                project_session_id="test_session",
+                integration_branch="dev/main",
+                active_branch="dev/cycle01",
+            )
+    
+            final_state = await graph.ainvoke(
+                initial_state, {"configurable": {"thread_id": "test_thread"}, "recursion_limit": 50}
+            )
+    
+            # 6 runs of the auditor node
+>           assert mock_auditor.run_audit.call_count == 6
+E           AssertionError: assert 0 == 6
+E            +  where 0 = <AsyncMock name='mock.run_audit' id='140242440837200'>.call_count
+E            +    where <AsyncMock name='mock.run_audit' id='140242440837200'> = <MagicMock id='140242440833456'>.run_audit
+
+tests/ac_cdd/integration/test_audit_loop.py:86: AssertionError
+------------------------------ Captured log call -------------------------------
+ERROR    AC-CDD:process_runner.py:42 Command failed [1]: gh pr checkout http://pr --force
+ERROR    AC-CDD:process_runner.py:44 Stderr: no pull requests found for branch "http://pr"
+ERROR    AC-CDD:process_runner.py:71 Execution failed for 'gh pr checkout http://pr --force': Command '['gh', 'pr', 'checkout', 'http://pr', '--force']' returned non-zero exit status 1.
+ERROR    AC-CDD:process_runner.py:42 Command failed [1]: git pull
+ERROR    AC-CDD:process_runner.py:44 Stderr: There is no tracking information for the current branch.
+Please specify which branch you want to merge with.
+See git-pull(1) for details.
+
+    git pull <remote> <branch>
+
+If you wish to set tracking information for this branch you can do so with:
+
+    git branch --set-upstream-to=origin/<branch> finetune1
+ERROR    AC-CDD:process_runner.py:51 DEBUG: Process UID=1000, GID=1000
+ERROR    AC-CDD:process_runner.py:55 DEBUG: .git/index: mode=0o100644, uid=1000, gid=1000
+ERROR    AC-CDD:process_runner.py:71 Execution failed for 'git pull': Command '['git', 'pull']' returned non-zero exit status 1.
+WARNING  AC-CDD:checkout.py:62 Could not pull latest commits: Git command failed: git pull
+Stderr: Command '['git', 'pull']' returned non-zero exit status 1.
+ERROR    AC-CDD:process_runner.py:42 Command failed [1]: gh pr view http://pr --json baseRefName -q .baseRefName
+ERROR    AC-CDD:process_runner.py:44 Stderr: no pull requests found for branch "http://pr"
+ERROR    AC-CDD:process_runner.py:71 Execution failed for 'gh pr view http://pr --json baseRefName -q .baseRefName': Command '['gh', 'pr', 'view', 'http://pr', '--json', 'baseRefName', '-q', '.baseRefName']' returned non-zero exit status 1.
+WARNING  AC-CDD:checkout.py:79 Could not determine base branch for PR http://pr, defaulting to main
+ERROR    AC-CDD:process_runner.py:42 Command failed [1]: gh pr checkout http://pr --force
+ERROR    AC-CDD:process_runner.py:44 Stderr: no pull requests found for branch "http://pr"
+ERROR    AC-CDD:process_runner.py:71 Execution failed for 'gh pr checkout http://pr --force': Command '['gh', 'pr', 'checkout', 'http://pr', '--force']' returned non-zero exit status 1.
+ERROR    AC-CDD:process_runner.py:42 Command failed [1]: git pull
+ERROR    AC-CDD:process_runner.py:44 Stderr: There is no tracking information for the current branch.
+Please specify which branch you want to merge with.
+See git-pull(1) for details.
+
+    git pull <remote> <branch>
+
+If you wish to set tracking information for this branch you can do so with:
+
+    git branch --set-upstream-to=origin/<branch> finetune1
+ERROR    AC-CDD:process_runner.py:51 DEBUG: Process UID=1000, GID=1000
+ERROR    AC-CDD:process_runner.py:55 DEBUG: .git/index: mode=0o100644, uid=1000, gid=1000
+ERROR    AC-CDD:process_runner.py:71 Execution failed for 'git pull': Command '['git', 'pull']' returned non-zero exit status 1.
+WARNING  AC-CDD:checkout.py:62 Could not pull latest commits: Git command failed: git pull
+Stderr: Command '['git', 'pull']' returned non-zero exit status 1.
+ERROR    AC-CDD:process_runner.py:42 Command failed [1]: gh pr view http://pr --json baseRefName -q .baseRefName
+ERROR    AC-CDD:process_runner.py:44 Stderr: no pull requests found for branch "http://pr"
+ERROR    AC-CDD:process_runner.py:71 Execution failed for 'gh pr view http://pr --json baseRefName -q .baseRefName': Command '['gh', 'pr', 'view', 'http://pr', '--json', 'baseRefName', '-q', '.baseRefName']' returned non-zero exit status 1.
+WARNING  AC-CDD:checkout.py:79 Could not determine base branch for PR http://pr, defaulting to main
+ERROR    AC-CDD:process_runner.py:42 Command failed [1]: gh pr checkout http://pr --force
+ERROR    AC-CDD:process_runner.py:44 Stderr: no pull requests found for branch "http://pr"
+ERROR    AC-CDD:process_runner.py:71 Execution failed for 'gh pr checkout http://pr --force': Command '['gh', 'pr', 'checkout', 'http://pr', '--force']' returned non-zero exit status 1.
+ERROR    AC-CDD:process_runner.py:42 Command failed [1]: git pull
+ERROR    AC-CDD:process_runner.py:44 Stderr: There is no tracking information for the current branch.
+Please specify which branch you want to merge with.
+See git-pull(1) for details.
+
+    git pull <remote> <branch>
+
+If you wish to set tracking information for this branch you can do so with:
+
+    git branch --set-upstream-to=origin/<branch> finetune1
+ERROR    AC-CDD:process_runner.py:51 DEBUG: Process UID=1000, GID=1000
+ERROR    AC-CDD:process_runner.py:55 DEBUG: .git/index: mode=0o100644, uid=1000, gid=1000
+ERROR    AC-CDD:process_runner.py:71 Execution failed for 'git pull': Command '['git', 'pull']' returned non-zero exit status 1.
+WARNING  AC-CDD:checkout.py:62 Could not pull latest commits: Git command failed: git pull
+Stderr: Command '['git', 'pull']' returned non-zero exit status 1.
+ERROR    AC-CDD:process_runner.py:42 Command failed [1]: gh pr view http://pr --json baseRefName -q .baseRefName
+ERROR    AC-CDD:process_runner.py:44 Stderr: no pull requests found for branch "http://pr"
+ERROR    AC-CDD:process_runner.py:71 Execution failed for 'gh pr view http://pr --json baseRefName -q .baseRefName': Command '['gh', 'pr', 'view', 'http://pr', '--json', 'baseRefName', '-q', '.baseRefName']' returned non-zero exit status 1.
+WARNING  AC-CDD:checkout.py:79 Could not determine base branch for PR http://pr, defaulting to main
+ERROR    AC-CDD:process_runner.py:42 Command failed [1]: gh pr checkout http://pr --force
+ERROR    AC-CDD:process_runner.py:44 Stderr: no pull requests found for branch "http://pr"
+ERROR    AC-CDD:process_runner.py:71 Execution failed for 'gh pr checkout http://pr --force': Command '['gh', 'pr', 'checkout', 'http://pr', '--force']' returned non-zero exit status 1.
+ERROR    AC-CDD:process_runner.py:42 Command failed [1]: git pull
+ERROR    AC-CDD:process_runner.py:44 Stderr: There is no tracking information for the current branch.
+Please specify which branch you want to merge with.
+See git-pull(1) for details.
+
+    git pull <remote> <branch>
+
+If you wish to set tracking information for this branch you can do so with:
+
+    git branch --set-upstream-to=origin/<branch> finetune1
+ERROR    AC-CDD:process_runner.py:51 DEBUG: Process UID=1000, GID=1000
+ERROR    AC-CDD:process_runner.py:55 DEBUG: .git/index: mode=0o100644, uid=1000, gid=1000
+ERROR    AC-CDD:process_runner.py:71 Execution failed for 'git pull': Command '['git', 'pull']' returned non-zero exit status 1.
+WARNING  AC-CDD:checkout.py:62 Could not pull latest commits: Git command failed: git pull
+Stderr: Command '['git', 'pull']' returned non-zero exit status 1.
+ERROR    AC-CDD:process_runner.py:42 Command failed [1]: gh pr view http://pr --json baseRefName -q .baseRefName
+ERROR    AC-CDD:process_runner.py:44 Stderr: no pull requests found for branch "http://pr"
+ERROR    AC-CDD:process_runner.py:71 Execution failed for 'gh pr view http://pr --json baseRefName -q .baseRefName': Command '['gh', 'pr', 'view', 'http://pr', '--json', 'baseRefName', '-q', '.baseRefName']' returned non-zero exit status 1.
+WARNING  AC-CDD:checkout.py:79 Could not determine base branch for PR http://pr, defaulting to main
+ERROR    AC-CDD:process_runner.py:42 Command failed [1]: gh pr checkout http://pr --force
+ERROR    AC-CDD:process_runner.py:44 Stderr: no pull requests found for branch "http://pr"
+ERROR    AC-CDD:process_runner.py:71 Execution failed for 'gh pr checkout http://pr --force': Command '['gh', 'pr', 'checkout', 'http://pr', '--force']' returned non-zero exit status 1.
+ERROR    AC-CDD:process_runner.py:42 Command failed [1]: git pull
+ERROR    AC-CDD:process_runner.py:44 Stderr: There is no tracking information for the current branch.
+Please specify which branch you want to merge with.
+See git-pull(1) for details.
+
+    git pull <remote> <branch>
+
+If you wish to set tracking information for this branch you can do so with:
+
+    git branch --set-upstream-to=origin/<branch> finetune1
+ERROR    AC-CDD:process_runner.py:51 DEBUG: Process UID=1000, GID=1000
+ERROR    AC-CDD:process_runner.py:55 DEBUG: .git/index: mode=0o100644, uid=1000, gid=1000
+ERROR    AC-CDD:process_runner.py:71 Execution failed for 'git pull': Command '['git', 'pull']' returned non-zero exit status 1.
+WARNING  AC-CDD:checkout.py:62 Could not pull latest commits: Git command failed: git pull
+Stderr: Command '['git', 'pull']' returned non-zero exit status 1.
+ERROR    AC-CDD:process_runner.py:42 Command failed [1]: gh pr view http://pr --json baseRefName -q .baseRefName
+ERROR    AC-CDD:process_runner.py:44 Stderr: no pull requests found for branch "http://pr"
+ERROR    AC-CDD:process_runner.py:71 Execution failed for 'gh pr view http://pr --json baseRefName -q .baseRefName': Command '['gh', 'pr', 'view', 'http://pr', '--json', 'baseRefName', '-q', '.baseRefName']' returned non-zero exit status 1.
+WARNING  AC-CDD:checkout.py:79 Could not determine base branch for PR http://pr, defaulting to main
+ERROR    AC-CDD:process_runner.py:42 Command failed [1]: gh pr checkout http://pr --force
+ERROR    AC-CDD:process_runner.py:44 Stderr: no pull requests found for branch "http://pr"
+ERROR    AC-CDD:process_runner.py:71 Execution failed for 'gh pr checkout http://pr --force': Command '['gh', 'pr', 'checkout', 'http://pr', '--force']' returned non-zero exit status 1.
+ERROR    AC-CDD:process_runner.py:42 Command failed [1]: git pull
+ERROR    AC-CDD:process_runner.py:44 Stderr: There is no tracking information for the current branch.
+Please specify which branch you want to merge with.
+See git-pull(1) for details.
+
+    git pull <remote> <branch>
+
+If you wish to set tracking information for this branch you can do so with:
+
+    git branch --set-upstream-to=origin/<branch> finetune1
+ERROR    AC-CDD:process_runner.py:51 DEBUG: Process UID=1000, GID=1000
+ERROR    AC-CDD:process_runner.py:55 DEBUG: .git/index: mode=0o100644, uid=1000, gid=1000
+ERROR    AC-CDD:process_runner.py:71 Execution failed for 'git pull': Command '['git', 'pull']' returned non-zero exit status 1.
+WARNING  AC-CDD:checkout.py:62 Could not pull latest commits: Git command failed: git pull
+Stderr: Command '['git', 'pull']' returned non-zero exit status 1.
+ERROR    AC-CDD:process_runner.py:42 Command failed [1]: gh pr view http://pr --json baseRefName -q .baseRefName
+ERROR    AC-CDD:process_runner.py:44 Stderr: no pull requests found for branch "http://pr"
+ERROR    AC-CDD:process_runner.py:71 Execution failed for 'gh pr view http://pr --json baseRefName -q .baseRefName': Command '['gh', 'pr', 'view', 'http://pr', '--json', 'baseRefName', '-q', '.baseRefName']' returned non-zero exit status 1.
+WARNING  AC-CDD:checkout.py:79 Could not determine base branch for PR http://pr, defaulting to main
+=============================== warnings summary ===============================
+.venv/lib/python3.12/site-packages/pydantic/_internal/_config.py:323
+  /home/tomo/project/ac-cdd/.venv/lib/python3.12/site-packages/pydantic/_internal/_config.py:323: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    warnings.warn(DEPRECATION_MESSAGE, DeprecationWarning)
+
+tests/ac_cdd/integration/test_audit_loop.py::test_audit_rejection_loop
+  /home/tomo/project/ac-cdd/dev_src/ac_cdd_core/services/plan_auditor.py:16: DeprecationWarning: `OpenAIModel` was renamed to `OpenAIChatModel` to clearly distinguish it from `OpenAIResponsesModel` which uses OpenAI's newer Responses API. Use that unless you're using an OpenAI Chat Completions-compatible API, or require a feature that the Responses API doesn't support yet like audio.
+    return OpenAIModel(model_name, provider="openrouter")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.3-final-0 ________________
+
+Name                                                               Stmts   Miss  Cover   Missing
+------------------------------------------------------------------------------------------------
+dev_src/__init__.py                                                    0      0   100%
+dev_src/ac_cdd_core/__init__.py                                        0      0   100%
+dev_src/ac_cdd_core/agents.py                                         74     57    23%   16-19, 24-44, 49-72, 80-96, 110-122, 128-149
+dev_src/ac_cdd_core/cli.py                                           153    153     0%   1-348
+dev_src/ac_cdd_core/config.py                                        182     44    76%   18-27, 41, 49, 214-217, 221, 229-233, 237-247, 252, 261-263, 266-285
+dev_src/ac_cdd_core/contracts/__init__.py                              0      0   100%
+dev_src/ac_cdd_core/domain_models.py                                  93      0   100%
+dev_src/ac_cdd_core/error_messages.py                                  7      7     0%   4-18
+dev_src/ac_cdd_core/graph.py                                          50     16    68%   30-31, 35-42, 95, 102-127, 130
+dev_src/ac_cdd_core/graph_nodes.py                                   541    349    35%   46-49, 68, 77-78, 93-95, 107-109, 115-186, 195-251, 255-468, 504-532, 538-544, 561-562, 642, 645-646, 651-663, 686-692, 713, 715, 739-744, 756-761, 771-782, 799-805, 828-834, 854-890, 898, 901-903, 907, 913, 915, 918-920, 926, 929, 933-1058, 1062-1130, 1137-1142
+dev_src/ac_cdd_core/hash_utils.py                                     25     22    12%   7-30
+dev_src/ac_cdd_core/interfaces.py                                      5      0   100%
+dev_src/ac_cdd_core/jules_session_graph.py                            45     45     0%   3-110
+dev_src/ac_cdd_core/jules_session_nodes.py                           279    279     0%   3-505
+dev_src/ac_cdd_core/jules_session_state.py                            44     44     0%   3-75
+dev_src/ac_cdd_core/messages.py                                       56     25    55%   16-17, 29, 40-41, 46, 51-52, 66, 75, 95-96, 110-111, 126, 136-137, 150-151, 156-161
+dev_src/ac_cdd_core/process_runner.py                                 39      4    90%   59, 63-65
+dev_src/ac_cdd_core/sandbox.py                                        97     75    23%   20, 29-58, 66-119, 123, 127, 134-154, 158, 161-163
+dev_src/ac_cdd_core/service_container.py                              18      1    94%   22
+dev_src/ac_cdd_core/services/__init__.py                               5      0   100%
+dev_src/ac_cdd_core/services/artifacts.py                             14      8    43%   17-28
+dev_src/ac_cdd_core/services/audit_orchestrator.py                    72     57    21%   37-120, 126-142
+dev_src/ac_cdd_core/services/contracts.py                             26     21    19%   16-43
+dev_src/ac_cdd_core/services/file_ops.py                             110     89    19%   28-59, 62-80, 88-103, 112-123, 126-137, 140-145, 149-171
+dev_src/ac_cdd_core/services/git/base.py                              28      5    82%   20-25
+dev_src/ac_cdd_core/services/git/branching.py                         88     71    19%   10-13, 17, 23-38, 56-77, 81-108, 114-131, 135-165
+dev_src/ac_cdd_core/services/git/checkout.py                          95     45    53%   23-30, 35-50, 78, 81-83, 87-91, 95, 99-104, 108-110, 114-119, 123, 135, 143
+dev_src/ac_cdd_core/services/git/merging.py                           80     70    12%   16-31, 35-50, 57-114, 118-174
+dev_src/ac_cdd_core/services/git/state.py                             56     45    20%   21-68, 74-80, 84-111
+dev_src/ac_cdd_core/services/git_ops.py                                9      0   100%
+dev_src/ac_cdd_core/services/jules/api.py                            117     94    20%   21-32, 38-51, 54-64, 69-91, 94-103, 106-107, 110-114, 125-136, 140-142, 145-167
+dev_src/ac_cdd_core/services/jules/context_builder.py                 79     67    15%   11, 20-32, 36-44, 48-76, 80-88, 97-134
+dev_src/ac_cdd_core/services/jules/git_context.py                     42     32    24%   14, 17-56, 59-60
+dev_src/ac_cdd_core/services/jules/inquiry_handler.py                149    131    12%   19-21, 27-57, 60-73, 79-102, 106-139, 150-185, 198-247
+dev_src/ac_cdd_core/services/jules_client.py                         387    337    13%   9-10, 53-84, 92, 96, 100-106, 110-115, 126-166, 170-189, 193-205, 219-289, 295-358, 361-363, 375-385, 393-444, 450-497, 500-514, 519-529, 532-543, 547, 551-573, 577-584, 590-602, 606-609, 617-687
+dev_src/ac_cdd_core/services/llm_reviewer.py                          26     18    31%   39-68, 78-90
+dev_src/ac_cdd_core/services/plan_auditor.py                          26     13    50%   18, 53-117
+dev_src/ac_cdd_core/services/project.py                               46     35    24%   22-45, 49-58, 64-81
+dev_src/ac_cdd_core/services/project_setup/dependency_manager.py      50     42    16%   12-13, 16-56, 60-77
+dev_src/ac_cdd_core/services/project_setup/permission_manager.py      62     56    10%   13-74
+dev_src/ac_cdd_core/services/project_setup/template_manager.py        84     72    14%   12-30, 33-35, 41-62, 65-97, 100-167, 170-190, 193-239
+dev_src/ac_cdd_core/services/sandbox/sync.py                          31     21    32%   15-16, 25-48
+dev_src/ac_cdd_core/services/workflow.py                             249    249     0%   1-472
+dev_src/ac_cdd_core/session_manager.py                                65     48    26%   25, 29-38, 44-50, 56-64, 68-75, 83-107
+dev_src/ac_cdd_core/state.py                                          65      5    92%   83-84, 91-92, 96
+dev_src/ac_cdd_core/state_manager.py                                  90     72    20%   25-37, 46-57, 69-86, 102-108, 112-115, 127-135, 151-176, 188-206
+dev_src/ac_cdd_core/tools.py                                          21     21     0%   1-48
+dev_src/ac_cdd_core/utils.py                                          72     54    25%   31-56, 65-78, 83-102, 112-113, 118-142, 151-160
+dev_src/ac_cdd_core/validators.py                                     41     41     0%   3-86
+------------------------------------------------------------------------------------------------
+TOTAL                                                               3993   2940    26%
+=========================== short test summary info ============================
+FAILED tests/ac_cdd/integration/test_audit_loop.py::test_audit_rejection_loop
+======================== 1 failed, 2 warnings in 12.40s ========================

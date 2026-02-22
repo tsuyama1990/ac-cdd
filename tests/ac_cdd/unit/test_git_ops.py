@@ -48,14 +48,12 @@ async def test_smart_checkout_success(git_manager: GitManager) -> None:
 
 
 @pytest.mark.asyncio
-async def test_smart_checkout_with_stash_restoration(git_manager: GitManager) -> None:
-    # Simulate dirty state that needs stashing
-    git_manager._stash_changes = AsyncMock(return_value=True)
+async def test_smart_checkout_with_auto_commit(git_manager: GitManager) -> None:
+    # Simulate dirty state that needs auto-commit
+    git_manager._auto_commit_if_dirty = AsyncMock()
     git_manager._run_git = AsyncMock()
-    git_manager._restore_stash = AsyncMock()
 
     await git_manager.smart_checkout("feature-branch")
 
-    git_manager._stash_changes.assert_called_once()
+    git_manager._auto_commit_if_dirty.assert_called_once()
     git_manager._run_git.assert_called_with(["checkout", "feature-branch"])
-    git_manager._restore_stash.assert_called_once()

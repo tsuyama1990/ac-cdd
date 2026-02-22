@@ -32,13 +32,14 @@ async def test_ensure_clean_state_dirty_auto_stash(git_manager: GitManager) -> N
     """Test ensure_clean_state with dirty state and auto-stash."""
     with patch.object(git_manager.runner, "run_command", new_callable=AsyncMock) as mock_run:
         # First call: git status returns changes
-        # Second call: git stash
-        mock_run.side_effect = [("M file.py", "", 0), ("", "", 0)]
+        # Second call: git add .
+        # Third call: git commit -m
+        mock_run.side_effect = [(" M file.py", "", 0), ("", "", 0), ("", "", 0)]
 
         await git_manager.ensure_clean_state(force_stash=True)
 
-        # Should call git stash
-        assert mock_run.call_count >= 2
+        # Should call auto-commit commands
+        assert mock_run.call_count == 3
 
 
 @pytest.mark.asyncio

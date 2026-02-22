@@ -125,7 +125,7 @@ final_state = await graph.ainvoke(initial_state, config)
 **Actions**:
 1. **Create feature branch from main**
    ```python
-   architect_branch = f"feat/generate-architecture-{timestamp}"
+   architect_branch = f"dev/int-{timestamp}"
    await git.create_feature_branch(architect_branch, from_branch="main")
    # This does: checkout main → pull → create new branch → checkout new branch → push
    ```
@@ -148,38 +148,38 @@ final_state = await graph.ainvoke(initial_state, config)
    ```
 
 3. **Jules creates branch and PR**
-   - **Starting branch**: `feat/generate-architecture-{timestamp}` (created by GitManager in step 1)
-   - **Current branch**: `feat/generate-architecture-{timestamp}` (already checked out by create_feature_branch)
+   - **Starting branch**: `dev/int-{timestamp}` (created by GitManager in step 1)
+   - **Current branch**: `dev/int-{timestamp}` (already checked out by create_feature_branch)
    - **Jules's branch**: `jules/generate-architectural-documents-{session_id}` (Jules creates this from starting branch)
-   - **PR**: `jules/generate-architectural-documents-{session_id}` → **`feat/generate-architecture-{timestamp}`** ✅
+   - **PR**: `jules/generate-architectural-documents-{session_id}` → **`dev/int-{timestamp}`** ✅
    - **Files**: All SPEC.md and UAT.md files
    
    **How it works**:
-   - `create_feature_branch()` already checked out `feat/generate-architecture-{timestamp}`
-   - `_prepare_git_context()` gets current branch = `feat/generate-architecture-{timestamp}`
-   - Jules receives `startingBranch: feat/generate-architecture-{timestamp}`
+   - `create_feature_branch()` already checked out `dev/int-{timestamp}`
+   - `_prepare_git_context()` gets current branch = `dev/int-{timestamp}`
+   - Jules receives `startingBranch: dev/int-{timestamp}`
    - Jules creates its own branch from this starting point
-   - **Jules creates PR to startingBranch itself** = `feat/generate-architecture-{timestamp}` ✅
+   - **Jules creates PR to startingBranch itself** = `dev/int-{timestamp}` ✅
    
    **Important**: Jules's PR behavior:
    - `automationMode: AUTO_CREATE_PR` creates PR to **startingBranch itself**
    - NOT to the parent/base of startingBranch
-   - In this case: PR target = `feat/generate-architecture-{timestamp}`
+   - In this case: PR target = `dev/int-{timestamp}`
    - After merge: architecture files are in the feature branch ✅
 
 **Output State**:
 ```python
 {
     "project_session_id": "sessions/xxx",  # Jules session ID
-    "integration_branch": "dev/architect-cycle-00-{timestamp}/integration",
-    "active_branch": "feat/generate-architecture-{timestamp}",  # Our feature branch
+    "integration_branch": "dev/int-{timestamp}",
+    "active_branch": "dev/int-{timestamp}",  # Our feature branch
     "pr_url": "https://github.com/.../pull/123"  # Jules's PR to feature branch
 }
 ```
 
 **Branch State**:
 ```
-feat/generate-architecture-{timestamp} (our feature branch)
+dev/int-{timestamp} (our feature branch)
   ↑ (PR #123: jules/generate-architectural-documents-{session_id} → feature branch)
   ← Currently checked out
   
@@ -199,8 +199,8 @@ jules/generate-architectural-documents-{session_id} (Jules's branch, will be del
 mgr = StateManager()
 manifest = mgr.create_manifest(
     project_session_id=session_id,
-    feature_branch="feat/generate-architecture-{timestamp}",
-    integration_branch="dev/architect-cycle-00-{timestamp}/integration"
+    feature_branch="dev/int-{timestamp}",
+    integration_branch="dev/int-{timestamp}"
 )
 
 # Add cycles
@@ -219,7 +219,7 @@ mgr.save_manifest(manifest)
 # Create integration branch from main
 await git.create_integration_branch(
     session_id,
-    branch_name="dev/architect-cycle-00-{timestamp}/integration"
+    branch_name="dev/int-{timestamp}"
 )
 ```
 
@@ -263,13 +263,13 @@ await git._run_git(["push", "origin", integration_branch])
 ```
 main
   ↑ (PR #123 - Jules's architecture PR)
-feat/generate-architecture-20260111-1044 (feature branch, will be used for run-cycle)
+dev/int-20260111-1044 (feature branch, will be used for run-cycle)
 
-dev/architect-cycle-00-20260111-1044/integration (created, currently unused)
+dev/int-20260111-1044 (created, currently unused)
 ```
 
 **Important**: 
-- `run-cycle` uses `feat/generate-architecture-*` as the base
+- `run-cycle` uses `dev/int-*` as the base
 - Integration branch is created but not actively used
 - All cycle PRs target the feature branch
 
@@ -305,7 +305,7 @@ manifest = mgr.load_manifest()
 
 # 2. Checkout feature branch (CRITICAL!)
 await git.checkout_branch(manifest.feature_branch)
-# Now on: feat/generate-architecture-20260111-1044
+# Now on: dev/int-20260111-1044
 
 # 3. Build LangGraph
 graph = builder.build_coder_graph()
@@ -359,17 +359,17 @@ result = await jules.run_session(
 ```
 
 ##### 2.3 Jules creates branch and PR
-- **Current branch**: `feat/generate-architecture-20260111-1044` (checked out by workflow.py in step 1)
+- **Current branch**: `dev/int-20260111-1044` (checked out by workflow.py in step 1)
 - **Jules's branch**: `jules/cycle-01-impl-{session_id}` (Jules creates this from current branch)
-- **PR**: `jules/cycle-01-impl-{session_id}` → **`feat/generate-architecture-20260111-1044`** ✅
+- **PR**: `jules/cycle-01-impl-{session_id}` → **`dev/int-20260111-1044`** ✅
 - **Files**: Source code, tests, test logs
 
 **How it works**:
 - workflow.py checks out **feature branch** (Line 245: `await git.checkout_branch(manifest.feature_branch)`)
-- `_prepare_git_context()` gets current branch = `feat/generate-architecture-20260111-1044`
-- Jules receives `startingBranch: feat/generate-architecture-20260111-1044`
+- `_prepare_git_context()` gets current branch = `dev/int-20260111-1044`
+- Jules receives `startingBranch: dev/int-20260111-1044`
 - Jules creates its own implementation branch from this starting point
-- **Jules creates PR to startingBranch itself** = `feat/generate-architecture-20260111-1044` ✅
+- **Jules creates PR to startingBranch itself** = `dev/int-20260111-1044` ✅
 
 **Important**: Jules's PR behavior:
 - `automationMode: AUTO_CREATE_PR` creates PR to **startingBranch itself**
@@ -578,10 +578,10 @@ await git.checkout_branch(manifest.feature_branch)
 main
   ↑ (PR #123: Jules's architecture PR, may or may not be merged yet)
   
-feat/generate-architecture-20260111-1044 (feature branch)
+dev/int-20260111-1044 (feature branch)
   ↑ (PR #124: feat/cycle-01-implementation-{session_id} → feature branch)
   ↓ (after merge)
-feat/generate-architecture-20260111-1044 (updated with cycle 01 code)
+dev/int-20260111-1044 (updated with cycle 01 code)
 
 feat/cycle-01-implementation-{session_id} (Jules's branch, deleted after merge)
 ```
@@ -602,7 +602,7 @@ feat/cycle-01-implementation-{session_id} (Jules's branch, deleted after merge)
 main (production)
   ↑ (Final PR from feature branch - manual)
   
-feat/generate-architecture-{timestamp} (our feature branch)
+dev/int-{timestamp} (our feature branch)
   ↑ (PR from Jules's architecture branch)
   ↑ (PRs from Jules's cycle implementation branches)
   → Accumulates architecture + all cycles
@@ -616,7 +616,7 @@ jules/cycle-XX-impl-{session_id} (Jules's cycle branches)
   → Creates PR to feature branch
   → Deleted after merge
   
-dev/architect-cycle-00-{timestamp}/integration (integration branch)
+dev/int-{timestamp} (integration branch)
   → Created but currently unused
   → Reserved for future use
 ```
@@ -626,10 +626,10 @@ dev/architect-cycle-00-{timestamp}/integration (integration branch)
 | Branch | Purpose | Created By | Merged To | Lifetime |
 |--------|---------|------------|-----------|----------|
 | `main` | Production code | Manual | - | Permanent |
-| `feat/generate-architecture-*` | **Feature branch** (accumulates all cycles) | GitManager (gen-cycles) | `main` (manual) | Until final merge |
+| `dev/int-*` | **Feature branch** (accumulates all cycles) | GitManager (gen-cycles) | `main` (manual) | Until final merge |
 | `jules/generate-architectural-documents-*` | Jules's architecture branch | Jules (gen-cycles) | **feature branch** | Temporary (deleted after merge) |
 | `jules/cycle-XX-impl-*` | Jules's cycle implementation | Jules (run-cycle) | **feature branch** | Temporary (deleted after merge) |
-| `dev/architect-cycle-00-*/integration` | Integration branch (future use) | WorkflowService | - | Permanent (unused) |
+| `dev/int-*` | Integration branch (future use) | WorkflowService | - | Permanent (unused) |
 
 ### Key Points
 
@@ -650,8 +650,8 @@ dev/architect-cycle-00-{timestamp}/integration (integration branch)
 ```json
 {
   "project_session_id": "sessions/xxx",
-  "feature_branch": "feat/generate-architecture-20260111-1044",
-  "integration_branch": "dev/architect-cycle-00-20260111-1044/integration",
+  "feature_branch": "dev/int-20260111-1044",
+  "integration_branch": "dev/int-20260111-1044",
   "cycles": [
     {
       "id": "01",
@@ -684,7 +684,7 @@ dev/architect-cycle-00-{timestamp}/integration (integration branch)
 
 ```bash
 # Skip gen-cycles, use existing architecture
-ac-cdd resume-session feat/generate-architecture-20260111-1044 --cycles 8
+ac-cdd resume-session dev/int-20260111-1044 --cycles 8
 ```
 
 **Actions**:

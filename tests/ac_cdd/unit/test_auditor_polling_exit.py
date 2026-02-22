@@ -14,9 +14,7 @@ class TestAuditorPollingExit:
         # Setup mocks
         sandbox = MagicMock()
         jules = MagicMock()
-        jules.get_session_state = AsyncMock(
-            side_effect=["RUNNING", "COMPLETED"]
-        )  # Simulate transition
+        jules.get_session_state = AsyncMock(return_value="COMPLETED")
 
         nodes = CycleNodes(sandbox, jules)
         nodes.git = AsyncMock()
@@ -46,12 +44,10 @@ class TestAuditorPollingExit:
         result = await nodes.auditor_node(state)
 
         # Assertions
-        # 1. It should have called pull_changes at least once
-        assert nodes.git.pull_changes.called
-        # 2. It should have called get_session_state
+        # It should have called get_session_state
         assert jules.get_session_state.called
-        # 3. It should return a valid result (not waiting_for_jules)
-        # Because it broke the loop and proceeded to audit
+        # Because Jules is "COMPLETED", it does NOT return waiting_for_jules,
+        # it proceeds with auditing the same commit.
         assert result["status"] == "approved"
-        # 4. last_audited_commit should be updated (or remain same "abc")
+        # last_audited_commit should remain same "abc"
         assert result["last_audited_commit"] == "abc"

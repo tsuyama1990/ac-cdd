@@ -1,6 +1,7 @@
 from unittest.mock import AsyncMock
 
 import pytest
+from ac_cdd_core.services.jules.git_context import JulesGitContext
 from ac_cdd_core.services.jules_client import JulesClient
 
 
@@ -22,8 +23,9 @@ class TestJulesClientGitContext:
         # Setup mocked environment
 
         # Let's run it.
-        owner, repo, branch = await client._prepare_git_context()
+        context = JulesGitContext(client.git)
+        owner, repo, branch = await context.prepare_git_context()
 
         # In test environment, get_remote_url might raise or return something specific.
         # If we mock it correctly:
-        assert branch == "main"
+        assert branch.startswith("jules-sync-")

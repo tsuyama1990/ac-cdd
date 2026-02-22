@@ -190,41 +190,23 @@ class Settings(BaseSettings):
         fast = os.getenv("FAST_MODEL")
 
         for key in ["JULES_API_KEY", "OPENROUTER_API_KEY", "E2B_API_KEY"]:
-            if (key not in data or data[key] is None) and (val := os.getenv(key)):
-                data[key] = val
+            if not data.get(key) and os.getenv(key):
+                data[key] = os.getenv(key)
 
         if smart or fast:
-            cls._update_agents_config(data, smart, fast)
-            cls._update_reviewer_config(data, smart, fast)
+            data.setdefault("agents", {})
+            if isinstance(data["agents"], dict) and smart:
+                data["agents"].setdefault("auditor_model", smart)
+                data["agents"].setdefault("qa_analyst_model", smart)
+
+            data.setdefault("reviewer", {})
+            if isinstance(data["reviewer"], dict):
+                if smart:
+                    data["reviewer"].setdefault("smart_model", smart)
+                if fast:
+                    data["reviewer"].setdefault("fast_model", fast)
 
         return data
-
-    @classmethod
-    def _update_agents_config(
-        cls, data: dict[str, Any], smart: str | None, _fast: str | None
-    ) -> None:
-        agents = data.get("agents", {})
-        if not isinstance(agents, dict):
-            agents = {}
-        # Use SMART_MODEL for both auditor and QA analyst (critical tasks)
-        if smart and "auditor_model" not in agents:
-            agents["auditor_model"] = smart
-        if smart and "qa_analyst_model" not in agents:
-            agents["qa_analyst_model"] = smart
-        data["agents"] = agents
-
-    @classmethod
-    def _update_reviewer_config(
-        cls, data: dict[str, Any], smart: str | None, fast: str | None
-    ) -> None:
-        reviewer = data.get("reviewer", {})
-        if not isinstance(reviewer, dict):
-            reviewer = {}
-        if smart and "smart_model" not in reviewer:
-            reviewer["smart_model"] = smart
-        if fast and "fast_model" not in reviewer:
-            reviewer["fast_model"] = fast
-        data["reviewer"] = reviewer
 
     @property
     def current_session_id(self) -> str:
@@ -244,22 +226,11 @@ class Settings(BaseSettings):
         if user_path.exists():
             return user_path
 
-        system_path = self.paths.templates / name
-        if system_path.exists():
-            return system_path
-
-        local_dev_path = (
-            Path(__file__).parent.parent.parent / "dev_documents" / "system_prompts" / name
-        )
-        if local_dev_path.exists():
-            return local_dev_path
-
-        # 4. Package templates (fallback for installed package)
         package_template_path = Path(__file__).parent / "templates" / name
         if package_template_path.exists():
             return package_template_path
 
-        return system_path
+        return user_path
 
     def get_prompt_content(self, filename: str, default: str = "") -> str:
         """Reads prompt content."""

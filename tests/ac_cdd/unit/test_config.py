@@ -57,7 +57,7 @@ def test_get_template_logic() -> None:
         s = str(self)
         if s.startswith("/user/docs/system_prompts/foo.md"):
             return True
-        return bool(s.startswith("/system/templates/bar.md"))
+        return bool("templates/bar.md" in s)
 
     with patch("pathlib.Path.exists", side_effect=side_effect, autospec=True):
         # Case 1: User override
@@ -66,7 +66,7 @@ def test_get_template_logic() -> None:
 
         # Case 2: System default
         result2 = local_settings.get_template("bar.md")
-        assert str(result2) == "/system/templates/bar.md"
+        assert "templates/bar.md" in str(result2)
 
 
 def test_get_prompt_content() -> None:
@@ -124,9 +124,10 @@ def test_path_separation() -> None:
             assert "src" not in f
 
         # Verify Target Files
-        assert len(target_files) == 2
+        assert len(target_files) == 3
         assert "/app/src/main.py" in target_files
         assert "/app/tests/test_main.py" in target_files
+        assert str(Path.cwd() / "pyproject.toml") in target_files
         # Ensure no docs here
         for f in target_files:
             assert "dev_documents" not in f

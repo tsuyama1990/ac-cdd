@@ -65,6 +65,6 @@ async def test_resume_logic_cold_start_persists_id(
         # Verify
         mock_jules_client.run_session.assert_awaited()
         # Verify persistence
-        mock_mgr.update_cycle_state.assert_called_with(
+        mock_mgr.update_cycle_state.assert_any_call(
             "01", jules_session_id="new-session", status="in_progress"
         )

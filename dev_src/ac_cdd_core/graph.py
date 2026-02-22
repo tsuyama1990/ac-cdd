@@ -60,6 +60,7 @@ class GraphBuilder:
                 "ready_for_audit": "auditor",
                 "failed": END,
                 "completed": "uat_evaluate",
+                "coder_retry": "coder_session",
             },
         )
 

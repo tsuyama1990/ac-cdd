@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from ac_cdd_core.graph_nodes import CycleNodes
@@ -36,35 +36,22 @@ class TestAuditPolling:
         }
 
         # Scenario:
-        # 1. First check: returns "commit_A" (same as last audited) -> triggers polling
-        # 2. Polling loop iteration 1: returns "commit_B" (new commit) -> exits loop
-        nodes.git.get_current_commit.side_effect = [
-            "commit_A",  # Initial check (already audited)
-            "commit_B",  # After poll 1
-        ]
+        # If current_commit == last_audited and Jules is running,
+        # it should return 'waiting_for_jules' to let LangGraph loop.
+        nodes.git.get_current_commit.return_value = "commit_A"
+        mock_jules.get_session_state = AsyncMock(return_value="RUNNING")
 
-        # Patch asyncio.sleep to run instantly
-        with patch("asyncio.sleep", new_callable=AsyncMock):
-            # We also need to mock _read_files and llm_reviewer since run_audit continues after polling
-            nodes._read_files = AsyncMock(return_value={"file.py": "content"})
-            nodes._run_static_analysis = AsyncMock(return_value=(True, ""))
-            nodes.llm_reviewer = AsyncMock()
-            nodes.llm_reviewer.review_code = AsyncMock(return_value="-> APPROVE")
+        state = {
+            "pr_url": "https://github.com/org/repo/pull/123",
+            "last_audited_commit": "commit_A",
+            "feature_branch": "feature/branch",
+            "jules_session_name": "sessions/123",
+        }
 
-            # Run the node
-            result = await nodes.auditor_node(state)
+        # Run the node
+        result = await nodes.auditor_node(state)
 
-            # Assertions
-
-            # 1. Verify checkout_pr was called
-            nodes.git.checkout_pr.assert_called_with("https://github.com/org/repo/pull/123")
-
-            # 2. Verify get_current_commit was called twice
-            assert nodes.git.get_current_commit.call_count == 2
-
-            # 3. CRITICAL: Verify pull_changes was called inside the polling loop
-            # This is what we are fixing!
-            assert nodes.git.pull_changes.call_count >= 1
-
-            # 4. Verify we proceeded with the new commit
-            assert result["last_audited_commit"] == "commit_B"
+        # Assertions
+        assert result["status"] == "waiting_for_jules"
+        assert result["last_audited_commit"] == "commit_A"
+        mock_jules.get_session_state.assert_called_with("sessions/123")

@@ -13,7 +13,9 @@ async def test_monitor_session_batching() -> None:
     mock_client = MagicMock()
     mock_client._get_headers.return_value = {}
     mock_client._sleep = AsyncMock()
-    mock_client._check_for_inquiry = AsyncMock(return_value=None)
+    mock_client.inquiry_handler = MagicMock()
+    mock_client.inquiry_handler.handle_plan_approval = AsyncMock()
+    mock_client.inquiry_handler.check_for_inquiry = AsyncMock(return_value=None)
     mock_client._handle_manual_input = AsyncMock()
 
     loop = asyncio.get_running_loop()
@@ -42,7 +44,7 @@ async def test_monitor_session_batching() -> None:
         # Verify
         assert mock_instance.get.call_count == 24
         assert mock_client._sleep.call_count == 12
-        assert new_state.status == SessionStatus.MONITORING
+        assert "status" not in new_state
 
 
 @pytest.mark.asyncio
@@ -52,7 +54,9 @@ async def test_monitor_session_returns_early_on_change() -> None:
     mock_client = MagicMock()
     mock_client._get_headers.return_value = {}
     mock_client._sleep = AsyncMock()
-    mock_client._check_for_inquiry = AsyncMock(return_value=None)
+    mock_client.inquiry_handler = MagicMock()
+    mock_client.inquiry_handler.handle_plan_approval = AsyncMock()
+    mock_client.inquiry_handler.check_for_inquiry = AsyncMock(return_value=None)
     mock_client._handle_manual_input = AsyncMock()
 
     loop = asyncio.get_running_loop()
@@ -82,7 +86,7 @@ async def test_monitor_session_returns_early_on_change() -> None:
         # Verify
         assert mock_instance.get.call_count == 3
         assert mock_client._sleep.call_count == 1
-        assert new_state.status == SessionStatus.VALIDATING_COMPLETION
+        assert new_state["status"] == SessionStatus.VALIDATING_COMPLETION
 
 
 @pytest.mark.asyncio
@@ -117,7 +121,7 @@ async def test_validate_completion_stale_detection() -> None:
         new_state = await nodes.validate_completion(state)
 
         # Verify
-        assert new_state.status == SessionStatus.MONITORING
+        assert "status" not in new_state
 
 
 @pytest.mark.asyncio
@@ -149,7 +153,7 @@ async def test_validate_completion_stale_but_new_transition() -> None:
         new_state = await nodes.validate_completion(state)
 
         # Verify
-        assert new_state.status == SessionStatus.CHECKING_PR
+        assert new_state["status"] == SessionStatus.CHECKING_PR
 
 
 @pytest.mark.asyncio
@@ -159,7 +163,9 @@ async def test_monitor_session_avoids_validation_loop() -> None:
     mock_client = MagicMock()
     mock_client._get_headers.return_value = {}
     mock_client._sleep = AsyncMock()
-    mock_client._check_for_inquiry = AsyncMock(return_value=None)
+    mock_client.inquiry_handler = MagicMock()
+    mock_client.inquiry_handler.handle_plan_approval = AsyncMock()
+    mock_client.inquiry_handler.check_for_inquiry = AsyncMock(return_value=None)
     mock_client._handle_manual_input = AsyncMock()
 
     loop = asyncio.get_running_loop()
@@ -189,7 +195,7 @@ async def test_monitor_session_avoids_validation_loop() -> None:
 
         # Verify
         # Should not change status to VALIDATING_COMPLETION
-        # Should remain MONITORING (or whatever it was, default MONITORING)
-        assert new_state.status == SessionStatus.MONITORING
+        # Should remain MONITORING (diff will not contain 'status')
+        assert "status" not in new_state
         # Should have looped 12 times (batching) because it didn't exit early, 2 calls per loop
         assert mock_instance.get.call_count == 24

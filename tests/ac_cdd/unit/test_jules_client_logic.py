@@ -23,6 +23,22 @@ class TestJulesClientLogic(unittest.IsolatedAsyncioTestCase):
             self.client.credentials = MagicMock()
             self.client._get_headers = MagicMock(return_value={})
             self.client.credentials.token = "mock_token"  # noqa: S105
+            self.client._sleep = AsyncMock()
+
+            # FIX: Add context_builder
+            self.client.context_builder = MagicMock()
+            self.client.context_builder.build_question_context = AsyncMock(
+                return_value="mock context"
+            )
+
+            # FIX: Add inquiry handler back since __init__ is skipped
+            from ac_cdd_core.services.jules.inquiry_handler import JulesInquiryHandler
+
+            self.client.inquiry_handler = JulesInquiryHandler(
+                manager_agent=self.client.manager_agent,
+                context_builder=MagicMock(),
+                client_ref=self.client,
+            )
 
             # FIX: Add api_client mock which is now used by wait_for_completion
             self.client.api_client = MagicMock()
@@ -82,13 +98,20 @@ class TestJulesClientLogic(unittest.IsolatedAsyncioTestCase):
         # 4. get(activities) (Check Inquiry) -> Empty (No new questions)
         #    -> Falls through to Success Check -> Returns PR
 
-        mock_client.get.side_effect = [
+        state_responses = [
             r_session_completed,
-            r_acts_question,
-            # r_acts_empty skipped because we return on inquiry
+            r_session_completed,
             r_session_success,
-            r_acts_empty,
+            r_session_success,
         ]
+        activity_responses = [r_acts_empty, r_acts_question, r_acts_empty, r_acts_empty]
+
+        async def dynamic_get(url: str, **kwargs: Any) -> MagicMock:
+            if url.endswith("/activities") or "pageSize" in url:
+                return activity_responses.pop(0) if activity_responses else r_acts_empty
+            return state_responses.pop(0) if state_responses else r_session_success
+
+        mock_client.get.side_effect = dynamic_get
 
         result = await self.client.wait_for_completion(session_id)
 
@@ -155,13 +178,22 @@ class TestJulesClientLogic(unittest.IsolatedAsyncioTestCase):
         # 4. get(activities) (Check Inquiry) -> Empty
         #    -> Success Check -> Returns PR
 
-        mock_client.get.side_effect = [
-            r_session_completed,
-            r_acts_old,
-            r_acts_logging,  # For log_activities_count
-            r_session_success,
-            r_acts_empty,
-        ]
+        call_counts = {"state": 0, "activities": 0}
+
+        async def dynamic_get(url: str, **kwargs: Any) -> MagicMock:
+            if url.endswith("/activities"):
+                call_counts["activities"] += 1
+                if call_counts["activities"] == 1:
+                    return r_acts_old
+                if call_counts["activities"] == 2:
+                    return r_acts_logging
+                return r_acts_empty
+            call_counts["state"] += 1
+            if call_counts["state"] in (1, 2):
+                return r_session_completed
+            return r_session_success
+
+        mock_client.get.side_effect = dynamic_get
 
         await self.client.wait_for_completion(session_id)
 

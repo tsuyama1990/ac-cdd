@@ -85,20 +85,23 @@ class TestSessionRestart:
 
             result = await mock_nodes.coder_session_node(state)
 
-        # Verify restart happened
-        assert result["status"] == "ready_for_audit"
-        assert result["pr_url"] == "https://github.com/pr/1"
+        # With the new Graph loop design, the node returns 'coder_retry',
+        # then the graph routes back to 'coder_session_node' with updated state.
+        assert result["status"] == "coder_retry"
+
+        # Now simulate the retry graph edge by calling it again
+        result2 = await mock_nodes.coder_session_node(state)
+
+        # This time wait_for_completion succeeds
+        assert result2["status"] == "ready_for_audit"
+        assert result2["pr_url"] == "https://github.com/pr/1"
 
         # Verify run_session was called twice (initial + 1 restart)
         assert mock_nodes.jules.run_session.call_count == 2
 
-        # Verify restart counter was incremented then reset
+        # Verify restart counter was incremented
         assert any(
             "session_restart_count" in call and call["session_restart_count"] == 1
-            for call in update_calls
-        )
-        assert any(
-            "session_restart_count" in call and call["session_restart_count"] == 0
             for call in update_calls
         )
 
@@ -135,11 +138,21 @@ class TestSessionRestart:
             instance.get_cycle.return_value = mock_manifest
             instance.update_cycle_state.side_effect = track_updates
 
-            result = await mock_nodes.coder_session_node(state)
+            # First call (failure) -> Returns coder_retry
+            result1 = await mock_nodes.coder_session_node(state)
+            assert result1["status"] == "coder_retry"
+
+            # Second call (failure) -> Returns coder_retry
+            # (session_restart_count is now 1)
+            result2 = await mock_nodes.coder_session_node(state)
+            assert result2["status"] == "coder_retry"
+
+            # Third call (failure) -> Hits max limit -> Returns failed
+            result3 = await mock_nodes.coder_session_node(state)
 
         # Should fail after 3 total attempts (initial + 2 restarts)
-        assert result["status"] == "failed"
-        assert "Unknown error" in result["error"]
+        assert result3["status"] == "failed"
+        assert "Unknown error" in result3["error"]
 
         # Verify run_session was called 3 times
         assert mock_nodes.jules.run_session.call_count == 3

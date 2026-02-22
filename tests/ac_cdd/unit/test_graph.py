@@ -98,7 +98,18 @@ async def test_coder_graph_execution(services: ServiceContainer, mock_jules: Mag
     with (
         patch("ac_cdd_core.graph_nodes.AuditOrchestrator") as mock_audit_cls,
         patch("ac_cdd_core.graph_nodes.LLMReviewer") as mock_reviewer_cls,
+        patch("ac_cdd_core.graph_nodes.GitManager") as mock_git_cls,
+        patch("ac_cdd_core.graph_nodes.StateManager") as mock_sm_cls,
     ):
+        mock_git = mock_git_cls.return_value
+        mock_git.get_remote_url = AsyncMock(return_value="https://github.com/repo")
+
+        mock_sm = mock_sm_cls.return_value
+        mock_manifest = MagicMock()
+        mock_manifest.branch_name = "feature-abc"
+        mock_manifest.jules_session_id = None
+        mock_sm.get_cycle.return_value = mock_manifest
+
         # Mock Auditor (for older flow if used)
         mock_audit_instance = mock_audit_cls.return_value
         mock_audit_instance.run_audit = AsyncMock(return_value=MagicMock(status="approved"))
