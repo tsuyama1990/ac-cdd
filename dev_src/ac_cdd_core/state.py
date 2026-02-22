@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from .config import settings
 from .domain_models import AuditResult, CyclePlan, FileOperation, UatAnalysis
+from .enums import FlowStatus, WorkPhase
 
 
 class CycleState(BaseModel):
@@ -43,10 +44,10 @@ class CycleState(BaseModel):
     uat_analysis: UatAnalysis | None = None
 
     # Phase Tracking
-    current_phase: str = "init"
+    current_phase: WorkPhase = WorkPhase.INIT
     error: str | None = None
     # Add status explicitely to allow safe access
-    status: str | None = None
+    status: FlowStatus | None = None
     last_audited_commit: str | None = None
 
     # Legacy/Optional Fields

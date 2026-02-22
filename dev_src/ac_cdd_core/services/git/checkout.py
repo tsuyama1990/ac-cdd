@@ -106,8 +106,18 @@ class GitCheckoutMixin(BaseGitManager):
     async def pull_changes(self) -> None:
         """Pulls changes from the remote repository using rebase."""
         logger.info("Pulling latest changes (rebase)...")
-        await self._run_git(["pull", "--rebase"])
-        logger.info("Changes pulled successfully.")
+        try:
+            await self._run_git(["pull", "--rebase"])
+            logger.info("Changes pulled successfully.")
+        except Exception as e:
+            logger.warning(f"pull --rebase failed ({e}). Aborting rebase to restore clean state.")
+            # Abort the rebase so the repo doesn't get stuck in a mid-rebase state
+            try:
+                await self._run_git(["rebase", "--abort"])
+                logger.info("Rebase aborted successfully.")
+            except Exception as abort_err:
+                logger.warning(f"Could not abort rebase: {abort_err}")
+            raise
 
     async def push_branch(self, branch: str) -> None:
         """Pushes the specified branch to origin."""

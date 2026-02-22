@@ -1,150 +1,144 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from ac_cdd_core.graph_nodes import CycleNodes
-from ac_cdd_core.sandbox import SandboxRunner
-from ac_cdd_core.services.jules_client import JulesClient
+from ac_cdd_core.domain_models import AuditResult
+from ac_cdd_core.enums import FlowStatus
+from ac_cdd_core.services.coder_usecase import CoderUseCase
+from ac_cdd_core.state import CycleState
 
 
 class TestSessionReuse:
     """Validate session reuse and fallback logic."""
 
     @pytest.fixture
-    def mock_nodes(self):  # type: ignore[no-untyped-def]
-        sandbox = MagicMock(spec=SandboxRunner)
-        jules = MagicMock(spec=JulesClient)
+    def mock_jules(self) -> MagicMock:
+        jules = MagicMock()
         jules.run_session = AsyncMock()
         jules.wait_for_completion = AsyncMock()
-
-        with (
-            patch("ac_cdd_core.graph_nodes.GitManager"),
-            patch("ac_cdd_core.graph_nodes.settings") as mock_settings,
-        ):
-            # Mock settings file access
-            mock_settings.get_template.return_value.read_text.return_value = "Instruction"
-            mock_settings.get_target_files.return_value = []
-            mock_settings.get_context_files.return_value = []
-
-            nodes = CycleNodes(sandbox, jules)
-            nodes.git = AsyncMock()
-            # Mock _send_audit_feedback_to_session to track calls
-            nodes._send_audit_feedback_to_session = AsyncMock(
-                return_value={"status": "ready_for_audit"}
-            )
-            yield nodes
+        jules.get_session_state = AsyncMock()
+        jules._send_message = AsyncMock()
+        jules._get_session_url = MagicMock(return_value="https://jules/session/url")
+        return jules
 
     @pytest.mark.asyncio
-    async def test_reuse_completed_session_for_auditor_reject(self, mock_nodes) -> None:  # type: ignore[no-untyped-def]
+    async def test_reuse_completed_session_for_auditor_reject(self, mock_jules: MagicMock) -> None:
         """Should REUSE COMPLETED session for Auditor Reject (send feedback to same session)."""
-        # Setup state with audit rejection
-        state = {
-            "status": "retry_fix",
-            "audit_result": MagicMock(feedback="Fix this issue"),
-            "cycle_id": "01",
-            "current_phase": "refactoring",
-        }
+        mock_jules.get_session_state.return_value = "COMPLETED"
+        mock_jules.wait_for_completion.return_value = {"status": "success", "pr_url": "http://pr"}
 
-        # Mock JulesClient.get_session_state to return COMPLETED
-        mock_nodes.jules.get_session_state = AsyncMock(return_value="COMPLETED")
-
-        # Mock StateManager to return a cycle with a session ID
         mock_manifest = MagicMock()
         mock_manifest.jules_session_id = "sessions/123"
+        mock_manifest.pr_url = None
 
-        with patch("ac_cdd_core.graph_nodes.StateManager") as MockManager:
+        audit = AuditResult(
+            status="REJECTED", is_approved=False, reason="Needs work", feedback="Fix this issue"
+        )
+        state = CycleState(
+            cycle_id="01",
+            status=FlowStatus.RETRY_FIX,
+            audit_result=audit,
+        )
+
+        usecase = CoderUseCase(mock_jules)
+
+        with patch("ac_cdd_core.services.coder_usecase.StateManager") as MockManager:
             instance = MockManager.return_value
             instance.get_cycle.return_value = mock_manifest
 
-            result = await mock_nodes.coder_session_node(state)
+            with patch("ac_cdd_core.services.coder_usecase.settings") as mock_settings:
+                mock_settings.get_template.return_value.read_text.return_value = "Instruction"
+                mock_settings.get_target_files.return_value = []
+                mock_settings.get_context_files.return_value = []
+                result = await usecase.execute(state)
 
-        # Verification
-        # 1. Should have checked session state
-        mock_nodes.jules.get_session_state.assert_called_with("sessions/123")
-
-        # 2. Should REUSE the COMPLETED session (send feedback to it)
-        mock_nodes._send_audit_feedback_to_session.assert_called_once_with(
-            "sessions/123", "Fix this issue"
-        )
-
-        # 3. Should NOT create a new session
-        mock_nodes.jules.run_session.assert_not_called()
-
-        # 4. Should return success
-        assert result["status"] == "ready_for_audit"
+        mock_jules.get_session_state.assert_called_with("sessions/123")
+        mock_jules._send_message.assert_called_once()  # Feedback was sent to existing session
+        mock_jules.run_session.assert_not_called()
+        assert result["status"] == FlowStatus.READY_FOR_AUDIT
 
     @pytest.mark.asyncio
-    async def test_create_new_session_if_failed(self, mock_nodes) -> None:  # type: ignore[no-untyped-def]
+    async def test_create_new_session_if_failed(self, mock_jules: MagicMock) -> None:
         """Should create NEW session if previous session FAILED."""
-        # Setup state with audit rejection
-        state = {
-            "status": "retry_fix",
-            "audit_result": MagicMock(feedback="Fix this issue"),
-            "cycle_id": "01",
-            "current_phase": "refactoring",
+        mock_jules.get_session_state.return_value = "FAILED"
+        mock_jules.run_session.return_value = {
+            "session_name": "sessions/new_456",
+            "status": "success",
+            "pr_url": "http://pr-new",
         }
 
-        # Mock JulesClient.get_session_state to return FAILED
-        mock_nodes.jules.get_session_state = AsyncMock(return_value="FAILED")
-
-        # Mock StateManager
         mock_manifest = MagicMock()
         mock_manifest.jules_session_id = "sessions/123"
         mock_manifest.pr_url = "https://pr"
 
-        # Mock run_session to create new session
-        mock_nodes.jules.run_session.return_value = {
-            "session_name": "sessions/new_456",
-            "status": "running",
-        }
-        mock_nodes.jules.wait_for_completion.return_value = {"status": "success"}
+        audit = AuditResult(
+            status="REJECTED", is_approved=False, reason="Needs work", feedback="Fix this issue"
+        )
+        state = CycleState(
+            cycle_id="01",
+            status=FlowStatus.RETRY_FIX,
+            audit_result=audit,
+        )
 
-        with patch("ac_cdd_core.graph_nodes.StateManager") as MockManager:
+        usecase = CoderUseCase(mock_jules)
+
+        with patch("ac_cdd_core.services.coder_usecase.StateManager") as MockManager:
             instance = MockManager.return_value
             instance.get_cycle.return_value = mock_manifest
 
-            await mock_nodes.coder_session_node(state)
+            with patch("ac_cdd_core.services.coder_usecase.settings") as mock_settings:
 
-        # Verification
-        # 1. Should have checked session state
-        mock_nodes.jules.get_session_state.assert_called_with("sessions/123")
+                def mock_get_template(name: str) -> MagicMock:
+                    m = MagicMock()
+                    if name == "AUDIT_FEEDBACK_INJECTION.md":
+                        m.read_text.return_value = "# PREVIOUS AUDIT FEEDBACK (MUST FIX)\n\n{{feedback}}\n\n{{#pr_url}}\nPrevious PR: {{pr_url}}\n{{/pr_url}}"
+                    else:
+                        m.read_text.return_value = "Instruction"
+                    return m
 
-        # 2. Should NOT try to reuse FAILED session
-        mock_nodes._send_audit_feedback_to_session.assert_not_called()
+                mock_settings.get_template.side_effect = mock_get_template
+                mock_settings.get_target_files.return_value = []
+                mock_settings.get_context_files.return_value = []
+                await usecase.execute(state)
 
-        # 3. Should create a new session
-        mock_nodes.jules.run_session.assert_called()
+        mock_jules.get_session_state.assert_called_with("sessions/123")
+        mock_jules._send_message.assert_not_called()  # Should NOT reuse FAILED session
+        mock_jules.run_session.assert_called()
 
-        # 4. Feedback should be injected into new session prompt
-        call_args = mock_nodes.jules.run_session.call_args
-        prompt = call_args.kwargs["prompt"]
+        prompt = mock_jules.run_session.call_args.kwargs["prompt"]
         assert "Fix this issue" in prompt
         assert "PREVIOUS AUDIT FEEDBACK" in prompt
 
     @pytest.mark.asyncio
-    async def test_reuse_in_progress_session(self, mock_nodes) -> None:  # type: ignore[no-untyped-def]
+    async def test_reuse_in_progress_session(self, mock_jules: MagicMock) -> None:
         """Should REUSE IN_PROGRESS session (original behavior)."""
-        state = {
-            "status": "retry_fix",
-            "audit_result": MagicMock(feedback="Fix this"),
-            "cycle_id": "01",
-            "current_phase": "refactoring",
-        }
-
-        # Mock JulesClient.get_session_state to return IN_PROGRESS
-        mock_nodes.jules.get_session_state = AsyncMock(return_value="IN_PROGRESS")
+        mock_jules.get_session_state.return_value = "IN_PROGRESS"
+        mock_jules.wait_for_completion.return_value = {"status": "success", "pr_url": "http://pr"}
 
         mock_manifest = MagicMock()
         mock_manifest.jules_session_id = "sessions/123"
+        mock_manifest.pr_url = None
 
-        with patch("ac_cdd_core.graph_nodes.StateManager") as MockManager:
+        audit = AuditResult(
+            status="REJECTED", is_approved=False, reason="Needs work", feedback="Fix this"
+        )
+        state = CycleState(
+            cycle_id="01",
+            status=FlowStatus.RETRY_FIX,
+            audit_result=audit,
+        )
+
+        usecase = CoderUseCase(mock_jules)
+
+        with patch("ac_cdd_core.services.coder_usecase.StateManager") as MockManager:
             instance = MockManager.return_value
             instance.get_cycle.return_value = mock_manifest
 
-            result = await mock_nodes.coder_session_node(state)
+            with patch("ac_cdd_core.services.coder_usecase.settings") as mock_settings:
+                mock_settings.get_template.return_value.read_text.return_value = "Instruction"
+                mock_settings.get_target_files.return_value = []
+                mock_settings.get_context_files.return_value = []
+                result = await usecase.execute(state)
 
-        # Should reuse IN_PROGRESS session
-        mock_nodes._send_audit_feedback_to_session.assert_called_once_with(
-            "sessions/123", "Fix this"
-        )
-        mock_nodes.jules.run_session.assert_not_called()
-        assert result["status"] == "ready_for_audit"
+        mock_jules._send_message.assert_called_once()  # Feedback was sent
+        mock_jules.run_session.assert_not_called()
+        assert result["status"] == FlowStatus.READY_FOR_AUDIT

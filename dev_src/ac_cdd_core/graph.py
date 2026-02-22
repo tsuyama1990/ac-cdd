@@ -4,6 +4,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
+from .enums import FlowStatus
 from .graph_nodes import CycleNodes
 from .interfaces import IGraphNodes
 from .sandbox import SandboxRunner
@@ -57,10 +58,10 @@ class GraphBuilder:
             "coder_session",
             self.nodes.check_coder_outcome,
             {
-                "ready_for_audit": "auditor",
-                "failed": END,
-                "completed": "uat_evaluate",
-                "coder_retry": "coder_session",
+                FlowStatus.READY_FOR_AUDIT.value: "auditor",
+                FlowStatus.FAILED.value: END,
+                FlowStatus.COMPLETED.value: "uat_evaluate",
+                FlowStatus.CODER_RETRY.value: "coder_session",
             },
         )
 

@@ -242,7 +242,7 @@ class JulesClient:
         initial_state = JulesSessionState(
             session_url=session_url,
             session_name=session_name,
-            start_time=asyncio.get_event_loop().time(),
+            start_time=asyncio.get_running_loop().time(),
             timeout_seconds=self.timeout,
             poll_interval=self.poll_interval,
             require_plan_approval=require_plan_approval,
@@ -292,7 +292,7 @@ class JulesClient:
             return {"status": "success", "pr_url": "https://github.com/dummy/pr/1"}
 
         processed_activity_ids: set[str] = set()
-        start_time = asyncio.get_event_loop().time()
+        start_time = asyncio.get_running_loop().time()
 
         self.console.print(
             f"[bold green]Jules is working... (Session: {session_name})[/bold green]"
@@ -309,7 +309,7 @@ class JulesClient:
         max_plan_rejections = 2  # Limit plan approval iterations
         async with httpx.AsyncClient() as client:
             while True:
-                if asyncio.get_event_loop().time() - start_time > self.timeout:
+                if asyncio.get_running_loop().time() - start_time > self.timeout:
                     tmsg = "Timed out waiting for Jules to complete."
                     raise JulesTimeoutError(tmsg)
 
@@ -365,8 +365,17 @@ class JulesClient:
             session_id: Session ID (with or without "sessions/" prefix)
 
         Returns:
-            Session state: "IN_PROGRESS", "COMPLETED", "FAILED",
-                          "AWAITING_USER_FEEDBACK", "SUCCEEDED", or "UNKNOWN"
+            Official Jules API Session state:
+              - QUEUED: Session is queued
+              - PLANNING: Jules is planning
+              - AWAITING_PLAN_APPROVAL: Waiting for plan approval
+              - AWAITING_USER_FEEDBACK: Jules has a question
+              - IN_PROGRESS: Jules is actively working
+              - PAUSED: Session is paused
+              - FAILED: Session failed
+              - COMPLETED: Session completed (may or may not have PR)
+              - STATE_UNSPECIFIED: Unknown state
+              - UNKNOWN: Could not retrieve state (network error etc.)
         """
         session_url = self._get_session_url(session_id)
 
@@ -613,15 +622,7 @@ class JulesClient:
         try:
             self.console.print("[cyan]Sending message to Jules to commit and create PR...[/cyan]")
 
-            message = (
-                "The session has completed successfully, but no Pull Request was created.\n\n"
-                "Please commit all your changes and create a Pull Request now.\n\n"
-                "**Action Required:**\n"
-                "1. Review all the files you've created/modified\n"
-                "2. Commit all changes with a descriptive commit message\n"
-                "3. Create a Pull Request to the main branch\n\n"
-                "Do not wait for further instructions. Proceed immediately."
-            )
+            message = settings.get_template("PR_CREATION_REQUEST.md").read_text()
 
             await self._send_message(session_url, message)
 

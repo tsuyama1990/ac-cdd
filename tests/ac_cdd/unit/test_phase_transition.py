@@ -1,9 +1,11 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from ac_cdd_core.enums import FlowStatus, WorkPhase
 from ac_cdd_core.graph_nodes import CycleNodes
 from ac_cdd_core.sandbox import SandboxRunner
 from ac_cdd_core.services.jules_client import JulesClient
+from ac_cdd_core.state import CycleState
 
 
 class TestPhaseTransition:
@@ -19,22 +21,23 @@ class TestPhaseTransition:
         nodes.git = AsyncMock()  # Mock git manager
 
         # Simulate Coder Phase state with final_fix=True (which causes the bug)
-        state = {
-            "current_phase": "coder",
-            "final_fix": True,
-            "iteration_count": 5,
-            "pr_url": "https://github.com/repo/pull/1",
-            "status": "cycle_approved",  # Trigger transition logic
-            "last_feedback_time": 1234567890.0,
-        }
+        state = CycleState(
+            cycle_id="test",
+            current_phase=WorkPhase.CODER,
+            final_fix=True,
+            iteration_count=5,
+            pr_url="https://github.com/repo/pull/1",
+            status=FlowStatus.CYCLE_APPROVED,
+            last_feedback_time=1234567890.0,
+        )
 
         # Mock git.merge_pr to succeed, allowing transition logic to run
-        nodes.git.merge_pr.return_value = None
+        nodes.git.merge_pr = AsyncMock(return_value=None)
 
         result = await nodes.uat_evaluate_node(state)
 
         # Should transition to Refactor
-        assert result.get("current_phase") == "refactoring"
+        assert result.get("current_phase") == WorkPhase.REFACTORING
 
         # KEY ASSERTIONS - These should fail on current code
         assert result.get("final_fix") is False, "final_fix should be False"

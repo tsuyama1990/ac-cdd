@@ -2,6 +2,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from ac_cdd_core.domain_models import AuditResult
+from ac_cdd_core.enums import FlowStatus
 from ac_cdd_core.graph_nodes import CycleNodes
 from ac_cdd_core.state import CycleState
 
@@ -21,7 +22,7 @@ async def test_committee_logic_flow() -> None:
     # graph_nodes.py does `from .config import settings` at top level.
     # So we must patch ac_cdd_core.graph_nodes.settings
     with pytest.MonkeyPatch.context() as m:
-        m.setattr("ac_cdd_core.graph_nodes.settings", mock_settings)
+        m.setattr("ac_cdd_core.services.committee_usecase.settings", mock_settings)
 
         nodes = CycleNodes(sandbox, jules)
 
@@ -33,27 +34,27 @@ async def test_committee_logic_flow() -> None:
         )
 
         res = await nodes.committee_manager_node(state)
-        assert res["status"] == "next_auditor"
+        assert res["status"] == FlowStatus.NEXT_AUDITOR
         assert res["current_auditor_index"] == 2
         assert res["current_auditor_review_count"] == 1
 
         # Check routing
-        route = nodes.route_committee({"status": "next_auditor"})
+        route = nodes.route_committee(CycleState(cycle_id="r", status=FlowStatus.NEXT_AUDITOR))
         assert route == "auditor"
 
         # Auditor 2: Approved
         state.current_auditor_index = 2
         res = await nodes.committee_manager_node(state)
-        assert res["status"] == "next_auditor"
+        assert res["status"] == FlowStatus.NEXT_AUDITOR
         assert res["current_auditor_index"] == 3
 
         # Auditor 3: Approved (Last one)
         state.current_auditor_index = 3
         res = await nodes.committee_manager_node(state)
-        assert res["status"] == "cycle_approved"
+        assert res["status"] == FlowStatus.CYCLE_APPROVED
 
         # Check routing - Expecting 'uat_evaluate' per requirements
-        route = nodes.route_committee({"status": "cycle_approved"})
+        route = nodes.route_committee(CycleState(cycle_id="r", status=FlowStatus.CYCLE_APPROVED))
         assert route == "uat_evaluate"
 
         # --- Scenario 2: Rejected & Retry (Loop Back) ---
@@ -66,11 +67,11 @@ async def test_committee_logic_flow() -> None:
         )
 
         res = await nodes.committee_manager_node(state)
-        assert res["status"] == "retry_fix"
+        assert res["status"] == FlowStatus.RETRY_FIX
         assert res["current_auditor_review_count"] == 2
         assert res["iteration_count"] == 6  # Should increment iteration
 
-        route = nodes.route_committee({"status": "retry_fix"})
+        route = nodes.route_committee(CycleState(cycle_id="r", status=FlowStatus.RETRY_FIX))
         assert route == "coder_session"
 
         # --- Scenario 3: Max Retries Exceeded (Pipeline Handover) ---
@@ -88,12 +89,12 @@ async def test_committee_logic_flow() -> None:
         res = await nodes.committee_manager_node(state)
         # Old behavior: assert res["status"] == "failed"
         # New behavior: Handover to Auditor 3
-        assert res["status"] == "retry_fix"
+        assert res["status"] == FlowStatus.RETRY_FIX
         assert res["current_auditor_index"] == 3
         assert res["current_auditor_review_count"] == 1
         assert res["iteration_count"] == 11
 
-        route = nodes.route_committee({"status": "retry_fix"})
+        route = nodes.route_committee(CycleState(cycle_id="r", status=FlowStatus.RETRY_FIX))
         assert route == "coder_session"
 
 
@@ -109,7 +110,7 @@ async def test_committee_pipeline_handover() -> None:
     jules = MagicMock()
 
     with pytest.MonkeyPatch.context() as m:
-        m.setattr("ac_cdd_core.graph_nodes.settings", mock_settings)
+        m.setattr("ac_cdd_core.services.committee_usecase.settings", mock_settings)
         nodes = CycleNodes(sandbox, jules)
 
         # Scenario 1: Auditor 1 (Rev 1/Limit) → Reject → Handover to Auditor 2
@@ -126,7 +127,7 @@ async def test_committee_pipeline_handover() -> None:
         res = await nodes.committee_manager_node(state)
 
         # Should move to Auditor 2 (not fail)
-        assert res["status"] == "retry_fix"
+        assert res["status"] == FlowStatus.RETRY_FIX
         assert res["current_auditor_index"] == 2
         assert res["current_auditor_review_count"] == 1
         assert res["iteration_count"] == 1
@@ -149,11 +150,11 @@ async def test_committee_pipeline_handover() -> None:
         res = await nodes.committee_manager_node(state)
 
         # Should set final_fix and prepare for merge
-        assert res["status"] == "retry_fix"
+        assert res["status"] == FlowStatus.RETRY_FIX
         assert res["final_fix"] is True
         assert res["iteration_count"] == 2
 
         # Verify check_coder_outcome returns "completed" for final_fix
         state_with_final_fix = CycleState(cycle_id="test", final_fix=True)
         outcome = nodes.check_coder_outcome(state_with_final_fix)
-        assert outcome == "completed"
+        assert outcome == FlowStatus.COMPLETED.value
