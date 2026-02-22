@@ -17,12 +17,12 @@ class DependencyManager:
             logger.info("Initializing pyproject.toml...")
             await self.runner.run_command(["uv", "init", "--no-workspace"], check=False)
 
-        logger.info("Installing development dependencies (ruff, mypy, pytest)...")
+        logger.info("Adding development dependencies (ruff, mypy, pytest)...")
         try:
             await self.runner.run_command(
-                ["uv", "add", "--dev", "ruff", "mypy", "pytest", "pytest-cov"], check=True
+                ["uv", "add", "--dev", "--no-sync", "ruff", "mypy", "pytest", "pytest-cov"], check=True
             )
-            logger.info("✓ Dependencies installed successfully.")
+            logger.info("✓ Dependencies added to pyproject.toml successfully.")
         except Exception as e:
             logger.warning(f"Failed to install dependencies: {e}")
 
