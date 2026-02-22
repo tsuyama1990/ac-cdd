@@ -20,10 +20,6 @@ dependencies = [
     "litellm>=1.80.11",
     "typer",
     "rich",
-    "yfinance",
-    "pandas",
-    "tqdm",
-    "numpy",
     "mypy>=1.19.0",
 ]
 
@@ -134,4 +130,4 @@ strict = true
 ignore_missing_imports = true
 
 [tool.hatch.build.targets.wheel]
-packages = ["dev_src/ac_cdd_core", "src/mlip_autopipec"]
+packages = ["dev_src/ac_cdd_core"]
