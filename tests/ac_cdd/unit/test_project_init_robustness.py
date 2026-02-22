@@ -34,11 +34,21 @@ async def test_initialize_project_robustness(tmp_path: Path) -> None:
     with (
         patch("ac_cdd_core.services.project.settings", mock_settings),
         patch("ac_cdd_core.services.project_setup.template_manager.settings", mock_settings),
-        patch("ac_cdd_core.services.project_setup.dependency_manager.GitManager", return_value=mock_git_instance),
-        patch("ac_cdd_core.services.project_setup.dependency_manager.ProcessRunner", return_value=mock_runner_instance),
+        patch(
+            "ac_cdd_core.services.project_setup.dependency_manager.GitManager",
+            return_value=mock_git_instance,
+        ),
+        patch(
+            "ac_cdd_core.services.project_setup.dependency_manager.ProcessRunner",
+            return_value=mock_runner_instance,
+        ),
         patch("pathlib.Path.cwd", return_value=tmp_path),
-        patch("ac_cdd_core.services.project_setup.dependency_manager.Path.cwd", return_value=tmp_path),
-        patch("ac_cdd_core.services.project_setup.template_manager.Path.cwd", return_value=tmp_path),
+        patch(
+            "ac_cdd_core.services.project_setup.dependency_manager.Path.cwd", return_value=tmp_path
+        ),
+        patch(
+            "ac_cdd_core.services.project_setup.template_manager.Path.cwd", return_value=tmp_path
+        ),
     ):
         # Setup mock template files since template_manager copies them
         templates_path.mkdir(parents=True, exist_ok=True)

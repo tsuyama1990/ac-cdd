@@ -12,7 +12,6 @@ def add_set(a: set[str] | None, b: set[str] | None) -> set[str]:
     return a | b
 
 
-
 class SessionStatus(str, Enum):
     MONITORING = "monitoring"
     INQUIRY_DETECTED = "inquiry_detected"

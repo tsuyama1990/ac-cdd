@@ -77,6 +77,7 @@ What defines a successful user experience?
 
         # Use absolute path to ac_cdd_core package templates
         import ac_cdd_core
+
         source_dir = Path(ac_cdd_core.__file__).parent / "templates"
 
         if not source_dir.exists():

@@ -54,7 +54,6 @@ async def test_auditor_node_includes_static_errors(mock_dependencies: tuple[Any,
             cmd: list[str], check: bool = False, **kwargs: Any
         ) -> tuple[str, str, int]:
             cmd_str = " ".join(cmd)
-            print(f"DEBUG MOCK: {cmd_str}")
             if "mypy" in cmd_str:
                 return "mypy failure", "error", 1  # Fail
             if "ruff" in cmd_str:

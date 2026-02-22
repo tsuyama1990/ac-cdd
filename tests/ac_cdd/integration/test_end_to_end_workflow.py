@@ -93,7 +93,7 @@ class TestEndToEndWorkflow:
         mock_mgr = mock_sm_cls.return_value
         # Prevent shutil.copy2 from trying to copy the MagicMock
         mock_mgr.STATE_FILE.exists.return_value = False
-        
+
         with patch("ac_cdd_core.services.workflow.GitManager") as mock_git_cls:
             mock_git_cls.return_value.create_final_pr = AsyncMock(return_value="http://pr")
             mock_git_cls.return_value.checkout_branch = AsyncMock()
@@ -104,7 +104,7 @@ class TestEndToEndWorkflow:
                 project_session_id="p1",
                 feature_branch="feat/p1",
                 integration_branch="dev/p1",
-                cycles=[{"id": "01", "status": "planned"}]
+                cycles=[{"id": "01", "status": "planned"}],
             )
             mock_mgr.load_manifest = MagicMock(return_value=manifest)
 

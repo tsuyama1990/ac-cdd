@@ -1,18 +1,18 @@
 import json
-import logging
 from typing import Any, Protocol
 
 import httpx
 from ac_cdd_core.config import settings
 from ac_cdd_core.state_manager import StateManager
 from ac_cdd_core.utils import logger
-
 from rich.console import Console
 
 console = Console()
 
+
 class AgentProtocol(Protocol):
     async def run(self, prompt: str) -> Any: ...
+
 
 class JulesInquiryHandler:
     def __init__(self, manager_agent: AgentProtocol, context_builder: Any, client_ref: Any) -> None:
@@ -32,7 +32,9 @@ class JulesInquiryHandler:
                 if page_token:
                     act_url += f"&pageToken={page_token}"
 
-                act_resp = await client.get(act_url, headers=self.client_ref._get_headers(), timeout=10.0)
+                act_resp = await client.get(
+                    act_url, headers=self.client_ref._get_headers(), timeout=10.0
+                )
 
                 if act_resp.status_code == httpx.codes.OK:
                     data = act_resp.json()
@@ -78,7 +80,9 @@ class JulesInquiryHandler:
         """Fetches a pending plan from activities if one exists."""
         act_url = f"{session_url}/activities"
         try:
-            act_resp = await client.get(act_url, headers=self.client_ref._get_headers(), timeout=10.0)
+            act_resp = await client.get(
+                act_url, headers=self.client_ref._get_headers(), timeout=10.0
+            )
             if act_resp.status_code != httpx.codes.OK:
                 logger.warning(f"Failed to fetch activities: HTTP {act_resp.status_code}")
                 return None
@@ -216,9 +220,7 @@ class JulesInquiryHandler:
 
         question, act_id = inquiry
         if act_id and act_id not in processed_ids:
-            console.print(
-                f"\\n[bold magenta]Jules Question Detected:[/bold magenta] {question}"
-            )
+            console.print(f"\\n[bold magenta]Jules Question Detected:[/bold magenta] {question}")
             console.print("[dim]Consulting Manager Agent with full context...[/dim]")
 
             try:

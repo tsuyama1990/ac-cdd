@@ -85,13 +85,13 @@ class TestSessionRestart:
 
             result = await mock_nodes.coder_session_node(state)
 
-        # With the new Graph loop design, the node returns 'coder_retry', 
+        # With the new Graph loop design, the node returns 'coder_retry',
         # then the graph routes back to 'coder_session_node' with updated state.
         assert result["status"] == "coder_retry"
 
         # Now simulate the retry graph edge by calling it again
         result2 = await mock_nodes.coder_session_node(state)
-        
+
         # This time wait_for_completion succeeds
         assert result2["status"] == "ready_for_audit"
         assert result2["pr_url"] == "https://github.com/pr/1"
@@ -141,8 +141,8 @@ class TestSessionRestart:
             # First call (failure) -> Returns coder_retry
             result1 = await mock_nodes.coder_session_node(state)
             assert result1["status"] == "coder_retry"
-            
-            # Second call (failure) -> Returns coder_retry 
+
+            # Second call (failure) -> Returns coder_retry
             # (session_restart_count is now 1)
             result2 = await mock_nodes.coder_session_node(state)
             assert result2["status"] == "coder_retry"

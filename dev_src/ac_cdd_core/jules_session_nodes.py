@@ -18,8 +18,9 @@ class JulesSessionNodes:
         """Initialize with reference to JulesClient for API calls."""
         self.client = jules_client
 
-
-    def _compute_diff(self, original: JulesSessionState, current: JulesSessionState) -> dict[str, Any]:
+    def _compute_diff(
+        self, original: JulesSessionState, current: JulesSessionState
+    ) -> dict[str, Any]:
         """Compute dictionary of changed fields for LangGraph checkpointer."""
         updates = {}
         for field in current.model_fields:
@@ -29,7 +30,7 @@ class JulesSessionNodes:
                 updates[field] = new_val
         return updates
 
-    async def monitor_session(self, _state_in: JulesSessionState) -> dict[str, Any]:  # noqa: C901, PLR0912
+    async def monitor_session(self, _state_in: JulesSessionState) -> dict[str, Any]:  # noqa: C901, PLR0912, PLR0915
         """Monitor Jules session and detect state changes with batched polling."""
         state = _state_in.model_copy(deep=True)
 
@@ -89,7 +90,7 @@ class JulesSessionNodes:
                             act_resp = await client.get(
                                 f"{state.session_url}/activities",
                                 headers=self.client._get_headers(),
-                                timeout=10.0
+                                timeout=10.0,
                             )
                             if act_resp.status_code == httpx.codes.OK:
                                 activities = act_resp.json().get("activities", [])
@@ -200,7 +201,9 @@ class JulesSessionNodes:
 
         try:
             # Build comprehensive context
-            enhanced_context = await self.client.context_builder.build_question_context(state.current_inquiry)
+            enhanced_context = await self.client.context_builder.build_question_context(
+                state.current_inquiry
+            )
             console.print(f"[dim]Context size: {len(enhanced_context)} chars[/dim]")
 
             # Get Manager Agent response

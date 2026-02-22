@@ -18,13 +18,14 @@ async def test_audit_rejection_loop() -> None:
     mock_services.jules = AsyncMock()  # JulesClient is async
     mock_services.sandbox = MagicMock()
     mock_services.reviewer = MagicMock()
-    
+
     # Mock Git to return a unique commit each time to simulate a new Jules commit
     commit_counter = [0]
+
     async def mock_get_commit() -> str:
         commit_counter[0] += 1
         return f"commit_{commit_counter[0]}"
-        
+
     mock_services.git.get_current_commit = AsyncMock(side_effect=mock_get_commit)
     # The auditor needs changed files to proceed
     mock_services.git.get_changed_files = AsyncMock(return_value=["file.py"])
@@ -40,15 +41,16 @@ async def test_audit_rejection_loop() -> None:
     mock_services.reviewer.review_code = AsyncMock(return_value="CHANGES_REQUESTED: Please fix X.")
 
     from unittest.mock import patch
+
     from ac_cdd_core.domain_models import AuditResult
-    
+
     # Mock PlanAuditor to avoid template/file errors during testing
     mock_auditor_instance = MagicMock()
-    
+
     async def mock_run_audit(*args: Any, **kwargs: Any) -> tuple[AuditResult, str]:
         # Always return rejection so it hits the retry limits
         return (AuditResult(is_approved=False), "Feedback")
-        
+
     mock_auditor_instance.run_audit = AsyncMock(side_effect=mock_run_audit)
 
     with patch("ac_cdd_core.services.plan_auditor.PlanAuditor", return_value=mock_auditor_instance):
@@ -60,9 +62,13 @@ async def test_audit_rejection_loop() -> None:
     builder.nodes.git = mock_services.git
 
     # Increment iteration count to avoid infinite loop
-    async def mock_coder_session(state: CycleState) -> dict:
+    async def mock_coder_session(state: CycleState) -> dict[str, Any]:
         current_iter = state.get("iteration_count", 1)
-        return {"status": "ready_for_audit", "pr_url": "http://pr", "iteration_count": current_iter + 1}
+        return {
+            "status": "ready_for_audit",
+            "pr_url": "http://pr",
+            "iteration_count": current_iter + 1,
+        }
 
     builder.nodes.coder_session_node = AsyncMock(side_effect=mock_coder_session)
 

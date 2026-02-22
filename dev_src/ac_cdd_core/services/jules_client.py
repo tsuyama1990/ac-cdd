@@ -82,9 +82,7 @@ class JulesClient:
         self.context_builder = JulesContextBuilder(self.git)
         self.git_context = JulesGitContext(self.git)
         self.inquiry_handler = JulesInquiryHandler(
-            manager_agent=self.manager_agent,
-            context_builder=self.context_builder,
-            client_ref=self
+            manager_agent=self.manager_agent, context_builder=self.context_builder, client_ref=self
         )
 
     async def _sleep(self, seconds: float) -> None:
@@ -107,9 +105,7 @@ class JulesClient:
 
     def _is_httpx_mocked(self) -> bool:
         """Check if httpx.AsyncClient is mocked."""
-        is_mock = isinstance(
-            httpx.AsyncClient, (unittest.mock.MagicMock, unittest.mock.AsyncMock)
-        )
+        is_mock = isinstance(httpx.AsyncClient, (unittest.mock.MagicMock, unittest.mock.AsyncMock))
         if is_mock:
             return True
         return hasattr(httpx.AsyncClient, "return_value")
@@ -384,25 +380,25 @@ class JulesClient:
                 logger.warning(f"Failed to get session state for {session_id}: {e}")
                 return "UNKNOWN"
 
-    async def _initialize_processed_ids(
+    async def _initialize_processed_ids(  # noqa: C901
         self,
         session_url: str,
         processed_ids: set[str],
         processed_completion_ids: set[str] | None = None,
     ) -> None:
         try:
-            session_id_path = session_url.split(f"{self.base_url}/")[-1]
-
             state = "UNKNOWN"
             initial_acts = []
-            
+
             # Fetch session state and early activities via httpx to respect test mocks
             try:
                 async with httpx.AsyncClient() as client:
-                    session_resp = await client.get(session_url, headers=self._get_headers(), timeout=10.0)
+                    session_resp = await client.get(
+                        session_url, headers=self._get_headers(), timeout=10.0
+                    )
                     if session_resp.status_code == httpx.codes.OK:
                         state = session_resp.json().get("state", "UNKNOWN")
-                        
+
                     act_url = f"{session_url}/activities?pageSize=100"
                     act_resp = await client.get(act_url, headers=self._get_headers(), timeout=10.0)
                     if act_resp.status_code == httpx.codes.OK:

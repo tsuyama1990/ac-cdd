@@ -27,7 +27,9 @@ class TestJulesClientLogic(unittest.IsolatedAsyncioTestCase):
 
             # FIX: Add context_builder
             self.client.context_builder = MagicMock()
-            self.client.context_builder.build_question_context = AsyncMock(return_value="mock context")
+            self.client.context_builder.build_question_context = AsyncMock(
+                return_value="mock context"
+            )
 
             # FIX: Add inquiry handler back since __init__ is skipped
             from ac_cdd_core.services.jules.inquiry_handler import JulesInquiryHandler
@@ -96,15 +98,18 @@ class TestJulesClientLogic(unittest.IsolatedAsyncioTestCase):
         # 4. get(activities) (Check Inquiry) -> Empty (No new questions)
         #    -> Falls through to Success Check -> Returns PR
 
-        state_responses = [r_session_completed, r_session_completed, r_session_success, r_session_success]
+        state_responses = [
+            r_session_completed,
+            r_session_completed,
+            r_session_success,
+            r_session_success,
+        ]
         activity_responses = [r_acts_empty, r_acts_question, r_acts_empty, r_acts_empty]
 
         async def dynamic_get(url: str, **kwargs: Any) -> MagicMock:
-            print(f"MOCK REQUEST: {url}")
             if url.endswith("/activities") or "pageSize" in url:
                 return activity_responses.pop(0) if activity_responses else r_acts_empty
-            else:
-                return state_responses.pop(0) if state_responses else r_session_success
+            return state_responses.pop(0) if state_responses else r_session_success
 
         mock_client.get.side_effect = dynamic_get
 
@@ -183,11 +188,10 @@ class TestJulesClientLogic(unittest.IsolatedAsyncioTestCase):
                 if call_counts["activities"] == 2:
                     return r_acts_logging
                 return r_acts_empty
-            else:
-                call_counts["state"] += 1
-                if call_counts["state"] in (1, 2):
-                    return r_session_completed
-                return r_session_success
+            call_counts["state"] += 1
+            if call_counts["state"] in (1, 2):
+                return r_session_completed
+            return r_session_success
 
         mock_client.get.side_effect = dynamic_get
 

@@ -97,10 +97,10 @@ async def test_wait_for_completion_timeout(mock_client: JulesClient, mock_httpx:
     mock_response = MagicMock()
     mock_response.status_code = 200
     mock_response.json.return_value = {"state": "RUNNING"}
-    
+
     async def get_mock(url: str, **kwargs: Any) -> MagicMock:
         return mock_response
-        
+
     mock_httpx.get.side_effect = get_mock
 
     with pytest.raises(JulesTimeoutError):

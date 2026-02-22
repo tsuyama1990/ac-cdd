@@ -63,7 +63,7 @@ class ProcessRunner:
                                 logger.error("DEBUG: .git/index.lock EXISTS (Lock contention)")
                         except Exception as e:
                             logger.error(f"DEBUG failed: {e}")
-                    raise subprocess.CalledProcessError(
+                    raise subprocess.CalledProcessError(  # noqa: TRY301
                         returncode, cmd, output=stdout_str, stderr=stderr_str
                     )
                 logger.debug(f"Command failed (expected) [{returncode}]: {cmd_str}")
