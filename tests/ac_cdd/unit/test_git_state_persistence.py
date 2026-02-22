@@ -24,11 +24,6 @@ class TestGitStatePersistence:
         args, _ = mock_run.call_args_list[0]  # First call should be rev-parse or fetch
         # Given the updated logic might fetch first, we check that rev-parse eventually succeeds
 
-    @pytest.mark.skip(
-        "Legacy test relying on direct asyncio subprocess calls, needing complex mock update. Feature likely mostly replaced by StateManager."
-    )
-    async def test_ensure_state_branch_creates_if_missing(self) -> None:
-        pass
 
     @patch("ac_cdd_core.process_runner.ProcessRunner.run_command")
     async def test_read_state_file(self, mock_run: AsyncMock, git_manager: GitManager) -> None:

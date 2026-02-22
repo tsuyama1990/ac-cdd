@@ -60,6 +60,24 @@ class TestSessionValidator:
         assert is_valid
         mock_git_validate.assert_awaited_once_with("dev/s1")
 
+    @patch("ac_cdd_core.validators.GitManager.validate_remote_branch")
+    @patch("ac_cdd_core.validators.StateManager.load_manifest")
+    async def test_session_validator_with_remote_check_failure(
+        self, mock_load: AsyncMock, mock_git_validate: AsyncMock
+    ) -> None:
+        manifest = ProjectManifest(
+            project_session_id="s1", integration_branch="dev/s1", feature_branch="feat/s1"
+        )
+        mock_load.return_value = manifest
+        mock_git_validate.return_value = (False, "Remote branch dev/s1 not found")
+
+        validator = SessionValidator("s1", "dev/s1", check_remote=True)
+        is_valid, err = await validator.validate()
+
+        assert not is_valid
+        assert "Remote branch dev/s1 not found" in err
+        mock_git_validate.assert_awaited_once_with("dev/s1")
+
     @patch("ac_cdd_core.validators.StateManager.load_manifest")
     async def test_raise_if_invalid(self, mock_load: AsyncMock) -> None:
         mock_load.return_value = None

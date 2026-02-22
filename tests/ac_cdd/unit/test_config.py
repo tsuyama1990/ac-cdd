@@ -87,6 +87,21 @@ def test_get_prompt_content() -> None:
         assert content == "MOCKED PROMPT CONTENT"
 
 
+def test_get_prompt_content_file_not_found() -> None:
+    """Test get_prompt_content raises FileNotFoundError when template does not exist."""
+    local_settings = Settings()
+
+    with patch.object(Settings, "get_template") as mock_get_template:
+        mock_path = MagicMock()
+        mock_path.exists.return_value = False
+        mock_get_template.return_value = mock_path
+
+        import pytest
+
+        with pytest.raises(FileNotFoundError, match="Prompt template not found"):
+            local_settings.get_prompt_content("auditor.md")
+
+
 def test_path_separation() -> None:
     """
     Test that Context (Specs) and Target (Code) paths are strictly separated.
