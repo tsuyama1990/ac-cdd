@@ -29,7 +29,8 @@ services:
       - SSH_AUTH_SOCK=${SSH_AUTH_SOCK}
 
       # GitHub Token (alternative to SSH)
-      # - GH_TOKEN=${GH_TOKEN}
+      # You can pass this via terminal: GITHUB_TOKEN=$(gh auth token) docker-compose run ...
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
 
       # -----------------------------------------------------------------------
       # Key fix: redirect uv's venv to a container-only location.
