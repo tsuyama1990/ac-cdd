@@ -1,6 +1,6 @@
 """Tests for auto-merge logic in WorkflowService.finalize_session."""
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from ac_cdd_core.domain_models import ProjectManifest
