@@ -1,3 +1,4 @@
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -107,7 +108,7 @@ class TestSessionRestart:
 
         usecase = CoderUseCase(mock_jules)
 
-        async def run_once() -> dict:
+        async def run_once() -> dict[str, Any]:
             with patch("ac_cdd_core.services.coder_usecase.StateManager") as MockManager:
                 instance = MockManager.return_value
                 instance.get_cycle.return_value = mock_manifest
@@ -122,7 +123,7 @@ class TestSessionRestart:
                     mock_settings.get_template.return_value.read_text.return_value = "Instruction"
                     mock_settings.get_target_files.return_value = []
                     mock_settings.get_context_files.return_value = []
-                    return await usecase.execute(state)
+                    return dict(await usecase.execute(state))
 
         result1 = await run_once()
         assert result1["status"] == FlowStatus.CODER_RETRY

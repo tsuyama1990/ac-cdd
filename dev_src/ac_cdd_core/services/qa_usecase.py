@@ -153,9 +153,14 @@ class QaUseCase:
                     "[yellow]Could not reuse session. Starting new session with feedback...[/yellow]"
                 )
                 import re
-                injection_template = str(settings.get_template("AUDIT_FEEDBACK_INJECTION.md").read_text())
+
+                injection_template = str(
+                    settings.get_template("AUDIT_FEEDBACK_INJECTION.md").read_text()
+                )
                 injection = injection_template.replace("{{feedback}}", feedback)
-                injection = str(re.sub(r"\{\{#pr_url\}\}.*?\{\{/pr_url\}\}", "", injection, flags=re.DOTALL)).strip()
+                injection = str(
+                    re.sub(r"\{\{#pr_url\}\}.*?\{\{/pr_url\}\}", "", injection, flags=re.DOTALL)
+                ).strip()
                 full_prompt += f"\n\n{injection}"
                 qa_session_id = f"qa-{session_id}"
                 state.qa_retry_count = next_retries

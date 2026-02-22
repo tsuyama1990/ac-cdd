@@ -117,11 +117,8 @@ class CycleNodes(IGraphNodes):
             f"[bold yellow]Sending Audit Feedback to existing Jules session: {session_id}[/bold yellow]"
         )
         try:
-            feedback_msg = (
-                f"# AUDIT FEEDBACK - PLEASE ADDRESS THESE ISSUES\n\n"
-                f"{feedback}\n\n"
-                f"Please revise your implementation to address the above feedback and create a new PR."
-            )
+            feedback_template = str(settings.get_template("AUDIT_FEEDBACK_MESSAGE.md").read_text())
+            feedback_msg = feedback_template.replace("{{feedback}}", feedback)
             # Send message
             await self.jules._send_message(self.jules._get_session_url(session_id), feedback_msg)
             # Replace fixed sleep with smart polling for state transition
@@ -137,8 +134,12 @@ class CycleNodes(IGraphNodes):
                 console.print(f"[dim]State check ({attempt + 1}/12): {current_state}[/dim]")
 
                 if current_state in {
-                    "IN_PROGRESS", "QUEUED", "PLANNING",
-                    "AWAITING_PLAN_APPROVAL", "AWAITING_USER_FEEDBACK", "PAUSED",
+                    "IN_PROGRESS",
+                    "QUEUED",
+                    "PLANNING",
+                    "AWAITING_PLAN_APPROVAL",
+                    "AWAITING_USER_FEEDBACK",
+                    "PAUSED",
                 }:
                     state_transitioned = True
                     console.print(

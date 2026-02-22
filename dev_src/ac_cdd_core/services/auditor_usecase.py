@@ -98,6 +98,7 @@ class AuditorUseCase:
         """Runs the auditor logic, static analysis, and prepares LLM reviewer feedback."""
         console.print("[bold magenta]Starting Auditor...[/bold magenta]")
         instruction = settings.get_template("AUDITOR_INSTRUCTION.md").read_text()
+        instruction = instruction.replace("{{cycle_id}}", str(state.cycle_id))
 
         context_paths = settings.get_context_files()
         architect_instruction = settings.get_template("ARCHITECT_INSTRUCTION.md")
