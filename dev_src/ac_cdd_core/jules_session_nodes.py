@@ -117,13 +117,14 @@ class JulesSessionNodes:
                     if state.status == SessionStatus.INQUIRY_DETECTED:
                         return self._compute_diff(_state_in, state)
 
-                    # Reset validation flag if we are back in progress
-                    if state.jules_state not in ["COMPLETED", "SUCCEEDED"]:
+                    # Reset validation flag if we are back in working states
+                    # (All states except COMPLETED and FAILED reset the flag)
+                    if state.jules_state not in ["COMPLETED", "FAILED"]:
                         state.completion_validated = False
 
-                    # Check for completion
+                    # Check for completion (official Jules API only has COMPLETED, not SUCCEEDED)
                     if (
-                        state.jules_state in ["COMPLETED", "SUCCEEDED"]
+                        state.jules_state == "COMPLETED"
                         and not state.completion_validated
                     ):
                         state.status = SessionStatus.VALIDATING_COMPLETION
@@ -457,9 +458,15 @@ class JulesSessionNodes:
                 )
                 if session_resp.status_code == httpx.codes.OK:
                     current_state = session_resp.json().get("state")
-                    if current_state == "IN_PROGRESS":
+                    # Return to monitoring for any active/working state
+                    # (official Jules API non-terminal states)
+                    ACTIVE_STATES = {
+                        "IN_PROGRESS", "QUEUED", "PLANNING",
+                        "AWAITING_PLAN_APPROVAL", "AWAITING_USER_FEEDBACK", "PAUSED",
+                    }
+                    if current_state in ACTIVE_STATES:
                         logger.info(
-                            "Session returned to IN_PROGRESS during PR wait. Returning to monitoring."
+                            f"Session returned to {current_state} during PR wait. Returning to monitoring."
                         )
                         state.status = SessionStatus.MONITORING
                         state.jules_state = current_state

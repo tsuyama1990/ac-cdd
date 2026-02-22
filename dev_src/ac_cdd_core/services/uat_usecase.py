@@ -1,10 +1,9 @@
 from typing import Any
 
-from rich.console import Console
-
 from ac_cdd_core.enums import FlowStatus, WorkPhase
 from ac_cdd_core.services.git_ops import GitManager
 from ac_cdd_core.state import CycleState
+from rich.console import Console
 
 console = Console()
 

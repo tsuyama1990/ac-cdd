@@ -365,8 +365,17 @@ class JulesClient:
             session_id: Session ID (with or without "sessions/" prefix)
 
         Returns:
-            Session state: "IN_PROGRESS", "COMPLETED", "FAILED",
-                          "AWAITING_USER_FEEDBACK", "SUCCEEDED", or "UNKNOWN"
+            Official Jules API Session state:
+              - QUEUED: Session is queued
+              - PLANNING: Jules is planning
+              - AWAITING_PLAN_APPROVAL: Waiting for plan approval
+              - AWAITING_USER_FEEDBACK: Jules has a question
+              - IN_PROGRESS: Jules is actively working
+              - PAUSED: Session is paused
+              - FAILED: Session failed
+              - COMPLETED: Session completed (may or may not have PR)
+              - STATE_UNSPECIFIED: Unknown state
+              - UNKNOWN: Could not retrieve state (network error etc.)
         """
         session_url = self._get_session_url(session_id)
 

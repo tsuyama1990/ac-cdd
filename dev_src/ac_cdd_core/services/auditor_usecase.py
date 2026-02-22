@@ -1,8 +1,6 @@
 from pathlib import Path
 from typing import Any
 
-from rich.console import Console
-
 from ac_cdd_core.config import settings
 from ac_cdd_core.domain_models import AuditResult
 from ac_cdd_core.enums import FlowStatus
@@ -11,6 +9,7 @@ from ac_cdd_core.services.jules_client import JulesClient
 from ac_cdd_core.services.llm_reviewer import LLMReviewer
 from ac_cdd_core.state import CycleState
 from ac_cdd_core.state_manager import StateManager
+from rich.console import Console
 
 console = Console()
 
@@ -92,7 +91,7 @@ class AuditorUseCase:
 
         return success, "\n\n".join(output)
 
-    async def execute(self, state: CycleState) -> dict[str, Any]:
+    async def execute(self, state: CycleState) -> dict[str, Any]:  # noqa: C901, PLR0912, PLR0915
         """Runs the auditor logic, static analysis, and prepares LLM reviewer feedback."""
         console.print("[bold magenta]Starting Auditor...[/bold magenta]")
         instruction = settings.get_template("AUDITOR_INSTRUCTION.md").read_text()
@@ -106,7 +105,7 @@ class AuditorUseCase:
         try:
             new_last_audited_commit = state.last_audited_commit
             pr_url = state.pr_url
-            
+
             if pr_url:
                 console.print(f"[dim]Checking out PR: {pr_url}[/dim]")
                 try:
@@ -132,16 +131,21 @@ class AuditorUseCase:
                         if jules_session_id:
                             try:
                                 jules_status = await self.jules.get_session_state(jules_session_id)
-                                if jules_status not in ["COMPLETED", "SUCCEEDED", "FAILED"]:
+                                # Official Jules API terminal states: COMPLETED, FAILED
+                                # (SUCCEEDED does not exist in the official API)
+                                # Non-terminal (still working): IN_PROGRESS, QUEUED, PLANNING,
+                                #   AWAITING_PLAN_APPROVAL, AWAITING_USER_FEEDBACK, PAUSED
+                                TERMINAL_STATES = {"COMPLETED", "FAILED", "STATE_UNSPECIFIED", "UNKNOWN"}
+                                if jules_status not in TERMINAL_STATES:
                                     console.print(
-                                        "[bold yellow]Jules session still active. Delegating wait logic to graph router.[/bold yellow]"
+                                        f"[bold yellow]Jules session still active ({jules_status}). Delegating wait logic to graph router.[/bold yellow]"
                                     )
                                     return {
                                         "status": FlowStatus.WAITING_FOR_JULES,
                                         "audit_result": state.audit_result,
                                         "last_audited_commit": last_audited,
                                     }
-                            except Exception:
+                            except Exception:  # noqa: S110
                                 pass
 
                         console.print(
@@ -217,7 +221,7 @@ class AuditorUseCase:
                     f for f in all_target_files
                     if not any(f.startswith(prefix) for prefix in excluded_prefixes_fallback)
                 ]
-            
+
             context_file_names = {str(p) for p in context_paths}
             reviewable_files = [f for f in reviewable_files if f not in context_file_names]
 

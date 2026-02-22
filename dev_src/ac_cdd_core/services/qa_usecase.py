@@ -2,9 +2,6 @@ import asyncio
 from pathlib import Path
 from typing import Any
 
-from rich.console import Console
-from rich.panel import Panel
-
 from ac_cdd_core.config import settings
 from ac_cdd_core.domain_models import AuditResult
 from ac_cdd_core.enums import FlowStatus
@@ -13,6 +10,8 @@ from ac_cdd_core.services.jules_client import JulesClient
 from ac_cdd_core.services.llm_reviewer import LLMReviewer
 from ac_cdd_core.state import CycleState
 from ac_cdd_core.state_manager import StateManager
+from rich.console import Console
+from rich.panel import Panel
 
 console = Console()
 
@@ -62,13 +61,13 @@ class QaUseCase:
                 return {"status": FlowStatus.READY_FOR_AUDIT, "pr_url": result.get("pr_url")}
 
             console.print("[yellow]Jules session finished without new PR. Creating new session...[/yellow]")
-            return None
+            return None  # noqa: TRY300
 
         except Exception as e:
             console.print(f"[yellow]Failed to send feedback to existing session: {e}. Creating new session...[/yellow]")
         return None
 
-    async def execute_qa_session(self, state: CycleState) -> dict[str, Any]:
+    async def execute_qa_session(self, state: CycleState) -> dict[str, Any]:  # noqa: C901, PLR0912
         """Node logic for QA Agent session."""
         console.print("[bold cyan]Starting QA Session (Tutorial Generation)...[/bold cyan]")
 
@@ -159,7 +158,7 @@ class QaUseCase:
                 ret_dict["status"] = FlowStatus.READY_FOR_AUDIT
                 return ret_dict
 
-            return {"status": FlowStatus.FAILED, "error": "jules failed to produce tutorials"}
+            return {"status": FlowStatus.FAILED, "error": "jules failed to produce tutorials"}  # noqa: TRY300
 
         except Exception as e:
             return {"status": FlowStatus.FAILED, "error": str(e)}

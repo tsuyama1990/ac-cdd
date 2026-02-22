@@ -4,13 +4,13 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
+from .enums import FlowStatus
 from .graph_nodes import CycleNodes
 from .interfaces import IGraphNodes
 from .sandbox import SandboxRunner
 from .service_container import ServiceContainer
 from .services.jules_client import JulesClient
 from .state import CycleState
-from .enums import FlowStatus
 
 
 class GraphBuilder:

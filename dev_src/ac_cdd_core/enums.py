@@ -35,6 +35,6 @@ class FlowStatus(str, Enum):
 
     # UAT & Refactor
     START_REFACTOR = "start_refactor"
-    
+
     # QA
     MAX_RETRIES = "max_retries"

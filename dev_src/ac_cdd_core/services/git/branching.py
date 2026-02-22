@@ -44,6 +44,18 @@ class GitBranchingMixin(BaseGitManager):
             [self.git_cmd, "status", "--porcelain"], check=False
         )
         if stdout.strip():
+            # CRITICAL: Check for unresolved conflicts before committing
+            # Git porcelain v1 conflict codes: DD, AU, UD, UA, DU, AA, UU
+            lines = stdout.splitlines()
+            conflict_codes = {"DD", "AU", "UD", "UA", "DU", "AA", "UU"}
+            for line in lines:
+                if line[:2] in conflict_codes:
+                    error_msg = (
+                        f"Cannot auto-commit due to unresolved conflicts: {line[3:]}. "
+                        "Please resolve conflicts before proceeding."
+                    )
+                    raise RuntimeError(error_msg)
+
             logger.info("Uncommitted changes detected. Auto-committing...")
             await self._run_git(["add", "."])
             await self._run_git(["commit", "-m", message])

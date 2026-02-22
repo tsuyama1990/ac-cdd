@@ -2,13 +2,12 @@ import asyncio
 from datetime import UTC, datetime
 from typing import Any
 
-from rich.console import Console
-
 from ac_cdd_core.config import settings
 from ac_cdd_core.enums import FlowStatus, WorkPhase
 from ac_cdd_core.services.jules_client import JulesClient
 from ac_cdd_core.state import CycleState
 from ac_cdd_core.state_manager import StateManager
+from rich.console import Console
 
 console = Console()
 
@@ -37,26 +36,34 @@ class CoderUseCase:
                 f"Please revise your implementation to address the above feedback and create a new PR."
             )
             await self.jules._send_message(self.jules._get_session_url(session_id), feedback_msg)
-            
+
             console.print(
                 "[dim]Waiting for Jules to process feedback (expecting IN_PROGRESS)...[/dim]"
             )
 
             state_transitioned = False
+            # Official Jules API states that mean "session is still active/in-flight":
+            # QUEUED, PLANNING, AWAITING_PLAN_APPROVAL, AWAITING_USER_FEEDBACK, IN_PROGRESS, PAUSED
+            ACTIVE_STATES = {"IN_PROGRESS", "QUEUED", "PLANNING", "AWAITING_PLAN_APPROVAL", "AWAITING_USER_FEEDBACK", "PAUSED"}
             for attempt in range(12):  # 12 * 5s = 60s
                 await asyncio.sleep(5)
                 current_state = await self.jules.get_session_state(session_id)
                 console.print(f"[dim]State check ({attempt + 1}/12): {current_state}[/dim]")
 
-                if current_state in ["IN_PROGRESS", "QUEUED", "RUNNING"]:
+                if current_state in ACTIVE_STATES:
                     state_transitioned = True
                     console.print(
-                        "[green]Jules session is now active. Proceeding to monitor...[/green]"
+                        f"[green]Jules session is now active ({current_state}). Proceeding to monitor...[/green]"
                     )
                     break
                 if current_state == "FAILED":
                     console.print("[red]Jules session failed during feedback wait.[/red]")
                     return None
+                # COMPLETED means Jules finished quickly - proceed immediately
+                if current_state == "COMPLETED":
+                    console.print("[green]Jules session completed quickly.[/green]")
+                    state_transitioned = True
+                    break
 
             if not state_transitioned:
                 console.print(
@@ -72,7 +79,7 @@ class CoderUseCase:
             console.print(
                 "[yellow]Jules session finished without new PR. Creating new session...[/yellow]"
             )
-            return None
+            return None  # noqa: TRY300
 
         except Exception as e:
             console.print(
@@ -80,7 +87,7 @@ class CoderUseCase:
             )
         return None
 
-    async def execute(self, state: CycleState) -> dict[str, Any]:
+    async def execute(self, state: CycleState) -> dict[str, Any]:  # noqa: C901, PLR0911, PLR0912, PLR0915
         """Runs the coder session logic, handling retries, feedback ingestion, and session initiation."""
         cycle_id = state.cycle_id
         iteration = state.iteration_count
@@ -142,7 +149,13 @@ class CoderUseCase:
             if cycle_manifest and cycle_manifest.jules_session_id:
                 session_state = await self.jules.get_session_state(cycle_manifest.jules_session_id)
 
-                if session_state in ["IN_PROGRESS", "COMPLETED", "SUCCEEDED"]:
+                # Official Jules API reusable states:
+                # IN_PROGRESS = actively working
+                # COMPLETED = finished (can receive sendMessage to continue)
+                # AWAITING_USER_FEEDBACK = Jules asked a question, waiting for response
+                # PAUSED = paused but not failed
+                REUSABLE_STATES = {"IN_PROGRESS", "COMPLETED", "AWAITING_USER_FEEDBACK", "PAUSED"}
+                if session_state in REUSABLE_STATES:
                     console.print(
                         f"[dim]Reusing session ({session_state}): {cycle_manifest.jules_session_id}[/dim]"
                     )
@@ -234,7 +247,7 @@ class CoderUseCase:
                 )
 
                 return {"status": FlowStatus.CODER_RETRY, "session_restart_count": new_restart_count}
-            
+
             console.print(f"[red]Max session restarts ({max_restarts}) reached. Failing cycle.[/red]")
 
         return {"status": FlowStatus.FAILED, "error": error_msg}

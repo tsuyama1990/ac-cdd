@@ -2,11 +2,10 @@ import asyncio
 import time
 from typing import Any
 
-from rich.console import Console
-
 from ac_cdd_core.config import settings
 from ac_cdd_core.enums import FlowStatus
 from ac_cdd_core.state import CycleState
+from rich.console import Console
 
 console = Console()
 
@@ -68,7 +67,7 @@ class CommitteeUseCase:
                 "status": FlowStatus.RETRY_FIX,
                 "last_feedback_time": time.time(),
             }
-            
+
         if i < settings.NUM_AUDITORS:
             next_idx = i + 1
             console.print(
@@ -94,7 +93,7 @@ class CommitteeUseCase:
                 "status": FlowStatus.RETRY_FIX,
                 "last_feedback_time": time.time(),
             }
-            
+
         console.print(
             "[bold yellow]Final Auditor limit reached. Fixing code then Merging.[/bold yellow]"
         )

@@ -196,16 +196,16 @@ class CycleNodes(IGraphNodes):
     def check_coder_outcome(self, state: CycleState) -> str:
         from ac_cdd_core.enums import FlowStatus
         if state.get("final_fix", False):
-            return FlowStatus.COMPLETED.value
+            return str(FlowStatus.COMPLETED.value)
 
         status = state.get("status")
         if status == FlowStatus.CODER_RETRY:
-            return FlowStatus.CODER_RETRY.value
+            return str(FlowStatus.CODER_RETRY.value)
         if status == FlowStatus.READY_FOR_AUDIT:
-            return FlowStatus.READY_FOR_AUDIT.value
+            return str(FlowStatus.READY_FOR_AUDIT.value)
         if status in {FlowStatus.FAILED, FlowStatus.ARCHITECT_FAILED}:
-            return FlowStatus.FAILED.value
-        return FlowStatus.COMPLETED.value
+            return str(FlowStatus.FAILED.value)
+        return str(FlowStatus.COMPLETED.value)
 
     def check_audit_outcome(self, _state: CycleState) -> str:
         return "rejected_retry"
