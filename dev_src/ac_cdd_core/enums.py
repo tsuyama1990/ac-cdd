@@ -12,6 +12,7 @@ class WorkPhase(str, Enum):
 
 class FlowStatus(str, Enum):
     # Common
+    START = "start"
     FAILED = "failed"
     COMPLETED = "completed"
     END = "end"
