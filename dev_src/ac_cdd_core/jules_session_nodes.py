@@ -40,7 +40,7 @@ class JulesSessionNodes:
 
         for _ in range(POLL_BATCH_SIZE):
             # Check timeout
-            elapsed = asyncio.get_event_loop().time() - state.start_time
+            elapsed = asyncio.get_running_loop().time() - state.start_time
             if elapsed > state.timeout_seconds:
                 logger.warning(f"Session timeout after {elapsed}s")
                 state.status = SessionStatus.TIMEOUT

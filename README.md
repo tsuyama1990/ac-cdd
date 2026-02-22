@@ -1,6 +1,11 @@
 # Autonomous Development Environment (AC-CDD)
 
-An AI-Native Cycle-Based Contract-Driven Development Environment.
+> An AI-Native Cycle-Based Contract-Driven Development Environment.
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/)
+[![Powered by LangGraph](https://img.shields.io/badge/powered_by-LangGraph-green)](https://github.com/langchain-ai/langgraph)
+[![Powered by Jules](https://img.shields.io/badge/powered_by-Google_Jules-4285F4)](https://jules.google.com)
 
 ## Key Features
 
@@ -66,7 +71,6 @@ AC-CDD is designed as a **containerized CLI tool**. You do not clone the tool's 
     Download the distribution `docker-compose.yml` to your project root, or create one:
 
     ```yaml
-    version: '3.8'
     services:
       ac-cdd:
         image: tsuyama1990/ac-cdd-agent:latest
@@ -312,8 +316,9 @@ If you want to modify the AC-CDD framework itself:
 1.  Clone this repository.
 2.  Modify code in `dev_src/ac_cdd_core`.
 3.  Rebuild the Docker image: `docker build -t ac-cdd .`
-4.  Test your changes using the alias.
+4.  Run tests: `uv run pytest tests/ac_cdd/unit -q`
+5.  Read the **[Developer Guide](./README_DEVELOPER.md)** for details on extending LangGraph flows, adding nodes, and working with templates.
 
 ## License
 
-[License Name]
+This project is licensed under the **MIT License** — see the [LICENSE](./LICENSE) file for details.

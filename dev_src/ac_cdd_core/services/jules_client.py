@@ -309,7 +309,7 @@ class JulesClient:
         max_plan_rejections = 2  # Limit plan approval iterations
         async with httpx.AsyncClient() as client:
             while True:
-                if asyncio.get_event_loop().time() - start_time > self.timeout:
+                if asyncio.get_running_loop().time() - start_time > self.timeout:
                     tmsg = "Timed out waiting for Jules to complete."
                     raise JulesTimeoutError(tmsg)
 

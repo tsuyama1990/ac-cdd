@@ -1,5 +1,7 @@
 # AC-CDD Developer Guide: LangGraph フロー修正・拡張ガイド
 
+> 📖 **ユーザー向けドキュメント**: [README.md](./README.md)
+
 このドキュメントは AC-CDD の LangGraph フローを修正・拡張したい開発者向けのガイドです。
 
 ---
@@ -17,8 +19,10 @@
    - [5-4. FlowStatus を追加してルーティングを変える](#5-4-flowstatus-を追加してルーティングを変える)
    - [5-5. Prompt をフローから切り離して変更する](#5-5-prompt-をフローから切り離して変更する)
 6. [Jules API 公式 State 一覧](#6-jules-api-公式-state-一覧)
-7. [テストのベストプラクティス](#7-テストのベストプラクティス)
-8. [修正時のチェックリスト](#8-修正時のチェックリスト)
+7. [テンプレート変数リファレンス](#7-テンプレート変数リファレンス)
+8. [テストのベストプラクティス](#8-テストのベストプラクティス)
+9. [よくある落とし穴 (Gotchas)](#9-よくある落とし穴-gotchas)
+10. [修正時のチェックリスト](#10-修正時のチェックリスト)
 
 ---
 
@@ -380,7 +384,7 @@ EOF
 
 変数は `{{変数名}}` 形式で、利用可能な変数は:
 
-- `{{feedback}}` — 監査フィードバックテキスト
+- `{{feedback}}` — 監査フィードバックテキスト（`AUDIT_FEEDBACK_MESSAGE.md`, `AUDIT_FEEDBACK_INJECTION.md`）
 - `{{pr_url}}` — 前回の PR URL（`AUDIT_FEEDBACK_INJECTION.md` のみ）
 - `{{question}}` — Jules からの質問文（`MANAGER_INQUIRY_FALLBACK.md` のみ）
 
@@ -426,7 +430,32 @@ TERMINAL_STATES = {
 
 ---
 
-## 7. テストのベストプラクティス
+## 7. テンプレート変数リファレンス
+
+以下の変数は対応するテンプレートファイル内で `{{変数名}}` の形で使用できます。
+
+| 変数 | 利用可能なテンプレート | 説明 |
+|---|---|---|
+| `{{cycle_id}}` | `CODER_INSTRUCTION.md`, `AUDITOR_INSTRUCTION.md` | サイクルID（例: `01`, `02`）。コード内で自動置換される |
+| `{{feedback}}` | `AUDIT_FEEDBACK_MESSAGE.md`, `AUDIT_FEEDBACK_INJECTION.md` | 監査フィードバックのフルテキスト |
+| `{{pr_url}}` | `AUDIT_FEEDBACK_INJECTION.md` | 前回の PR の URL。`{{#pr_url}}...{{/pr_url}}` で条件付きレンダリング可能 |
+| `{{question}}` | `MANAGER_INQUIRY_FALLBACK.md` | Jules からの質問文（Manager Agent が失敗した場合のフォールバック用） |
+
+### `{{pr_url}}` の条件付きレンダリング
+
+`AUDIT_FEEDBACK_INJECTION.md` では Mustache 風の条件ブロックが使えます:
+
+```markdown
+{{#pr_url}}
+Previous PR: {{pr_url}}
+{{/pr_url}}
+```
+
+`pr_url` が存在する場合はブロックが展開され、存在しない場合はブロックごと削除されます。
+
+---
+
+## 8. テストのベストプラクティス
 
 ### ノードのユニットテスト
 
@@ -478,7 +507,86 @@ mock_jules.get_session_state.return_value = "SUCCEEDED"  # NG
 
 ---
 
-## 8. 修正時のチェックリスト
+## 9. よくある落とし穴 (Gotchas)
+
+### ❌ 存在しない Jules API State の使用
+
+```python
+# NG: Jules API にこれらは存在しない
+if state == "RUNNING": ...
+if state == "SUCCEEDED": ...
+
+# OK: 公式 state のみ使用する
+if state == "IN_PROGRESS": ...
+if state == "COMPLETED": ...
+```
+
+### ❌ `asyncio.get_event_loop()` の使用（Python 3.10+ で DeprecationWarning）
+
+async 関数内では `get_running_loop()` を使う:
+
+```python
+# NG
+elapsed = asyncio.get_event_loop().time() - start_time
+
+# OK（async 関数内では常にループが存在するため安全）
+elapsed = asyncio.get_running_loop().time() - start_time
+```
+
+### ❌ ルーターの返り値とエッジキーの不一致
+
+ルーター関数が返す文字列は、`add_conditional_edges` の mapping dict のキーと**完全一致**する必要があります:
+
+```python
+# graph.py
+workflow.add_conditional_edges(
+    "my_node",
+    self.nodes.my_router,
+    {
+        "next_node": "next_node",   # ← ルーターが返す値と一致させる
+        "failed": END,
+    },
+)
+
+# graph_nodes.py
+def my_router(self, state: CycleState) -> str:
+    if ok:
+        return "next_node"   # ← 上記 mapping のキーと完全一致
+    return "failed"
+```
+
+### ❌ テンプレートのモックで全ての名前に同じ内容を返す
+
+`{{feedback}}` などの変数を含むテンプレートは、テスト時に変数を含む内容を返す必要があります:
+
+```python
+# NG: AUDIT_FEEDBACK_INJECTION に {{feedback}} が含まれない → 置換が機能しない
+mock_settings.get_template.return_value.read_text.return_value = "Generic text"
+
+# OK: テンプレート名ごとに適切な内容を返す
+def mock_get_template(name: str) -> MagicMock:
+    m = MagicMock()
+    if name == "AUDIT_FEEDBACK_INJECTION.md":
+        m.read_text.return_value = "# FEEDBACK\n\n{{feedback}}"
+    else:
+        m.read_text.return_value = "Instruction"
+    return m
+mock_settings.get_template.side_effect = mock_get_template
+```
+
+### ❌ 新しいテンプレートで `{{cycle_id}}` 置換を忘れる
+
+`CODER_INSTRUCTION.md` や `AUDITOR_INSTRUCTION.md` に `{{cycle_id}}` を追加した場合は、
+対応する UseCase で必ず置換すること:
+
+```python
+instruction = settings.get_template("MY_INSTRUCTION.md").read_text()
+instruction = instruction.replace("{{cycle_id}}", str(state.cycle_id))  # 必須
+```
+
+---
+
+## 10. 修正時のチェックリスト
 
 フローを修正・追加した後は、必ず以下を確認する:
 
@@ -502,3 +610,6 @@ uv run pytest tests/ac_cdd/unit -q
 - [ ] **UseCase が例外を投げる** 場合、ノードかグラフでキャッチしているか
 - [ ] **新しいプロンプト文字列**がハードコードされていないか（テンプレート化を検討する）
 - [ ] **新しい State フィールド**を追加した場合、`CycleState` / `JulesSessionState` の定義に追加したか
+- [ ] **`{{cycle_id}}` を含むテンプレート**を追加した場合、UseCase で `instruction.replace("{{cycle_id}}", ...)` を呼んでいるか
+- [ ] **async 関数内**で `asyncio.get_event_loop()` を使っていないか（`get_running_loop()` を使うこと）
+- [ ] `uv run mypy .`（`tests/` 含む全体）でエラーが 0 であるか
