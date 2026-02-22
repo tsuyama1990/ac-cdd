@@ -1,6 +1,7 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from ac_cdd_core.domain_models import AuditResult
 from ac_cdd_core.enums import FlowStatus
 from ac_cdd_core.services.coder_usecase import CoderUseCase
 from ac_cdd_core.state import CycleState
@@ -31,8 +32,7 @@ class TestSessionReuse:
         mock_manifest.jules_session_id = "sessions/123"
         mock_manifest.pr_url = None
 
-        audit = MagicMock()
-        audit.feedback = "Fix this issue"
+        audit = AuditResult(status="REJECTED", is_approved=False, reason="Needs work", feedback="Fix this issue")
         state = CycleState(
             cycle_id="01",
             status=FlowStatus.RETRY_FIX,
@@ -72,8 +72,7 @@ class TestSessionReuse:
         mock_manifest.jules_session_id = "sessions/123"
         mock_manifest.pr_url = "https://pr"
 
-        audit = MagicMock()
-        audit.feedback = "Fix this issue"
+        audit = AuditResult(status="REJECTED", is_approved=False, reason="Needs work", feedback="Fix this issue")
         state = CycleState(
             cycle_id="01",
             status=FlowStatus.RETRY_FIX,
@@ -112,8 +111,7 @@ class TestSessionReuse:
         mock_manifest.jules_session_id = "sessions/123"
         mock_manifest.pr_url = None
 
-        audit = MagicMock()
-        audit.feedback = "Fix this"
+        audit = AuditResult(status="REJECTED", is_approved=False, reason="Needs work", feedback="Fix this")
         state = CycleState(
             cycle_id="01",
             status=FlowStatus.RETRY_FIX,
