@@ -86,7 +86,14 @@ class TestSessionReuse:
             instance.get_cycle.return_value = mock_manifest
 
             with patch("ac_cdd_core.services.coder_usecase.settings") as mock_settings:
-                mock_settings.get_template.return_value.read_text.return_value = "Instruction"
+                def mock_get_template(name: str) -> MagicMock:
+                    m = MagicMock()
+                    if name == "AUDIT_FEEDBACK_INJECTION.md":
+                        m.read_text.return_value = "# PREVIOUS AUDIT FEEDBACK (MUST FIX)\n\n{{feedback}}\n\n{{#pr_url}}\nPrevious PR: {{pr_url}}\n{{/pr_url}}"
+                    else:
+                        m.read_text.return_value = "Instruction"
+                    return m
+                mock_settings.get_template.side_effect = mock_get_template
                 mock_settings.get_target_files.return_value = []
                 mock_settings.get_context_files.return_value = []
                 await usecase.execute(state)
