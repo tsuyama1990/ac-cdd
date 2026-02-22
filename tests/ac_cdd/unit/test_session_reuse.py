@@ -55,7 +55,11 @@ class TestSessionReuse:
         mock_jules._send_message.assert_called_once()  # Feedback was sent to existing session
 
         # Verify the actual feedback content sent
-        sent_message = mock_jules._send_message.call_args.args[1] if mock_jules._send_message.call_args.args else mock_jules._send_message.call_args.kwargs.get("message", "")
+        sent_message = (
+            mock_jules._send_message.call_args.args[1]
+            if mock_jules._send_message.call_args.args
+            else mock_jules._send_message.call_args.kwargs.get("message", "")
+        )
         assert "Fix this issue" in sent_message
 
         mock_jules.run_session.assert_not_called()
@@ -147,7 +151,11 @@ class TestSessionReuse:
         mock_jules._send_message.assert_called_once()  # Feedback was sent
 
         # Verify the actual feedback content sent
-        sent_message = mock_jules._send_message.call_args.args[1] if mock_jules._send_message.call_args.args else mock_jules._send_message.call_args.kwargs.get("message", "")
+        sent_message = (
+            mock_jules._send_message.call_args.args[1]
+            if mock_jules._send_message.call_args.args
+            else mock_jules._send_message.call_args.kwargs.get("message", "")
+        )
         assert "Fix this" in sent_message
 
         mock_jules.run_session.assert_not_called()
