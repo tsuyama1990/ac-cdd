@@ -59,8 +59,10 @@ async def test_finalize_exits_when_no_session(workflow: WorkflowService) -> None
         patch.object(sys, "exit") as mock_exit,
     ):
         mock_sm_cls.return_value.load_manifest.return_value = None
+        mock_exit.side_effect = SystemExit(1)
 
-        await workflow.finalize_session(project_session_id=None)
+        with pytest.raises(SystemExit):
+            await workflow.finalize_session(project_session_id=None)
 
         mock_exit.assert_called_once_with(1)
 
@@ -88,7 +90,9 @@ async def test_finalize_merge_failure_is_handled(workflow: WorkflowService) -> N
         mock_git.create_final_pr = AsyncMock(side_effect=RuntimeError("Merge conflict"))
         mock_git_cls.return_value = mock_git
         workflow.git = mock_git
+        mock_exit.side_effect = SystemExit(1)
 
-        await workflow.finalize_session(project_session_id=None)
+        with pytest.raises(SystemExit):
+            await workflow.finalize_session(project_session_id=None)
 
         mock_exit.assert_called_once_with(1)

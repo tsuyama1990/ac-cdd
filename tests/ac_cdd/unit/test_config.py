@@ -88,7 +88,7 @@ def test_get_prompt_content() -> None:
 
 
 def test_get_prompt_content_file_not_found() -> None:
-    """Test get_prompt_content raises FileNotFoundError when template does not exist."""
+    """Test get_prompt_content returns default when template does not exist."""
     local_settings = Settings()
 
     with patch.object(Settings, "get_template") as mock_get_template:
@@ -96,10 +96,8 @@ def test_get_prompt_content_file_not_found() -> None:
         mock_path.exists.return_value = False
         mock_get_template.return_value = mock_path
 
-        import pytest
-
-        with pytest.raises(FileNotFoundError, match="Prompt template not found"):
-            local_settings.get_prompt_content("auditor.md")
+        with patch("pathlib.Path.exists", return_value=False):
+            assert local_settings.get_prompt_content("auditor.md", default="DEF") == "DEF"
 
 
 def test_path_separation() -> None:
