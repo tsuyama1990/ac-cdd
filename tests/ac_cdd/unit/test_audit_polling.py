@@ -25,8 +25,8 @@ class TestAuditPolling:
         mock_git.get_pr_base_branch = AsyncMock(return_value="main")
         mock_git.get_changed_files = AsyncMock(return_value=["file.py"])
 
-        # Jules is still running
-        mock_jules.get_session_state = AsyncMock(return_value="RUNNING")
+        # Jules is still in progress (active, non-terminal state)
+        mock_jules.get_session_state = AsyncMock(return_value="IN_PROGRESS")
 
         usecase = AuditorUseCase(mock_jules, mock_git, mock_llm)
 

@@ -94,7 +94,7 @@ class TestJulesClientLogic(unittest.IsolatedAsyncioTestCase):
         # 2. get(activities) (Check Inquiry) -> FOUND Question
         #    -> Sends Reply, Sleeps, Continues
         # Iteration 2:
-        # 3. get(session) -> SUCCEEDED w/ PR
+        # 3. get(session) -> COMPLETED w/ PR
         # 4. get(activities) (Check Inquiry) -> Empty (No new questions)
         #    -> Falls through to Success Check -> Returns PR
 
@@ -174,7 +174,7 @@ class TestJulesClientLogic(unittest.IsolatedAsyncioTestCase):
         # 2. get(activities) (Check Inquiry) -> Old Activity (Ignored)
         #    -> Logic: if duplicate, continue (skip rest of loop)
         # Iteration 2:
-        # 3. get(session) -> SUCCEEDED
+        # 3. get(session) -> COMPLETED
         # 4. get(activities) (Check Inquiry) -> Empty
         #    -> Success Check -> Returns PR
 

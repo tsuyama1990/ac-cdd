@@ -93,10 +93,10 @@ async def test_wait_for_completion_timeout(mock_client: JulesClient, mock_httpx:
     mock_client.timeout = 0.001
     mock_client._sleep = AsyncMock()
 
-    # Always RUNNING
+    # Always IN_PROGRESS (never completes → triggers timeout)
     mock_response = MagicMock()
     mock_response.status_code = 200
-    mock_response.json.return_value = {"state": "RUNNING"}
+    mock_response.json.return_value = {"state": "IN_PROGRESS"}
 
     async def get_mock(url: str, **kwargs: Any) -> MagicMock:
         return mock_response

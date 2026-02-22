@@ -136,7 +136,10 @@ class CycleNodes(IGraphNodes):
                 current_state = await self.jules.get_session_state(session_id)
                 console.print(f"[dim]State check ({attempt + 1}/12): {current_state}[/dim]")
 
-                if current_state in ["IN_PROGRESS", "QUEUED", "RUNNING"]:
+                if current_state in {
+                    "IN_PROGRESS", "QUEUED", "PLANNING",
+                    "AWAITING_PLAN_APPROVAL", "AWAITING_USER_FEEDBACK", "PAUSED",
+                }:
                     state_transitioned = True
                     console.print(
                         "[green]Jules session is now active. Proceeding to monitor...[/green]"
