@@ -31,7 +31,7 @@ RUN uv pip install --system .
 
 # Copy system prompts to internal template directory
 RUN mkdir -p /opt/ac_cdd/templates
-COPY dev_documents/system_prompts/*.md /opt/ac_cdd/templates/
+COPY dev_src/ac_cdd_core/templates/*.md /opt/ac_cdd/templates/
 
 # Create /app for user mount
 WORKDIR /app
