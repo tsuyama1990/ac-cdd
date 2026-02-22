@@ -242,7 +242,7 @@ class JulesClient:
         initial_state = JulesSessionState(
             session_url=session_url,
             session_name=session_name,
-            start_time=asyncio.get_event_loop().time(),
+            start_time=asyncio.get_running_loop().time(),
             timeout_seconds=self.timeout,
             poll_interval=self.poll_interval,
             require_plan_approval=require_plan_approval,
@@ -292,7 +292,7 @@ class JulesClient:
             return {"status": "success", "pr_url": "https://github.com/dummy/pr/1"}
 
         processed_activity_ids: set[str] = set()
-        start_time = asyncio.get_event_loop().time()
+        start_time = asyncio.get_running_loop().time()
 
         self.console.print(
             f"[bold green]Jules is working... (Session: {session_name})[/bold green]"
