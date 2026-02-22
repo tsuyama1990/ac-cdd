@@ -622,15 +622,7 @@ class JulesClient:
         try:
             self.console.print("[cyan]Sending message to Jules to commit and create PR...[/cyan]")
 
-            message = (
-                "The session has completed successfully, but no Pull Request was created.\n\n"
-                "Please commit all your changes and create a Pull Request now.\n\n"
-                "**Action Required:**\n"
-                "1. Review all the files you've created/modified\n"
-                "2. Commit all changes with a descriptive commit message\n"
-                "3. Create a Pull Request to the main branch\n\n"
-                "Do not wait for further instructions. Proceed immediately."
-            )
+            message = settings.get_template("PR_CREATION_REQUEST.md").read_text()
 
             await self._send_message(session_url, message)
 

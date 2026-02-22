@@ -30,11 +30,8 @@ class CoderUseCase:
             f"[bold yellow]Sending Audit Feedback to existing Jules session: {session_id}[/bold yellow]"
         )
         try:
-            feedback_msg = (
-                f"# AUDIT FEEDBACK - PLEASE ADDRESS THESE ISSUES\n\n"
-                f"{feedback}\n\n"
-                f"Please revise your implementation to address the above feedback and create a new PR."
-            )
+            feedback_template = settings.get_template("AUDIT_FEEDBACK_MESSAGE.md").read_text()
+            feedback_msg = feedback_template.replace("{{feedback}}", feedback)
             await self.jules._send_message(self.jules._get_session_url(session_id), feedback_msg)
 
             console.print(
@@ -168,19 +165,15 @@ class CoderUseCase:
                     console.print(
                         "[yellow]Session reuse failed. Creating NEW session with feedback injected...[/yellow]"
                     )
-                    instruction += f"\n\n# PREVIOUS AUDIT FEEDBACK (MUST FIX)\n{last_audit.feedback}"
-                    if cycle_manifest.pr_url:
-                        instruction += f"\n\nPrevious PR: {cycle_manifest.pr_url}"
+                    instruction += "\n\n" + self._build_feedback_injection(last_audit.feedback, cycle_manifest.pr_url if cycle_manifest else None)
                 else:
                     console.print(
                         f"[yellow]Session in unexpected/failed state ({session_state}). Creating new session...[/yellow]"
                     )
-                    instruction += f"\n\n# PREVIOUS AUDIT FEEDBACK (MUST FIX)\n{last_audit.feedback}"
-                    if cycle_manifest.pr_url:
-                        instruction += f"\n\nPrevious PR: {cycle_manifest.pr_url}"
+                    instruction += "\n\n" + self._build_feedback_injection(last_audit.feedback, cycle_manifest.pr_url if cycle_manifest else None)
             else:
                 console.print("[bold yellow]Injecting Audit Feedback into Coder Prompt...[/bold yellow]")
-                instruction += f"\n\n# PREVIOUS AUDIT FEEDBACK (MUST FIX)\n{last_audit.feedback}"
+                instruction += "\n\n" + self._build_feedback_injection(last_audit.feedback, None)
 
         target_files = settings.get_target_files()
         context_files = settings.get_context_files()
@@ -251,3 +244,18 @@ class CoderUseCase:
             console.print(f"[red]Max session restarts ({max_restarts}) reached. Failing cycle.[/red]")
 
         return {"status": FlowStatus.FAILED, "error": error_msg}
+
+    def _build_feedback_injection(self, feedback: str, pr_url: str | None) -> str:
+        """Builds feedback injection block from template."""
+        import re
+        template = str(settings.get_template("AUDIT_FEEDBACK_INJECTION.md").read_text())
+        result = template.replace("{{feedback}}", feedback)
+        if pr_url:
+            result = result.replace(
+                "{{#pr_url}}\nPrevious PR: {{pr_url}}\n{{/pr_url}}",
+                f"Previous PR: {pr_url}",
+            )
+        else:
+            # Remove the conditional block if no PR URL
+            result = str(re.sub(r"\{\{#pr_url\}\}.*?\{\{/pr_url\}\}", "", result, flags=re.DOTALL))
+        return result.strip()

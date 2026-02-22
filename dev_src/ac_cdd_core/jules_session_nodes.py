@@ -210,7 +210,12 @@ class JulesSessionNodes:
             # Get Manager Agent response
             mgr_response = await self.client.manager_agent.run(enhanced_context)
             reply_text = mgr_response.output
-            reply_text += "\n\n(System Note: If task complete/blocker resolved, proceed to create PR. Do not wait.)"
+            from ac_cdd_core.config import settings
+            followup = settings.get_prompt_content(
+                "MANAGER_INQUIRY_FOLLOWUP.md",
+                default="(System Note: If task complete/blocker resolved, proceed to create PR. Do not wait.)",
+            )
+            reply_text += f"\n\n{followup}"
 
             console.print(f"[bold cyan]Manager Agent Reply:[/bold cyan] {reply_text}")
             await self.client._send_message(state.session_url, reply_text)
@@ -224,11 +229,12 @@ class JulesSessionNodes:
 
         except Exception as e:
             logger.error(f"Manager Agent failed: {e}")
-            fallback_msg = (
-                f"I encountered an error processing your question. "
-                f"Please refer to the SPEC.md in dev_documents/system_prompts/ for guidance. "
-                f"Original question: {state.current_inquiry}"
+            from ac_cdd_core.config import settings
+            fallback_template = settings.get_prompt_content(
+                "MANAGER_INQUIRY_FALLBACK.md",
+                default="I encountered an error processing your question. Original question: {{question}}",
             )
+            fallback_msg = fallback_template.replace("{{question}}", state.current_inquiry or "")
             await self.client._send_message(state.session_url, fallback_msg)
             state.processed_activity_ids.add(state.current_inquiry_id)
 
@@ -419,15 +425,8 @@ class JulesSessionNodes:
         console.print("[cyan]Attempting to create PR manually...[/cyan]")
         console.print("[cyan]Sending message to Jules to commit and create PR...[/cyan]")
 
-        message = (
-            "The session has completed successfully, but no Pull Request was created.\n\n"
-            "Please commit all your changes and create a Pull Request now.\n\n"
-            "**Action Required:**\n"
-            "1. Review all the files you've created/modified\n"
-            "2. Commit all changes with a descriptive commit message\n"
-            "3. Create a Pull Request to the main branch\n\n"
-            "Do not wait for further instructions. Proceed immediately."
-        )
+        from ac_cdd_core.config import settings
+        message = settings.get_template("PR_CREATION_REQUEST.md").read_text()
 
         await self.client._send_message(state.session_url, message)
         console.print("[dim]Waiting for Jules to create PR...[/dim]")
