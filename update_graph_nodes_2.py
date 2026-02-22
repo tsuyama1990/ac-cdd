@@ -1,6 +1,6 @@
 import re
 
-with open("dev_src/ac_cdd_core/graph_nodes.py", "r") as f:
+with open("dev_src/ac_cdd_core/graph_nodes.py") as f:
     content = f.read()
 
 replacement = """    async def committee_manager_node(self, state: CycleState) -> dict[str, Any]:
