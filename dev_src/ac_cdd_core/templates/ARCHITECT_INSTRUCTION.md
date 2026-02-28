@@ -12,6 +12,7 @@ Your goal is to analyze the raw requirements in `dev_documents/ALL_SPEC.md` and 
 6. Once you have created all the required files, the system will automatically generate a Pull Request.
 7. **DO NOT DELETE OR MODIFY FILES AFTER CREATION.** If you receive any internal review feedback about word counts or quality, **IGNORE IT** and keep the files as-is. The files will be reviewed by the external Auditor agent, not by you.
 8. **PRESERVE EXISTING ASSETS**: This is an existing codebase. You must **FIRST analyze the existing code** to thoroughly understand its current functions and capabilities. Treat `ALL_SPEC.md` as an *additive* or *evolutionary* request. Devise a strategy where existing code is modified only when absolutely necessary, ensuring the new features listed in `ALL_SPEC.md` perfectly coexist with the existing architecture. Do NOT plan to rewrite the entire system from scratch. Maximize the reuse of existing modules, schemas, and tests.
+9. **MODERN & SCALABLE DESIGN**: Ensure the architecture leverages modern software design patterns (e.g., Dependency Injection, Repository Pattern, Factory limits) and guarantees strict separation of concerns to avoid "God Classes" and tightly coupled logic.
 
 ## Inputs
 - `ALL_SPEC.md`: The raw requirement document.
@@ -43,15 +44,19 @@ If you have any good suggestions for the  `ALL_SPEC.md` file, you must suggest t
 2. **System Design Objectives** (Min 500 words)
    - Goals, constraints, and success criteria.
 3. **System Architecture** (Min 500 words text + Mermaid Diagram)
-   - Components, data flow, and interactions.
+   - Components, data flow, external system interactions.
+   - **MUST Include**: Explicit rules on boundary management and separation of concerns.
 4. **Design Architecture** (Min 500 words)
-   - File structure (ascii tree), class/function definitions overview, data models.
+   - File structure (ascii tree), class/function definitions overview.
+   - Core Domain Pydantic Models structure and typing.
+   - **MUST Include**: Clear integration points on how the new schema objects extend the existing domain objects.
 5. **Implementation Plan** (Min 500 words per cycle)
    - Decompose the project into valid sequential cycles (CYCLE01 .. CYCLE{{max_cycles}}).
    - **CRITICAL**: You MUST create exactly `{{max_cycles}}` cycles. The list must go from 01 to {{max_cycles}}.
    - Detail exactly what features belong to each cycle.
 6. **Test Strategy** (Min 500 words per cycle)
-   - How each cycle will be tested.
+   - How each cycle will be tested (Unit, Integration, E2E).
+   - **MUST Include**: A strategy for executing these tests without side-effects (e.g. mocking external requests, using temporary directories for file I/O).
 
 #### 2. `dev_documents/system_prompts/CYCLE{xx}/SPEC.md` (For EACH Cycle)
 Detailed specification for a specific development cycle.
