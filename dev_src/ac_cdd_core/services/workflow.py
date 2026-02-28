@@ -375,7 +375,7 @@ class WorkflowService:
 
     async def _archive_and_reset_state(self) -> None:  # noqa: C901
         """
-        Archives current session artifacts to dev_documents/phase_n
+        Archives current session artifacts to dev_documents/system_prompts_phaseNN
         and resets the state for the next phase.
         """
         import shutil
@@ -386,7 +386,7 @@ class WorkflowService:
 
         # 1. Determine next phase number
         existing_phases = [
-            d for d in docs_dir.iterdir() if d.is_dir() and d.name.startswith("phase_")
+            d for d in docs_dir.iterdir() if d.is_dir() and d.name.startswith("system_prompts_phase")
         ]
         next_phase_num = 1
         if existing_phases:
@@ -395,12 +395,11 @@ class WorkflowService:
             nums = []
             for d in existing_phases:
                 with contextlib.suppress(IndexError, ValueError):
-                    nums.append(int(d.name.split("_")[1]))
+                    nums.append(int(d.name.split("_phase")[1]))
             if nums:
                 next_phase_num = max(nums) + 1
 
-        phase_dir = docs_dir / f"phase_{next_phase_num}"
-        phase_dir.mkdir(parents=True, exist_ok=True)
+        phase_dir = docs_dir / f"system_prompts_phase{next_phase_num:02d}"
         console.print(f"\n[bold cyan]Archiving session artifacts to {phase_dir}...[/bold cyan]")
 
         async def move_item(src: Path, dest: Path) -> None:
@@ -414,15 +413,16 @@ class WorkflowService:
                 logger.warning(f"git mv failed for {src.name}, falling back to shutil.move")
                 shutil.move(str(src), str(dest))
 
+        # Rename system_prompts to system_prompts_phaseXX
+        sys_prompts_dir = docs_dir / "system_prompts"
+        if sys_prompts_dir.exists():
+            await move_item(sys_prompts_dir, phase_dir)
+        else:
+            phase_dir.mkdir(parents=True, exist_ok=True)
+
         # 2. Archive files
         # ALL_SPEC.md
         await move_item(docs_dir / "ALL_SPEC.md", phase_dir / "ALL_SPEC.md")
-
-        # SYSTEM_ARCHITECTURE.md
-        sys_prompts_dir = docs_dir / "system_prompts"
-        await move_item(
-            sys_prompts_dir / "SYSTEM_ARCHITECTURE.md", phase_dir / "SYSTEM_ARCHITECTURE.md"
-        )
 
         # UAT Scenario
         await move_item(docs_dir / "USER_TEST_SCENARIO.md", phase_dir / "USER_TEST_SCENARIO.md")
@@ -432,21 +432,9 @@ class WorkflowService:
         if tutorials_dir.exists():
             phase_tutorials_dir = phase_dir / "tutorials"
             phase_tutorials_dir.mkdir(parents=True, exist_ok=True)
-            # Move contents of tutorials to phase archive
             for item in tutorials_dir.iterdir():
                 await move_item(item, phase_tutorials_dir / item.name)
-
-            # Clean up empty tutorials dir so it can be fresh?
-            # Actually, if we moved everything, it might be empty or missing.
-            # But let's keep the dir structure if needed, or just let it regenerate.
-            # Best to leave an empty tutorials dir for next phase.
             tutorials_dir.mkdir(exist_ok=True)
-
-        # CYCLEnn directories
-        if sys_prompts_dir.exists():
-            for item in sys_prompts_dir.iterdir():
-                if item.is_dir() and item.name.startswith("CYCLE"):
-                    await move_item(item, phase_dir / item.name)
 
         # 3. Archive State (project_state.json)
         state_mgr = StateManager()
@@ -459,14 +447,17 @@ class WorkflowService:
         (docs_dir / "ALL_SPEC.md").touch()
         (docs_dir / "USER_TEST_SCENARIO.md").touch()
 
+        # Re-create empty system_prompts directory ready for next phase
+        sys_prompts_dir.mkdir(exist_ok=True)
+
         # 5. Commit the archiving
         try:
             await self.git._run_git(["add", "."])
             await self.git._run_git(
-                ["commit", "-m", f"Archive Phase {next_phase_num - 1} Artifacts"]
+                ["commit", "-m", f"Archive Phase {next_phase_num} Artifacts"]
             )
         except Exception as e:
             logger.warning(f"Failed to commit archive: {e}")
 
         console.print("[green]Created fresh, empty ALL_SPEC.md for the next phase.[/green]")
-        console.print(f"[green]Ready for Phase {next_phase_num}![/green]")
+        console.print(f"[green]Ready for Phase {next_phase_num + 1}![/green]")

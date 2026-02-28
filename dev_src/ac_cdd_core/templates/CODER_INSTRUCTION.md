@@ -128,7 +128,7 @@ This is effectively a self-refinement process. You must not assume your first dr
 - **Linting**: Immediately after generating or modifying a single file, run `uv run ruff check .`, `uv run ruff format .`, and `uv run mypy .` targeting the entire project, and fix any linting errors. Since we impose stringent linting conditions, you must apply these commands incrementally to avoid code collapse or massive conflicts that would occur if run in batch at the end.
 - **FINAL LINTING CHECK (CRITICAL)**: Because `ruff` and `mypy` are highly stringent, fixing one file may introduce or reveal errors in another. **At the very end of your task, you MUST run a final, comprehensive check** using `uv run ruff check .` and `uv run mypy .` across the entire project. Do not finish your work until these final checks pass with zero errors.
 - **Generate Log**: Save the output of your test run to a file.
-  - Command (Safe): `python -c "import subprocess; from pathlib import Path; p = Path('dev_documents/CYCLE{{cycle_id}}'); p.mkdir(parents=True, exist_ok=True); res = subprocess.run(['pytest'], capture_output=True, text=True); (p / 'test_execution_log.txt').write_text(res.stdout + res.stderr); print(f'✓ Log saved: {p / \"test_execution_log.txt\"}')"`
+  - Command (Safe): `python -c "import subprocess; from pathlib import Path; p = Path('dev_documents/system_prompts/CYCLE{{cycle_id}}'); p.mkdir(parents=True, exist_ok=True); res = subprocess.run(['pytest'], capture_output=True, text=True); (p / 'test_execution_log.txt').write_text(res.stdout + res.stderr); print(f'✓ Log saved: {p / \"test_execution_log.txt\"}')"`
   - **NOTE**: The Auditor will check this file. It must show passing tests.
 - **Test Coverage**: You must ensure that the test coverage is **85%** or higher for all new code. Use `pytest-cov` to verify this if possible.
 
@@ -166,8 +166,8 @@ This is effectively a self-refinement process. You must not assume your first dr
 
 ## Output Rules
 - **Create all source and test files.**
-- **Create the Log File**: `dev_documents/CYCLE{{cycle_id}}/test_execution_log.txt`
+- **Create the Log File**: `dev_documents/system_prompts/CYCLE{{cycle_id}}/test_execution_log.txt`
   - This file must show passing tests for the Auditor to verify.
-  - Command (Safe): `python -c "import subprocess; from pathlib import Path; p = Path('dev_documents/CYCLE{{cycle_id}}'); p.mkdir(parents=True, exist_ok=True); res = subprocess.run(['pytest'], capture_output=True, text=True); (p / 'test_execution_log.txt').write_text(res.stdout + res.stderr); print(f'✓ Log saved: {p / \"test_execution_log.txt\"}')"`
+  - Command (Safe): `python -c "import subprocess; from pathlib import Path; p = Path('dev_documents/system_prompts/CYCLE{{cycle_id}}'); p.mkdir(parents=True, exist_ok=True); res = subprocess.run(['pytest'], capture_output=True, text=True); (p / 'test_execution_log.txt').write_text(res.stdout + res.stderr); print(f'✓ Log saved: {p / \"test_execution_log.txt\"}')"`
 
 **Note**: Project state is automatically tracked in the manifest. You don't need to create any status files.
