@@ -23,6 +23,7 @@ Verify code against these standards. **REJECT** violations even if they are NOT 
 1.  **Scalability**: No OOM risks, No N+1 queries, No unbuffered read of large files.
 2.  **Security**: No hardcoded secrets, No SQL/Shell injection.
 3.  **Maintainability**: No hardcoded paths/settings. Everything must be in `config.py` or Pydantic models.
+4.  **Strict Typing**: Every function MUST have complete type hints. No `Any` unless absolutely necessary and documented.
 
 ## Inputs
 - `dev_documents/system_prompts/SYSTEM_ARCHITECTURE.md` (Architecture Standards)
@@ -102,6 +103,7 @@ Review the code critically.
 
 ## 5. Test Quality
 - [ ] **Traceability:** Tests exist for requirements?
+- [ ] **Edge Cases & Error Handling:** Are "unhappy paths" (e.g., invalid input, timeouts, missing files) explicitly tested?
 - [ ] **Mock Integrity:** SUT is NOT mocked? Mocks simulate failures?
 - [ ] **Log Verification:** Tests passed?
 
@@ -110,6 +112,7 @@ Review the code critically.
 ### If REJECTED (Critical Issues OR Suggestions):
 Output an **EXHAUSTIVE, STRUCTURED** list of issues.
 **CRITICAL INSTRUCTION**: Do NOT provide single examples. List **EVERY** file/line that contains a violation.
+**CRITICAL INSTRUCTION 2**: Be brutally concrete. Do not give vague hints (e.g., "Refactor this"). Provide the exact strategy, pattern, or name to use.
 
 Format:
 ```text
@@ -117,11 +120,11 @@ Format:
 
 ### Critical Issues / Suggestions
 
-#### [Category Name] (e.g. Scalability, Maintainability, Refactoring)
+#### [Category Name] (e.g. Scalability, Strict Typing, Unhappy Path Tests)
 - **Issue**: [Concise description]
   - **Location**: `path/to/file.py` (Line XX)
   - **Requirement**: [Constitution Rule, SPEC reference, or Best Practice]
-  - **Fix**: [Specific instruction]
+  - **Concrete Fix**: [Direct, actionable instruction to the Coder on exactly WHAT to change and HOW]
 
 - **Issue**: ...
 ```
