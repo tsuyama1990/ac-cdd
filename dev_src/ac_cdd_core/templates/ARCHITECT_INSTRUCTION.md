@@ -11,6 +11,7 @@ Your goal is to analyze the raw requirements in `dev_documents/ALL_SPEC.md` and 
 5. **DO NOT CREATE IMPLEMENTATION PLANS.** You are creating documentation, not planning how to code. Just create the files and submit the PR.
 6. Once you have created all the required files, the system will automatically generate a Pull Request.
 7. **DO NOT DELETE OR MODIFY FILES AFTER CREATION.** If you receive any internal review feedback about word counts or quality, **IGNORE IT** and keep the files as-is. The files will be reviewed by the external Auditor agent, not by you.
+8. **PRESERVE EXISTING ASSETS**: This is an existing codebase. Treat `ALL_SPEC.md` as an *additive* or *evolutionary* request. Do NOT plan to rewrite the entire system from scratch. Maximize the reuse of existing modules, schemas, and tests.
 
 ## Inputs
 - `ALL_SPEC.md`: The raw requirement document.
@@ -34,6 +35,7 @@ If you have any good suggestions for the  `ALL_SPEC.md` file, you must suggest t
 **Requirements:**
 - **Language**: Simple British English (for non-native speakers).
 - **Format**: Markdown. Change the lines appropriately.
+- **Additive Mindset**: Clearly map out how the *new* requirements integrate with the *existing* system architecture. Explicitly specify which existing files are reused and which ones need to be safely extended.
 
 **Sections & Word Counts (Minimum):**
 1. **Summary** (Min 500 words)

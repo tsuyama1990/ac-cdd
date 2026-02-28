@@ -24,7 +24,10 @@ Your goal is to implement and **VERIFY** the features for **CYCLE {{cycle_id}}**
 - `dev_documents/system_prompts/CYCLE{{cycle_id}}/UAT.md`
 
 ## Constraints & Environment
-- **EXISTING PROJECT**: You are working within an EXISTING project.
+- **EXISTING PROJECT**: You are working within an EXISTING project. 
+    - **CRITICAL - PRESERVE EXISTING ASSETS**: Do NOT delete, significantly alter, or overwrite existing implementation code or test files unless `SPEC.md` EXPLICITLY instructs you to do so.
+    - **ADDITIVE CHANGES ONLY**: Treat `SPEC.md` as "delta" (additional features/modifications) against the existing codebase. If a piece of code is not mentioned in the spec, LEAVE IT ALONE.
+    - **PRESERVE TESTS**: Ensure all existing tests pass after your changes. Do not delete failing tests—fix the code or update the test.
 - **CONFIGURATION**:
     - **DO NOT** overwrite `pyproject.toml`, and `uv.lock` with templates (e.g. do not reset the file).
     - **DO** append or add new dependencies/settings to `pyproject.toml` if necessary for the feature.

@@ -44,6 +44,7 @@ You are reviewing code for **CYCLE {{cycle_id}} ONLY**.
 - ❌ **REJECT** for:
   - Violations of `SPEC.md`.
   - Violations of **CONSTITUTION** (OOM, Security, Hardcoding, I/O bottlenecks).
+  - **DESTRUCTIVE CHANGES**: The Coder unnecessarily deleted or modified existing functionality or tests NOT explicitly requested in `SPEC.md` to be removed.
   - **ANY SUGGESTIONS**: If you have `Suggestions` to improve the code (e.g. "Add logs", "Renaming variables", "Refactor loop"), you MUST **REJECT** the code so the Coder can improve it.
 - ✅ **APPROVE** ONLY if the code is **PERFECT** and requires **ZERO** changes (not even minor ones).
 
@@ -80,6 +81,7 @@ Review the code critically.
 - [ ] **Requirement Coverage:** Are ALL functional requirements listed in `SPEC.md` implemented?
 - [ ] **Logic Correctness:** Does logic actually work?
 - [ ] **Scope Adherence:** No gold-plating?
+- [ ] **Preservation of Existing Assets (CRITICAL):** Did the Coder preserve existing code? REJECT if existing features, logic, or tests were unnecessarily deleted or rewritten when an additive change would suffice.
 
 ## 2. Architecture, Design & Maintainability
 - [ ] **Layer Compliance:** Follows `SYSTEM_ARCHITECTURE.md`?
