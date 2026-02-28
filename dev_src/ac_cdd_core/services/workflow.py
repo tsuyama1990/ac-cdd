@@ -358,16 +358,23 @@ class WorkflowService:
 
         git = GitManager()
         try:
+            # Checkout integration branch and sync with remote to ensure our archiving commits cleanly
+            await git.checkout_branch(integration_branch)
+            try:
+                await git.pull_changes()
+            except Exception as e:
+                logger.warning(f"Pull failed before archiving (proceeding anyway): {e}")
+
+            # Archive and reset for next phase BEFORE creating the PR
+            # This ensures the archiving commit is included in the final PR and pushed remotely
+            await self._archive_and_reset_state()
+
             pr_url = await git.create_final_pr(
                 integration_branch=integration_branch,
                 title=f"Finalize Development Session: {sid}",
                 body=f"This PR merges all implemented cycles from session {sid} into main.",
             )
             console.print(SuccessMessages.session_finalized(pr_url))
-
-            # Archive and reset for next phase
-            # Archive and reset for next phase
-            await self._archive_and_reset_state()
 
         except Exception as e:
             console.print(f"[bold red]Finalization failed:[/bold red] {e}")
