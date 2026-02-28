@@ -41,7 +41,6 @@ You are reviewing code for **CYCLE {{cycle_id}} ONLY**.
 3. **Reject code that fails to meet requirements EXPLICITLY LISTED in SPEC.md OR violates the CONSTITUTION.**
 
 **SCOPE RULES:**
-- ✅ **APPROVE** if code meets implementation specs AND Constitution.
 - ❌ **REJECT** for:
   - Violations of `SPEC.md`.
   - Violations of **CONSTITUTION** (OOM, Security, Hardcoding, I/O bottlenecks).
