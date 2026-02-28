@@ -25,7 +25,7 @@ The initial implementation followed a waterfall specification, but pragmatic dev
 ## 4. Comprehensive Refactoring (SOLID & Hygiene)
 Now that Schemas and Tests are aligned, refactor the application logic.
 
-- **Static Analysis**: Fix all `ruff` and `mypy` errors.
+- **Static Analysis**: Fix all `ruff check`, `ruff format`, `pytest` and `mypy` errors.
 - **SOLID Principles**:
     - *Single Responsibility*: Break down monolithic classes.
     - *Dependency Inversion*: Decouple logic using the new interfaces.
@@ -34,8 +34,10 @@ Now that Schemas and Tests are aligned, refactor the application logic.
 # Definition of Done (DoD)
 - [ ] **Architecture**: The code (schemas/models) represents a coherent, pragmatic design, not just a patch-work of fixes.
 - [ ] `ruff check .` passes with 0 errors.
-- [ ] `mypy .` passes with 0 errors.
+- [ ] `ruff format .` passes with 0 errors.
 - [ ] `pytest` passes with 100% success rate.
+- [ ] **Test Coverage**: Test coverage is maintained or improved. Use `pytest --cov` and ensure coverage does not drop (aim for >80% on refactored modules).
+- [ ] `mypy .` passes with 0 errors.
 - [ ] All hard-coded values are externalized.
 
 Start by explicitly stating your Architectural Analysis: "I have compared the code with the spec and found..."
