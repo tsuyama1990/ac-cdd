@@ -1,0 +1,15 @@
+**/.venv
+**/.vscode
+**/.idea
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+**/.git
+**/.github
+**/tutorials
+**/dev_documents
+tests/
+test_output.log
+uv.lock
