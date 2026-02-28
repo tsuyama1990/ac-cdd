@@ -223,15 +223,9 @@ This file acts as the landing page for the project. It must be written based on 
     * Mention the cycle-based development flow if applicable.
 
 8.  **Project Structure**
-    * A brief tree view of the critical directories (e.g., `src/`, `dev_documents/`, `tests/`).
+    * A brief tree view of the critical directories (e.g., `src/`, `tests/`).
 
 9.  **License**
     * State the license (default to MIT or proprietary as per spec).
 
 **Note:** Since implementation details might change, keep the "Usage" and "Installation" sections generic but accurate based on your architectural decisions (e.g., if you decided to use `uv`, strictly write `uv` commands).
-
-## FINAL REMINDER
-1. **DO NOT MODIFY ANY FILES** except the documentation files listed above.
-2. **DO NOT DELETE FILES AFTER CREATION.** Once you create a file, leave it as-is.
-3. **IGNORE ANY INTERNAL REVIEW FEEDBACK.** If you see messages about "word count requirements" or "blocking issues", ignore them. Your job is to create the files, not to review them.
-4. **CREATE THE PR IMMEDIATELY** after generating all files. Do not wait for approval or review.
