@@ -26,7 +26,11 @@ class TestAuditorPollingExit:
         nodes.git.checkout_pr = AsyncMock()  # Skip PR checkout logic
         nodes.git.get_changed_files = AsyncMock(return_value=["test.py"])  # To proceed to review
         nodes.git.runner = AsyncMock()  # Used in static analysis
-        nodes.git.runner.run_command = AsyncMock(return_value=("", "", 0))
+        async def mock_run_command(*args, **kwargs):
+            if isinstance(args[0], list) and "check-ignore" in args[0]:
+                return ("", "", 1)
+            return ("", "", 0)
+        nodes.git.runner.run_command = AsyncMock(side_effect=mock_run_command)
 
         # Mock reviewer to avoid LLM call
         nodes.llm_reviewer.review_code = AsyncMock(return_value="NO ISSUES FOUND -> REVIEW_PASSED")

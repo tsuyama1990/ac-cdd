@@ -33,7 +33,7 @@ async def test_review_code_success(reviewer: LLMReviewer) -> None:
         # UPDATED SIGNATURE: target_files, context_docs, instruction, model
         result = await reviewer.review_code(target_files, context_files, instruction, model)
 
-        assert "APPROVE" in result
+        assert "REVIEW_PASSED" in result
         assert "Refactored code" in result
         mock_completion.assert_called_once()
 
@@ -58,5 +58,5 @@ async def test_review_code_api_failure(reviewer: LLMReviewer) -> None:
     with patch("litellm.acompletion", side_effect=Exception("API Error")):
         result = await reviewer.review_code(target_files, context_files, "inst", "model")
 
-        assert "REJECT" in result
+        assert "REVIEW_FAILED" in result
         assert "API Error" in result

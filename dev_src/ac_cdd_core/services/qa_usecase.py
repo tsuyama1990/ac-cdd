@@ -239,16 +239,12 @@ class QaUseCase:
         )
 
         status = FlowStatus.APPROVED
-        if "-> APPROVE" in audit_feedback:
+        if "-> REVIEW_PASSED" in audit_feedback:
             status = FlowStatus.APPROVED
-        elif "-> REJECT" in audit_feedback:
+        elif "-> REVIEW_FAILED" in audit_feedback:
             status = FlowStatus.REJECTED
         else:
-            status = (
-                FlowStatus.APPROVED
-                if "NO ISSUES FOUND" in audit_feedback.upper()
-                else FlowStatus.REJECTED
-            )
+            status = FlowStatus.REJECTED
 
         result = AuditResult(
             status=status.upper(),
