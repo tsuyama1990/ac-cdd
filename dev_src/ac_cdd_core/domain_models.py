@@ -97,14 +97,13 @@ class AuditorReport(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     is_passed: bool = Field(
-        description="Must be False if there is at least one 'fatal' issue. Set to True ONLY if there is zero 'fatal' issue."
+        description="Must be False if there is at least one issue. Set to True ONLY if there are zero issues."
     )
     summary: str = Field(description="Brief 2-3 sentence summary of the review.")
-    fatal_issues: list[ReviewIssue] = Field(
+    issues: list[ReviewIssue] = Field(
         default_factory=list,
-        description="Critical issues that MUST be fixed. You MUST include any Hardcoding of URLs, API keys, paths, or magic numbers here.",
+        description="Issues that MUST be fixed. You MUST include any Hardcoding of URLs, API keys, paths, or magic numbers here.",
     )
-    future_suggestions: list[ReviewIssue] = Field(default_factory=list)
 
 
 class AuditResult(BaseModel):

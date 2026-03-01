@@ -77,22 +77,15 @@ class LLMReviewer:
 
         feedback += f"### Summary\n{report.summary}\n\n"
 
-        if report.fatal_issues:
+        if report.issues:
             feedback += "### Critical Issues\n"
-            for issue in report.fatal_issues:
+            for issue in report.issues:
                 feedback += f"- **[{issue.category.upper()}]**: {issue.issue_description}\n"
-                feedback += f"  - **Location**: `{issue.file_path}` (Line {issue.line_number})\n"
+                feedback += f"  - **Location**: `{issue.file_path}`\n"
                 feedback += (
                     f"  - **Target Snippet**:\n    ```\n    {issue.target_code_snippet}\n    ```\n"
                 )
                 feedback += f"  - **Concrete Fix**: {issue.concrete_fix}\n\n"
-
-        if report.future_suggestions:
-            feedback += "### Future Architecture Suggestions\n"
-            for issue in report.future_suggestions:
-                feedback += f"- **[{issue.category.upper()}]**: {issue.issue_description}\n"
-                feedback += f"  - **Location**: `{issue.file_path}` (Line {issue.line_number})\n"
-                feedback += f"  - **Suggestion**: {issue.concrete_fix}\n\n"
 
         return feedback
 
