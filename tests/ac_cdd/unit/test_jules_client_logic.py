@@ -53,70 +53,75 @@ class TestJulesClientLogic(unittest.IsolatedAsyncioTestCase):
         self, mock_httpx_cls: Any, _mock_sleep: Any
     ) -> None:
         """
-        Verify that if state is COMPLETED but there is a NEW inquiry,
-        we prioritize answering the inquiry over returning "Success/No PR".
+        Verify correct inquiry semantics:
+        - agentMessaged (Jules internal monologue e.g. Root Cause Analysis) is IGNORED.
+        - inquiryAsked in AWAITING_USER_FEEDBACK state triggers Manager Agent reply.
+
+        Old behavior (wrong): the code replied to any agentMessaged regardless of state.
+        New behavior (correct): ONLY inquiryAsked + AWAITING_USER_FEEDBACK triggers a reply.
         """
         mock_client = AsyncMock()
         mock_httpx_cls.return_value.__aenter__.return_value = mock_client
 
         session_id = "sessions/123"
-        activity_id = "sessions/123/activities/456"
+        monologue_id = "sessions/123/activities/monologue"
+        question_id = "sessions/123/activities/question"
 
-        # Initial Load
         self.client.list_activities = MagicMock(return_value=[])
         self.client._send_message = AsyncMock()
 
-        # Responses
-        r_session_completed = MagicMock()
-        r_session_completed.status_code = 200
-        r_session_completed.json.return_value = {"state": "IN_PROGRESS", "outputs": []}
+        call_counts: dict[str, int] = {"state": 0, "activities": 0}
 
-        r_acts_question = MagicMock()
-        r_acts_question.status_code = 200
-        r_acts_question.json.return_value = {
-            "activities": [{"name": activity_id, "agentMessaged": {"agentMessage": "Question?"}}]
-        }
+        def state_response(call_n: int) -> MagicMock:
+            mock = MagicMock()
+            mock.status_code = 200
+            if call_n == 1:
+                mock.json.return_value = {"state": "IN_PROGRESS", "outputs": []}
+            elif call_n == 2:
+                mock.json.return_value = {"state": "AWAITING_USER_FEEDBACK", "outputs": []}
+            else:
+                mock.json.return_value = {
+                    "state": "COMPLETED",
+                    "outputs": [{"pullRequest": {"url": "http://github.com/pr/1"}}],
+                }
+            return mock
 
-        r_session_success = MagicMock()
-        r_session_success.status_code = 200
-        r_session_success.json.return_value = {
-            "state": "COMPLETED",
-            "outputs": [{"pullRequest": {"url": "http://github.com/pr/1"}}],
-        }
-
-        r_acts_empty = MagicMock()
-        r_acts_empty.status_code = 200
-        r_acts_empty.json.return_value = {"activities": []}
-
-        # Sequence:
-        # Iteration 1:
-        # 1. get(session) -> COMPLETED
-        # 2. get(activities) (Check Inquiry) -> FOUND Question
-        #    -> Sends Reply, Sleeps, Continues
-        # Iteration 2:
-        # 3. get(session) -> COMPLETED w/ PR
-        # 4. get(activities) (Check Inquiry) -> Empty (No new questions)
-        #    -> Falls through to Success Check -> Returns PR
-
-        state_responses = [
-            r_session_completed,
-            r_session_completed,
-            r_session_success,
-            r_session_success,
-        ]
-        activity_responses = [r_acts_empty, r_acts_question, r_acts_empty, r_acts_empty]
+        def activities_response(call_n: int) -> MagicMock:
+            mock = MagicMock()
+            mock.status_code = 200
+            if call_n == 1:
+                # Monologue while IN_PROGRESS - must be ignored
+                mock.json.return_value = {
+                    "activities": [
+                        {"name": monologue_id, "agentMessaged": {"agentMessage": "Root Cause Analysis..."}}
+                    ]
+                }
+            elif call_n == 2:
+                # Genuine question while AWAITING_USER_FEEDBACK - must be answered
+                mock.json.return_value = {
+                    "activities": [
+                        {"name": question_id, "inquiryAsked": {"inquiry": "Which file should I edit?"}}
+                    ]
+                }
+            else:
+                mock.json.return_value = {"activities": []}
+            return mock
 
         async def dynamic_get(url: str, **kwargs: Any) -> MagicMock:
-            if url.endswith("/activities") or "pageSize" in url:
-                return activity_responses.pop(0) if activity_responses else r_acts_empty
-            return state_responses.pop(0) if state_responses else r_session_success
+            if "activities" in url:
+                call_counts["activities"] += 1
+                return activities_response(call_counts["activities"])
+            call_counts["state"] += 1
+            return state_response(call_counts["state"])
 
         mock_client.get.side_effect = dynamic_get
 
         result = await self.client.wait_for_completion(session_id)
 
+        # Manager agent MUST have been called exactly once (for the genuine inquiryAsked only)
         self.client._send_message.assert_called_once()
         assert result["pr_url"] == "http://github.com/pr/1"
+
 
     @patch("asyncio.sleep", return_value=None)
     @patch("httpx.AsyncClient")

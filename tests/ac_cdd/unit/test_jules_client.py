@@ -124,11 +124,14 @@ async def test_interactive_inquiry_handling(
                     status_code=200,
                     json=lambda: {
                         "activities": [
-                            {"id": "act1", "type": "USER_FEEDBACK_REQUESTED", "message": "Verify?"}
+                            {
+                                "name": "act1",
+                                "inquiryAsked": {"inquiry": "Should I continue?"},
+                            }
                         ]
                     },
                 )
-            return MagicMock(status_code=200, json=lambda: {"activities": [{"id": "act1"}]})
+            return MagicMock(status_code=200, json=lambda: {"activities": [{"name": "act1"}]})
 
         # Session Status
         if not mock_httpx.post.called:
