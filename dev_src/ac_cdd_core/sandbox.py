@@ -76,8 +76,17 @@ class SandboxRunner:
                 command_str = shlex.join(cmd)
                 logger.info(f"[Sandbox] Running (Attempt {attempt + 1}): {command_str}")
 
+                # Build sandbox environment: start from caller-supplied env vars,
+                # then explicitly clear Docker-host-specific variables that must not
+                # leak into the E2B sandbox.
+                # UV_PROJECT_ENVIRONMENT is set to /opt/ac_cdd_project_venv in the
+                # Docker container (to avoid host-venv path leakage), but /opt/ is
+                # not writable inside E2B, so ruff/mypy fail with "Permission denied".
+                sandbox_env: dict[str, str] = dict(env or {})
+                sandbox_env.setdefault("UV_PROJECT_ENVIRONMENT", "")  # clear if not overridden
+
                 exec_result = sandbox.commands.run(
-                    command_str, cwd=self.cwd, envs=env or {}, timeout=settings.sandbox.timeout
+                    command_str, cwd=self.cwd, envs=sandbox_env, timeout=settings.sandbox.timeout
                 )
                 stdout = exec_result.stdout
                 stderr = exec_result.stderr
