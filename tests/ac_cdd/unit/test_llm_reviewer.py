@@ -17,17 +17,26 @@ async def test_review_code_success(reviewer: LLMReviewer) -> None:
     instruction = "Review this code."
     model = "test-model"
 
+    from ac_cdd_core.domain_models import AuditorReport
+    valid_json = AuditorReport(
+        is_passed=True,
+        summary="Refactored code",
+        fatal_issues=[],
+        future_suggestions=[]
+    ).model_dump_json()
+
     # Mock litellm.acompletion
     mock_response = AsyncMock()
     mock_response.choices = [
-        type("obj", (object,), {"message": type("obj", (object,), {"content": "Refactored code"})})
+        type("obj", (object,), {"message": type("obj", (object,), {"content": valid_json})})
     ]
 
     with patch("litellm.acompletion", return_value=mock_response) as mock_completion:
         # UPDATED SIGNATURE: target_files, context_docs, instruction, model
         result = await reviewer.review_code(target_files, context_files, instruction, model)
 
-        assert result == "Refactored code"
+        assert "REVIEW_PASSED" in result
+        assert "Refactored code" in result
         mock_completion.assert_called_once()
 
         # Verify prompt structure in call args
@@ -51,5 +60,5 @@ async def test_review_code_api_failure(reviewer: LLMReviewer) -> None:
     with patch("litellm.acompletion", side_effect=Exception("API Error")):
         result = await reviewer.review_code(target_files, context_files, "inst", "model")
 
-        assert result.startswith("SYSTEM_ERROR")
-        assert "API call failed" in result
+        assert "REVIEW_FAILED" in result
+        assert "API Error" in result

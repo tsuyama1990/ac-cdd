@@ -44,7 +44,7 @@ async def test_run_session_approved_first_try(
         "planGenerated": {"planId": "plan-1", "steps": []}
     }
     mock_auditor.audit_plan.return_value = PlanAuditResult(
-        status="APPROVED", reason="Good", feedback=""
+        status="REVIEW_PASSEDD", reason="Good", feedback=""
     )
 
     result = await orchestrator.run_interactive_session("prompt", {"spec": "data"})
@@ -75,7 +75,7 @@ async def test_run_session_rejected_then_approved(
     # 3. audit_plan responses
     mock_auditor.audit_plan.side_effect = [
         PlanAuditResult(status="REJECTED", reason="Bad", feedback="Fix X"),
-        PlanAuditResult(status="APPROVED", reason="Good", feedback=""),
+        PlanAuditResult(status="REVIEW_PASSEDD", reason="Good", feedback=""),
     ]
 
     # Note: wait_for_activity_type is called in loop start.
