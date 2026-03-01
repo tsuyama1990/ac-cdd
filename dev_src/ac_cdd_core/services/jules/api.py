@@ -165,3 +165,38 @@ class JulesApiClient:
             raise
 
         return all_activities
+
+    async def list_activities_async(self, session_id_path: str) -> list[dict[str, Any]]:
+        """Async version of list_activities using httpx to avoid blocking the event loop."""
+        import httpx
+
+        if self.api_key == "dummy_jules_key":
+            return []
+
+        all_activities: list[dict[str, Any]] = []
+        page_token = ""
+        try:
+            async with httpx.AsyncClient() as client:
+                while True:
+                    url = f"{self.BASE_URL}/{session_id_path}/activities?pageSize=100"
+                    if page_token:
+                        url += f"&pageToken={page_token}"
+
+                    resp = await client.get(url, headers=self.headers, timeout=10.0)
+                    if resp.status_code != 200:
+                        logger.warning(f"list_activities_async: unexpected status {resp.status_code}")
+                        break
+
+                    data = resp.json()
+                    acts: list[dict[str, Any]] = data.get("activities", [])
+                    if not acts:
+                        break
+                    all_activities.extend(acts)
+
+                    page_token = str(data.get("nextPageToken", ""))
+                    if not page_token:
+                        break
+        except Exception as e:
+            logger.warning(f"list_activities_async failed: {e}")
+
+        return all_activities

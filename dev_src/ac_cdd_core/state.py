@@ -1,6 +1,6 @@
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .config import settings
 from .domain_models import AuditResult, CyclePlan, FileOperation, UatAnalysis
@@ -99,6 +99,7 @@ class CycleState(BaseModel):
     def get(self, item: str, default: Any = None) -> Any:
         return getattr(self, item, default)
 
-    class Config:
-        extra = "allow"
-        validate_assignment = True
+    # LangGraph injects arbitrary state keys during graph traversal (e.g. langgraph_node, langgraph_step).
+    # extra="allow" is intentional here and must NOT be changed to "forbid".
+    # validate_assignment=True ensures FlowStatus enum is enforced on status updates.
+    model_config = ConfigDict(extra="allow", validate_assignment=True)

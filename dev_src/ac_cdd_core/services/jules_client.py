@@ -89,9 +89,9 @@ class JulesClient:
         """Async sleep wrapper for easier mocking in tests."""
         await asyncio.sleep(seconds)
 
-    def list_activities(self, session_id_path: str) -> list[dict[str, Any]]:
-        """Delegates activity listing to the API Client."""
-        return self.api_client.list_activities(session_id_path)
+    async def list_activities(self, session_id_path: str) -> list[dict[str, Any]]:
+        """Delegates activity listing to the API Client (async, non-blocking)."""
+        return await self.api_client.list_activities_async(session_id_path)
 
     def _get_headers(self) -> dict[str, str]:
         # Reuse headers from api_client + auth if needed
@@ -582,7 +582,7 @@ class JulesClient:
         session_id_path = (
             session_id if session_id.startswith("sessions/") else f"sessions/{session_id}"
         )
-        activities = self.list_activities(session_id_path)
+        activities = await self.list_activities(session_id_path)
         for activity in activities:
             if "planGenerated" in activity:
                 return dict(activity.get("planGenerated", {}))
@@ -598,7 +598,7 @@ class JulesClient:
         try:
             async with asyncio.timeout(timeout_seconds):
                 while True:
-                    activities = self.list_activities(session_id_path)
+                    activities = await self.list_activities(session_id_path)
                     for activity in activities:
                         if target_type in activity:
                             return activity

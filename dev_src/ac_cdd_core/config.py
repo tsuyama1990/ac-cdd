@@ -74,6 +74,32 @@ class JulesConfig(BaseModel):
     base_url: str = "https://jules.googleapis.com/v1alpha"
     wait_for_pr_timeout_seconds: int = 900
 
+    # LangGraph session monitoring
+    monitor_batch_size: int = Field(
+        default=12,
+        description="Number of polls per LangGraph node invocation (batch_size * monitor_poll_interval_seconds = seconds per step).",
+    )
+    monitor_poll_interval_seconds: int = Field(
+        default=5,
+        description="Seconds between each poll within a monitor batch.",
+    )
+
+    # Distress detection keywords - Jules sometimes completes but signals a problem in its last message
+    distress_keywords: list[str] = Field(
+        default=[
+            "inconsistent",
+            "cannot act",
+            "faulty audit",
+            "incorrect version",
+            "please manually",
+            "blocked",
+            "error",
+            "issue with",
+            "reiterate",
+        ],
+        description="Keywords in Jules' last message that indicate it is stuck or signaling a problem rather than genuinely completing.",
+    )
+
 
 class ToolsConfig(BaseModel):
     jules_cmd: str = "jules"

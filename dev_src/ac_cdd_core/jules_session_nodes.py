@@ -32,13 +32,16 @@ class JulesSessionNodes:
 
     async def monitor_session(self, _state_in: JulesSessionState) -> dict[str, Any]:  # noqa: C901, PLR0912, PLR0915
         """Monitor Jules session and detect state changes with batched polling."""
+        from ac_cdd_core.config import settings
+
         state = _state_in.model_copy(deep=True)
 
         # Batch polling loop to reduce graph steps
-        # Poll for ~60 seconds (12 checks * 5s interval)
-        POLL_BATCH_SIZE = 12
+        # Poll for (monitor_batch_size * monitor_poll_interval_seconds) seconds per LangGraph invocation
+        batch_size = settings.jules.monitor_batch_size
+        poll_interval = settings.jules.monitor_poll_interval_seconds
 
-        for _ in range(POLL_BATCH_SIZE):
+        for _ in range(batch_size):
             # Check timeout
             elapsed = asyncio.get_running_loop().time() - state.start_time
             if elapsed > state.timeout_seconds:
@@ -140,7 +143,7 @@ class JulesSessionNodes:
             # We use a short sleep here because we are inside the batch loop
             # state.poll_interval is typically long (120s), but for batching we want shorter interval (5s)
             # We ignore state.poll_interval here and use fixed 5s for responsiveness
-            await self.client._sleep(5)
+            await self.client._sleep(poll_interval)
 
         return self._compute_diff(_state_in, state)
 
@@ -387,17 +390,9 @@ class JulesSessionNodes:
                     if sender in ["AGENT", "MODEL", "ASSISTANT", "JULES"]:
                         # Check for distress keywords
                         content = last_msg.get("content", "").lower()
-                        distress_keywords = [
-                            "inconsistent",
-                            "cannot act",
-                            "faulty audit",
-                            "incorrect version",
-                            "please manually",
-                            "blocked",
-                            "error",
-                            "issue with",
-                            "reiterate",
-                        ]
+                        from ac_cdd_core.config import settings
+
+                        distress_keywords = settings.jules.distress_keywords
                         if any(k in content for k in distress_keywords):
                             # Generate ID to prevent infinite inquiry loop on same message
                             msg_id = last_msg.get("name") or str(hash(content))
