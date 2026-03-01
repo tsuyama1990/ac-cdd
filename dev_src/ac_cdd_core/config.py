@@ -93,11 +93,17 @@ class JulesConfig(BaseModel):
             "incorrect version",
             "please manually",
             "blocked",
-            "error",
             "issue with",
             "reiterate",
+            "cannot proceed",
+            "unable to complete",
+            "needs your input",
         ],
-        description="Keywords in Jules' last message that indicate it is stuck or signaling a problem rather than genuinely completing.",
+        description=(
+            "Keywords in Jules' last agentMessaged activity that indicate it is stuck or "
+            "needs help. NOTE: keep these specific - broad words like 'error' will fire on "
+            "normal progress messages such as '3 errors were fixed'."
+        ),
     )
 
 

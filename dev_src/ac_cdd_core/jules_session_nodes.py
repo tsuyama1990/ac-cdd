@@ -415,10 +415,38 @@ class JulesSessionNodes:
         return None
 
     async def request_pr_creation(self, _state_in: JulesSessionState) -> dict[str, Any]:
-        """Request Jules to create a PR manually."""
+        """Request Jules to create a PR manually (fallback for when AUTO_CREATE_PR failed).
+
+        With AUTO_CREATE_PR enabled, Jules should create the PR automatically.
+        This node is only reached when COMPLETED state has no PR in session outputs.
+        We do one final re-fetch before sending any message, in case raw_data was stale.
+        """
         state = _state_in.model_copy(deep=True)
 
-        console.print("[cyan]Attempting to create PR manually...[/cyan]")
+        # Final safety check: re-fetch session outputs before sending any message.
+        # AUTO_CREATE_PR mode should create the PR automatically. If we reach this node
+        # it means check_pr didn't find a PR, but the data might have been stale.
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(
+                    state.session_url, headers=self.client._get_headers(), timeout=10.0
+                )
+                if resp.status_code == httpx.codes.OK:
+                    fresh_data = resp.json()
+                    for output in fresh_data.get("outputs", []):
+                        if "pullRequest" in output:
+                            pr_url = output["pullRequest"].get("url")
+                            if pr_url:
+                                console.print(f"\n[bold green]PR found on final check: {pr_url}[/bold green]")
+                                logger.info(f"PR found in final re-fetch, skipping manual PR request: {pr_url}")
+                                state.pr_url = pr_url
+                                state.raw_data = fresh_data
+                                state.status = SessionStatus.SUCCESS
+                                return self._compute_diff(_state_in, state)
+        except Exception as e:
+            logger.debug(f"Final PR check failed: {e}")
+
+        console.print("[yellow]AUTO_CREATE_PR did not produce a PR. Sending fallback request to Jules...[/yellow]")
         console.print("[cyan]Sending message to Jules to commit and create PR...[/cyan]")
 
         from ac_cdd_core.config import settings
