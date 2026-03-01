@@ -30,7 +30,7 @@ async def test_committee_logic_flow() -> None:
         # Auditor 1: Approved
         state = CycleState(cycle_id="1", current_auditor_index=1, current_auditor_review_count=1)
         state.audit_result = AuditResult(
-            status="REVIEW_PASSEDD", is_approved=True, reason="OK", feedback="LGTM"
+            status="APPROVED", is_approved=True, reason="OK", feedback="LGTM"
         )
 
         res = await nodes.committee_manager_node(state)
@@ -51,10 +51,10 @@ async def test_committee_logic_flow() -> None:
         # Auditor 3: Approved (Last one)
         state.current_auditor_index = 3
         res = await nodes.committee_manager_node(state)
-        assert res["status"] == FlowStatus.CYCLE_REVIEW_PASSEDD
+        assert res["status"] == FlowStatus.CYCLE_APPROVED
 
         # Check routing - Expecting 'uat_evaluate' per requirements
-        route = nodes.route_committee(CycleState(cycle_id="r", status=FlowStatus.CYCLE_REVIEW_PASSEDD))
+        route = nodes.route_committee(CycleState(cycle_id="r", status=FlowStatus.CYCLE_APPROVED))
         assert route == "uat_evaluate"
 
         # --- Scenario 2: Rejected & Retry (Loop Back) ---

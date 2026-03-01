@@ -30,7 +30,7 @@ class TestAuditorPollingExit:
 
         # Mock reviewer to avoid LLM call
         nodes.llm_reviewer = AsyncMock()
-        nodes.llm_reviewer.review_code = AsyncMock(return_value="NO ISSUES FOUND -> REVIEW_PASSED")
+        nodes.llm_reviewer.review_code = AsyncMock(return_value="NO ISSUES FOUND -> APPROVE")
 
         # Initial state: last_audited same as current ("abc")
         state = CycleState(

@@ -27,7 +27,7 @@ class TestPhaseTransition:
             final_fix=True,
             iteration_count=5,
             pr_url="https://github.com/repo/pull/1",
-            status=FlowStatus.CYCLE_REVIEW_PASSEDD,
+            status=FlowStatus.CYCLE_APPROVED,
             last_feedback_time=1234567890.0,
         )
 
