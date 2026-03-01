@@ -65,6 +65,7 @@ What defines a successful user experience?
         template_files = [
             "ARCHITECT_INSTRUCTION.md",
             "AUDITOR_INSTRUCTION.md",
+            "REFACTOR_AUDITOR_INSTRUCTION.md",
             "CODER_INSTRUCTION.md",
             "REFACTOR_INSTRUCTION.md",
             "UAT_DESIGN.md",

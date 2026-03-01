@@ -97,7 +97,15 @@ class AuditorUseCase:
     async def execute(self, state: CycleState) -> dict[str, Any]:  # noqa: C901, PLR0912, PLR0915
         """Runs the auditor logic, static analysis, and prepares LLM reviewer feedback."""
         console.print("[bold magenta]Starting Auditor...[/bold magenta]")
-        instruction = settings.get_template("AUDITOR_INSTRUCTION.md").read_text()
+        is_refactor_phase = getattr(state, "current_phase", None) == WorkPhase.REFACTORING
+        template_name = "REFACTOR_AUDITOR_INSTRUCTION.md" if is_refactor_phase else "AUDITOR_INSTRUCTION.md"
+        
+        template_path = settings.get_template(template_name)
+        if not template_path.exists() and is_refactor_phase:
+            # Fallback if someone hasn't created it yet
+            template_path = settings.get_template("AUDITOR_INSTRUCTION.md")
+            
+        instruction = template_path.read_text()
         instruction = instruction.replace("{{cycle_id}}", str(state.cycle_id))
 
         context_paths = settings.get_context_files()
@@ -179,11 +187,16 @@ class AuditorUseCase:
                 except Exception as e:
                     console.print(f"[yellow]Warning: Could not get PR base branch: {e}[/yellow]")
 
-            changed_file_paths = await self.git.get_changed_files(base_branch=base_branch)
-            reviewable_extensions = {".py", ".md", ".toml", ".json", ".yaml", ".yml", ".txt", ".sh", ".html", ".js", ".css", ".ts"}
-            reviewable_files = [
-                f for f in changed_file_paths if Path(f).suffix in reviewable_extensions
-            ]
+            if is_refactor_phase:
+                # Refactor Auditor reviews all application files for overarching architecture review
+                all_target_files = settings.get_target_files()
+                reviewable_files = [str(f) for f in all_target_files]
+            else:
+                changed_file_paths = await self.git.get_changed_files(base_branch=base_branch)
+                reviewable_extensions = {".py", ".md", ".toml", ".json", ".yaml", ".yml", ".txt", ".sh", ".html", ".js", ".css", ".ts"}
+                reviewable_files = [
+                    f for f in changed_file_paths if Path(f).suffix in reviewable_extensions
+                ]
 
             excluded_patterns = [
                 "dev_src/",
