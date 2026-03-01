@@ -30,7 +30,7 @@ class JulesSessionNodes:
                 updates[field] = new_val
         return updates
 
-    async def monitor_session(self, _state_in: JulesSessionState) -> dict[str, Any]:  # noqa: C901, PLR0912, PLR0915
+    async def monitor_session(self, _state_in: JulesSessionState) -> dict[str, Any]:  # noqa: C901
         """Monitor Jules session and detect state changes with batched polling."""
         from ac_cdd_core.config import settings
 
@@ -69,42 +69,31 @@ class JulesSessionNodes:
 
                     # Check for failure
                     if state.jules_state == "FAILED":
-                        # Debug output for failed state
                         import json
 
                         logger.error(
                             f"Jules Session FAILED. Response: {json.dumps(data, indent=2)}"
                         )
 
-                        error_msg = data.get("error", {}).get("message", "Unknown error")
-
-                        # Resilience: Check if a PR was created despite the failure
-                        # (Sometimes Jules marks session FAILED due to timeout/minor error but PR exists)
-                        pr_found = False
-
-                        # Check in outputs
-                        for output in data.get("outputs", []):
-                            if "github_pull_request" in str(output.get("type", "")):
-                                pr_found = True
+                        # Per Jules API spec, the failure reason is in the 'sessionFailed'
+                        # Activity's 'reason' field, NOT in the Session resource itself.
+                        # The Session resource has no 'error' field.
+                        error_msg = "Unknown error"
+                        for output_item in data.get("outputs", []):
+                            reason = output_item.get("sessionFailed", {}).get("reason")
+                            if reason:
+                                error_msg = reason
                                 break
 
-                        # Check in activities (if outputs empty)
-                        if not pr_found:
-                            act_resp = await client.get(
-                                f"{state.session_url}/activities",
-                                headers=self.client._get_headers(),
-                                timeout=10.0,
-                            )
-                            if act_resp.status_code == httpx.codes.OK:
-                                activities = act_resp.json().get("activities", [])
-                                for act in activities:
-                                    if "pullRequest" in str(act) or "CreatePullRequest" in str(act):
-                                        pr_found = True
-                                        break
+                        # Resilience: Check if a PR was created despite the failure
+                        # Jules API: PR is in session outputs only (not in Activity types)
+                        pr_found = any(
+                            "pullRequest" in output for output in data.get("outputs", [])
+                        )
 
                         if pr_found:
                             logger.warning(
-                                "Session marked FAILED but PR activity detected. Proceeding to validation."
+                                "Session marked FAILED but PR found in session outputs. Proceeding to validation."
                             )
                             state.status = SessionStatus.CHECKING_PR
                         else:
@@ -328,15 +317,22 @@ class JulesSessionNodes:
         state.status = SessionStatus.CHECKING_PR
         return self._compute_diff(_state_in, state)
 
-    async def check_pr(self, _state_in: JulesSessionState) -> dict[str, Any]:  # noqa: C901
-        """Check for PR in session outputs and activities."""
+    async def check_pr(self, _state_in: JulesSessionState) -> dict[str, Any]:
+        """Check for PR in session outputs.
+
+        Per Jules API spec, SessionOutput is the only place where a pullRequest
+        can appear. Activity types are:
+          agentMessaged, userMessaged, planGenerated, planApproved,
+          progressUpdated, sessionCompleted, sessionFailed
+        None of these contain a pullRequest field.
+        """
         state = _state_in.model_copy(deep=True)
 
         if not state.raw_data:
             state.status = SessionStatus.REQUESTING_PR_CREATION
             return self._compute_diff(_state_in, state)
 
-        # Check session outputs
+        # PR can ONLY be in session outputs (Jules API spec)
         for output in state.raw_data.get("outputs", []):
             if "pullRequest" in output:
                 pr_url = output["pullRequest"].get("url")
@@ -346,30 +342,26 @@ class JulesSessionNodes:
                     state.status = SessionStatus.SUCCESS
                     return self._compute_diff(_state_in, state)
 
-        # Check activities
+        # Re-fetch session to get fresh outputs (raw_data may be stale)
         try:
             async with httpx.AsyncClient() as client:
-                act_url = f"{state.session_url}/activities"
-                resp = await client.get(act_url, headers=self.client._get_headers(), timeout=10.0)
+                resp = await client.get(
+                    state.session_url, headers=self.client._get_headers(), timeout=10.0
+                )
                 if resp.status_code == httpx.codes.OK:
-                    activities = resp.json().get("activities", [])
-                    for activity in activities:
-                        # Check for PR
-                        if "pullRequest" in activity:
-                            # Skip already processed activities (stale PRs)
-                            act_id = activity.get("name", activity.get("id"))
-                            if act_id and act_id in state.processed_activity_ids:
-                                continue
-
-                            pr_url = activity["pullRequest"].get("url")
+                    fresh_data = resp.json()
+                    for output in fresh_data.get("outputs", []):
+                        if "pullRequest" in output:
+                            pr_url = output["pullRequest"].get("url")
                             if pr_url:
                                 console.print(f"\n[bold green]PR Created: {pr_url}[/bold green]")
-                                logger.info(f"Found PR in activities: {pr_url}")
+                                logger.info(f"Found PR in fresh session outputs: {pr_url}")
                                 state.pr_url = pr_url
+                                state.raw_data = fresh_data
                                 state.status = SessionStatus.SUCCESS
                                 return self._compute_diff(_state_in, state)
         except Exception as e:
-            logger.debug(f"Failed to check activities for PR: {e}")
+            logger.debug(f"Failed to re-fetch session for PR check: {e}")
 
         # No PR found
         console.print("[yellow]Session Completed but NO PR found.[/yellow]")
@@ -379,43 +371,47 @@ class JulesSessionNodes:
     async def _check_for_distress_in_messages(
         self, state: JulesSessionState, client: httpx.AsyncClient
     ) -> JulesSessionState | None:
-        """Checks the last message for distress signals/objections."""
+        """Checks the latest agentMessaged activity for distress signals/objections.
+
+        Jules API has no /messages endpoint. The correct way to read agent messages
+        is via agentMessaged activities from GET /sessions/{session}/activities.
+        """
         try:
-            # Use existing client to fetch messages
-            msgs_url = f"{state.session_url}/messages"
-            msg_resp = await client.get(msgs_url, headers=self.client._get_headers())
-            if msg_resp.status_code == httpx.codes.OK:
-                messages = msg_resp.json().get("messages", [])
-                if messages:
-                    last_msg = messages[-1]
+            act_url = f"{state.session_url}/activities"
+            act_resp = await client.get(act_url, headers=self.client._get_headers(), timeout=10.0)
+            if act_resp.status_code != httpx.codes.OK:
+                return None
 
-                    # Verify last message is from AGENT
-                    sender = last_msg.get(
-                        "author", last_msg.get("role", last_msg.get("type", ""))
-                    ).upper()
-                    if sender in ["AGENT", "MODEL", "ASSISTANT", "JULES"]:
-                        # Check for distress keywords
-                        content = last_msg.get("content", "").lower()
-                        from ac_cdd_core.config import settings
+            activities = act_resp.json().get("activities", [])
 
-                        distress_keywords = settings.jules.distress_keywords
-                        if any(k in content for k in distress_keywords):
-                            # Generate ID to prevent infinite inquiry loop on same message
-                            msg_id = last_msg.get("name") or str(hash(content))
+            # Find the most recent agentMessaged activity (originator=agent)
+            last_agent_msg: dict[str, Any] | None = None
+            for act in activities:
+                if "agentMessaged" in act and act.get("originator", "") == "agent":
+                    last_agent_msg = act
 
-                            if msg_id in state.processed_activity_ids:
-                                # Already handled this distress message
-                                return None
+            if not last_agent_msg:
+                return None
 
-                            logger.warning(
-                                "Detected distress/objection in last message. Treating as inquiry."
-                            )
-                            state.current_inquiry = last_msg.get("content")
-                            state.current_inquiry_id = msg_id
-                            state.status = SessionStatus.INQUIRY_DETECTED
-                            return state
+            content = last_agent_msg.get("agentMessaged", {}).get("agentMessage", "").lower()
+            msg_id = last_agent_msg.get("name") or str(hash(content))
+
+            if msg_id in state.processed_activity_ids:
+                return None
+
+            from ac_cdd_core.config import settings
+
+            distress_keywords = settings.jules.distress_keywords
+            if any(k in content for k in distress_keywords):
+                logger.warning(
+                    "Detected distress/objection in latest agentMessaged activity. Treating as inquiry."
+                )
+                state.current_inquiry = last_agent_msg.get("agentMessaged", {}).get("agentMessage")
+                state.current_inquiry_id = msg_id
+                state.status = SessionStatus.INQUIRY_DETECTED
+                return state
         except Exception as e:
-            logger.warning(f"Failed to check last message content: {e}")
+            logger.warning(f"Failed to check agentMessaged activities for distress: {e}")
         return None
 
     async def request_pr_creation(self, _state_in: JulesSessionState) -> dict[str, Any]:
@@ -436,7 +432,7 @@ class JulesSessionNodes:
         state.fallback_elapsed_seconds = 0
         return self._compute_diff(_state_in, state)
 
-    async def wait_for_pr(self, _state_in: JulesSessionState) -> dict[str, Any]:  # noqa: C901
+    async def wait_for_pr(self, _state_in: JulesSessionState) -> dict[str, Any]:  # noqa: C901, PLR0912
         """Wait for PR creation after manual request, with session state re-validation."""
         state = _state_in.model_copy(deep=True)
 
@@ -476,7 +472,22 @@ class JulesSessionNodes:
                         state.jules_state = current_state
                         return self._compute_diff(_state_in, state)
 
-                # Check for PR and new activities
+                # Re-fetch session to check for PR in outputs (Jules API: PR is in session outputs, not activities)
+                session_resp = await client.get(
+                    state.session_url, headers=self.client._get_headers(), timeout=10.0
+                )
+                if session_resp.status_code == httpx.codes.OK:
+                    fresh_data = session_resp.json()
+                    for output in fresh_data.get("outputs", []):
+                        if "pullRequest" in output:
+                            pr_url = output["pullRequest"].get("url")
+                            if pr_url:
+                                console.print(f"[bold green]PR Created: {pr_url}[/bold green]")
+                                state.pr_url = pr_url
+                                state.status = SessionStatus.SUCCESS
+                                return self._compute_diff(_state_in, state)
+
+                # Log new agentMessaged activities (the only activity type with human-readable text)
                 act_url = f"{state.session_url}/activities"
                 act_resp = await client.get(
                     act_url, headers=self.client._get_headers(), timeout=10.0
@@ -484,21 +495,6 @@ class JulesSessionNodes:
                 if act_resp.status_code == httpx.codes.OK:
                     activities = act_resp.json().get("activities", [])
                     for activity in activities:
-                        # Check for PR
-                        if "pullRequest" in activity:
-                            # CRITICAL FIX: Ignore already processed activities (stale PRs)
-                            act_id = activity.get("name", activity.get("id"))
-                            if act_id and act_id in state.processed_activity_ids:
-                                continue
-
-                            pr_url = activity["pullRequest"].get("url")
-                            if pr_url:
-                                console.print(f"[bold green]PR Created: {pr_url}[/bold green]")
-                                state.pr_url = pr_url
-                                state.status = SessionStatus.SUCCESS
-                                return self._compute_diff(_state_in, state)
-
-                        # Log new activities
                         act_id = activity.get("name", activity.get("id"))
                         if act_id and act_id not in state.processed_fallback_ids:
                             msg = self.client._extract_activity_message(activity)

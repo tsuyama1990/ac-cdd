@@ -448,39 +448,20 @@ class JulesClient:
         except Exception as e:
             logger.warning(f"Failed to fetch initial activities: {e}")
 
-    async def _check_success_state(  # noqa: C901
+    async def _check_success_state(
         self, client: httpx.AsyncClient, session_url: str, data: dict[str, Any], state: str
     ) -> dict[str, Any] | None:
         # Only COMPLETED state exists in Jules API (not SUCCEEDED)
         if state != "COMPLETED":
             return None
 
-        # First check session outputs
+        # Per Jules API spec, PR is only in session outputs (not in activities)
         for output in data.get("outputs", []):
             if "pullRequest" in output:
                 pr_url = output["pullRequest"].get("url")
                 if pr_url:
                     self.console.print(f"\n[bold green]PR Created: {pr_url}[/bold green]")
                     return {"pr_url": pr_url, "status": "success", "raw": data}
-
-        # Fallback: check activities for PR (sometimes PR is in activities but not outputs)
-        try:
-            act_url = f"{session_url}/activities"
-            act_resp = await client.get(act_url, headers=self._get_headers(), timeout=10.0)
-            if act_resp.status_code == httpx.codes.OK:
-                activities = act_resp.json().get("activities", [])
-                for activity in activities:
-                    if "pullRequest" in activity:
-                        pr_data = activity.get("pullRequest", {})
-                        pr_url = pr_data.get("url")
-                        if pr_url:
-                            self.console.print(f"\n[bold green]PR Created: {pr_url}[/bold green]")
-                            logger.info(
-                                f"Found PR in activities (not in session outputs): {pr_url}"
-                            )
-                            return {"pr_url": pr_url, "status": "success", "raw": data}
-        except Exception as e:
-            logger.debug(f"Failed to check activities for PR: {e}")
 
         # If session is COMPLETED but no PR found, try to create PR manually
         if state == "COMPLETED":
@@ -505,6 +486,7 @@ class JulesClient:
         if state != "FAILED":
             return
 
+        # Check if PR was created despite failure (PR is in session outputs only)
         for output in data.get("outputs", []):
             if "pullRequest" in output:
                 pr_url = output["pullRequest"].get("url")
@@ -513,7 +495,10 @@ class JulesClient:
                         f"\n[bold green]PR Created (Despite FAILED state): {pr_url}[/bold green]"
                     )
 
-        error_msg = data.get("error", {}).get("message", "Unknown error")
+        # Per Jules API spec: failure reason is in sessionFailed Activity's 'reason' field.
+        # The Session resource itself has no 'error' field.
+        # Note: in the legacy polling path we don't fetch activities, so fall back gracefully.
+        error_msg = "Unknown error (check sessionFailed activity for details)"
         logger.error(f"Jules Session Failed: {error_msg}")
         emsg = f"Jules Session Failed: {error_msg}"
         raise JulesSessionError(emsg)
