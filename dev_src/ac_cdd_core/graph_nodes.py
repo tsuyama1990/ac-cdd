@@ -70,7 +70,34 @@ class CycleNodes(IGraphNodes):
             require_plan_approval=False,
         )
 
-        if result.get("status") in ("success", "running") and result.get("pr_url"):
+        if result.get("status") in ("success", "running") and result.get("pr_url") and result.get("session_name"):
+            # ── Critic Phase: Self-Reflection & Correction ──
+            console.print(
+                "[bold cyan]Initial Architecture PR created. "
+                "Invoking Critic Agent for self-reflection...[/bold cyan]"
+            )
+            try:
+                critic_instruction = settings.get_template("ARCHITECT_CRITIC_INSTRUCTION.md").read_text()
+                session_url = self.jules._get_session_url(result["session_name"])
+                await self.jules._send_message(session_url, critic_instruction)
+
+                console.print("[dim]Waiting for Critic Agent to finish review and push fixes...[/dim]")
+                # Short sleep to allow state to transition from COMPLETED back to working
+                await asyncio.sleep(10)
+
+                # Wait for the second completion (post-criticism)
+                result = await self.jules.wait_for_completion(result["session_name"])
+            except Exception as e:
+                console.print(
+                    f"[yellow]Warning: Critic phase error, proceeding with initial PR: {e}[/yellow]"
+                )
+
+            if not result.get("pr_url"):
+                return {
+                    "status": "architect_failed",
+                    "error": "Jules failed during the Critic phase or the PR was lost."
+                }
+
             pr_url = result["pr_url"]
             pr_number = pr_url.split("/")[-1]
 
