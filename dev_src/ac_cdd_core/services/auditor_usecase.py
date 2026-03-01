@@ -180,7 +180,7 @@ class AuditorUseCase:
                     console.print(f"[yellow]Warning: Could not get PR base branch: {e}[/yellow]")
 
             changed_file_paths = await self.git.get_changed_files(base_branch=base_branch)
-            reviewable_extensions = {".py", ".md", ".toml", ".json", ".yaml", ".yml", ".txt", ".sh"}
+            reviewable_extensions = {".py", ".md", ".toml", ".json", ".yaml", ".yml", ".txt", ".sh", ".html", ".js", ".css", ".ts"}
             reviewable_files = [
                 f for f in changed_file_paths if Path(f).suffix in reviewable_extensions
             ]
@@ -204,8 +204,7 @@ class AuditorUseCase:
             reviewable_files = [
                 f
                 for f in reviewable_files
-                if (f.endswith(".py") or f.startswith("tests/"))
-                and not any(f.startswith(pattern) or pattern in f for pattern in excluded_patterns)
+                if not any(f.startswith(pattern) or pattern in f for pattern in excluded_patterns)
             ]
 
             build_artifact_patterns = [
@@ -244,25 +243,29 @@ class AuditorUseCase:
 
             if not reviewable_files:
                 console.print(
-                    "[yellow]Warning: No reviewable application files found. Using fallback.[/yellow]"
+                    "[yellow]Warning: No reviewable application files found. The Coder made no changes.[/yellow]"
                 )
-                all_target_files = settings.get_target_files()
-                excluded_prefixes_fallback = ("tests/ac_cdd/",)
-                reviewable_files = [
-                    f
-                    for f in all_target_files
-                    if not any(f.startswith(prefix) for prefix in excluded_prefixes_fallback)
-                ]
+                # Automatically reject without calling the LLM
+                audit_feedback = "-> REJECT\n\n### Critical Issue: No Changes Made\n- **Issue**: You did not create or modify any application files.\n- **Requirement**: You must implement the features specified in ALL_SPEC.md.\n- **Concrete Fix**: Write the necessary code and ensure it is tracked in Git."
+                result = AuditResult(
+                    status="REJECTED",
+                    is_approved=False,
+                    reason="No changed files",
+                    feedback=audit_feedback,
+                )
+                return {
+                    "audit_result": result,
+                    "status": FlowStatus.REJECTED,
+                    "last_audited_commit": new_last_audited_commit,
+                }
 
             context_file_names = {str(p) for p in context_paths}
             reviewable_files = [f for f in reviewable_files if f not in context_file_names]
 
             target_files = await self._read_files(reviewable_files)
         except Exception as e:
-            console.print(f"[yellow]Warning: Could not get changed files from git: {e}[/yellow]")
-            target_paths = settings.get_target_files()
-            reviewable_files = target_paths
-            target_files = await self._read_files(target_paths)
+            console.print(f"[bold red]Error: Could not determine files to review: {e}[/bold red]")
+            raise
 
         model = (
             settings.reviewer.smart_model
