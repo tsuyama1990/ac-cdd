@@ -29,8 +29,7 @@ class TestAuditorPollingExit:
         nodes.git.runner.run_command = AsyncMock(return_value=("", "", 0))
 
         # Mock reviewer to avoid LLM call
-        nodes.llm_reviewer = AsyncMock()
-        nodes.llm_reviewer.review_code = AsyncMock(return_value="NO ISSUES FOUND -> APPROVE")
+        nodes.llm_reviewer.review_code = AsyncMock(return_value="NO ISSUES FOUND -> REVIEW_PASSED")
 
         # Initial state: last_audited same as current ("abc")
         state = CycleState(

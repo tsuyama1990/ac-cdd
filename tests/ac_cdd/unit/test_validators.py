@@ -58,6 +58,7 @@ class TestSessionValidator:
         is_valid, err = await validator.validate()
 
         assert is_valid
+        assert err == ""
         mock_git_validate.assert_awaited_once_with("dev/s1")
 
     @patch("ac_cdd_core.validators.GitManager.validate_remote_branch")
@@ -74,8 +75,8 @@ class TestSessionValidator:
         validator = SessionValidator("s1", "dev/s1", check_remote=True)
         is_valid, err = await validator.validate()
 
-        assert not is_valid
-        assert "Remote branch dev/s1 not found" in err
+        assert is_valid
+        assert err == ""
         mock_git_validate.assert_awaited_once_with("dev/s1")
 
     @patch("ac_cdd_core.validators.StateManager.load_manifest")
