@@ -98,7 +98,9 @@ class AuditorUseCase:
         """Runs the auditor logic, static analysis, and prepares LLM reviewer feedback."""
         console.print("[bold magenta]Starting Auditor...[/bold magenta]")
         is_refactor_phase = getattr(state, "current_phase", None) == WorkPhase.REFACTORING
-        template_name = "REFACTOR_AUDITOR_INSTRUCTION.md" if is_refactor_phase else "AUDITOR_INSTRUCTION.md"
+        template_name = (
+            "REFACTOR_AUDITOR_INSTRUCTION.md" if is_refactor_phase else "AUDITOR_INSTRUCTION.md"
+        )
 
         template_path = settings.get_template(template_name)
         if not template_path.exists() and is_refactor_phase:
@@ -193,7 +195,20 @@ class AuditorUseCase:
                 reviewable_files = [str(f) for f in all_target_files]
             else:
                 changed_file_paths = await self.git.get_changed_files(base_branch=base_branch)
-                reviewable_extensions = {".py", ".md", ".toml", ".json", ".yaml", ".yml", ".txt", ".sh", ".html", ".js", ".css", ".ts"}
+                reviewable_extensions = {
+                    ".py",
+                    ".md",
+                    ".toml",
+                    ".json",
+                    ".yaml",
+                    ".yml",
+                    ".txt",
+                    ".sh",
+                    ".html",
+                    ".js",
+                    ".css",
+                    ".ts",
+                }
                 reviewable_files = [
                     f for f in changed_file_paths if Path(f).suffix in reviewable_extensions
                 ]

@@ -31,7 +31,9 @@ class LLMReviewer:
         Validates the output strictly against the AuditorReport Pydantic schema.
         """
         total_files = len(target_files) + len(context_docs)
-        logger.info(f"LLMReviewer: preparing structured review for {total_files} files using model {model}")
+        logger.info(
+            f"LLMReviewer: preparing structured review for {total_files} files using model {model}"
+        )
 
         # specific prompt construction with strict separation
         prompt = self._construct_prompt(target_files, context_docs, instruction)
@@ -62,7 +64,7 @@ class LLMReviewer:
                 return self._format_as_markdown(report)
 
             except (ValidationError, Exception) as e:
-                logger.warning(f"LLMReviewer attempt {attempt+1} failed to parse JSON: {e}")
+                logger.warning(f"LLMReviewer attempt {attempt + 1} failed to parse JSON: {e}")
                 if attempt == 2:
                     logger.error("LLMReviewer failed completely after 3 attempts.")
                     return f"-> REVIEW_FAILED\n\n### Critical Issues\n- **Issue**: SYSTEM_ERROR: LLM API generated invalid JSON. ({e})\n  - Location: `Unknown` (Line Unknown)\n  - Concrete Fix: Ensure your changes are simple and try again."
@@ -80,7 +82,9 @@ class LLMReviewer:
             for issue in report.fatal_issues:
                 feedback += f"- **[{issue.category.upper()}]**: {issue.issue_description}\n"
                 feedback += f"  - **Location**: `{issue.file_path}` (Line {issue.line_number})\n"
-                feedback += f"  - **Target Snippet**:\n    ```\n    {issue.target_code_snippet}\n    ```\n"
+                feedback += (
+                    f"  - **Target Snippet**:\n    ```\n    {issue.target_code_snippet}\n    ```\n"
+                )
                 feedback += f"  - **Concrete Fix**: {issue.concrete_fix}\n\n"
 
         if report.future_suggestions:

@@ -20,7 +20,8 @@ class DependencyManager:
         logger.info("Adding development dependencies (ruff, mypy, pytest)...")
         try:
             await self.runner.run_command(
-                ["uv", "add", "--dev", "--no-sync", "ruff", "mypy", "pytest", "pytest-cov"], check=True
+                ["uv", "add", "--dev", "--no-sync", "ruff", "mypy", "pytest", "pytest-cov"],
+                check=True,
             )
             logger.info("✓ Dependencies added to pyproject.toml successfully.")
         except Exception as e:

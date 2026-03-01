@@ -18,11 +18,9 @@ async def test_review_code_success(reviewer: LLMReviewer) -> None:
     model = "test-model"
 
     from ac_cdd_core.domain_models import AuditorReport
+
     valid_json = AuditorReport(
-        is_passed=True,
-        summary="Refactored code",
-        fatal_issues=[],
-        future_suggestions=[]
+        is_passed=True, summary="Refactored code", fatal_issues=[], future_suggestions=[]
     ).model_dump_json()
 
     # Mock litellm.acompletion

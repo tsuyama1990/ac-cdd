@@ -393,7 +393,9 @@ class WorkflowService:
 
         # 1. Determine next phase number
         existing_phases = [
-            d for d in docs_dir.iterdir() if d.is_dir() and d.name.startswith("system_prompts_phase")
+            d
+            for d in docs_dir.iterdir()
+            if d.is_dir() and d.name.startswith("system_prompts_phase")
         ]
         next_phase_num = 1
         if existing_phases:
@@ -460,9 +462,7 @@ class WorkflowService:
         # 5. Commit the archiving
         try:
             await self.git._run_git(["add", "."])
-            await self.git._run_git(
-                ["commit", "-m", f"Archive Phase {next_phase_num} Artifacts"]
-            )
+            await self.git._run_git(["commit", "-m", f"Archive Phase {next_phase_num} Artifacts"])
         except Exception as e:
             logger.warning(f"Failed to commit archive: {e}")
 
