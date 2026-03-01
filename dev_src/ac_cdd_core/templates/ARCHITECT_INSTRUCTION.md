@@ -22,8 +22,8 @@ Your goal is to analyze the raw requirements in `dev_documents/ALL_SPEC.md` and 
 You must generate (create) the following files in the repository:
 
 - `dev_documents/system_prompts/SYSTEM_ARCHITECTURE.md`
-- `dev_documents/system_prompts/CYCLE{xx}/SPEC.md` (For EACH Cycle)
-- `dev_documents/system_prompts/CYCLE{xx}/UAT.md` (For EACH Cycle)
+- `dev_documents/ALL_SPEC.md` (The Main Specification Document)
+- `dev_documents/USER_TEST_SCENARIO.md` (Main Acceptance Criteria)
 - `pyproject.toml`
 
 ### File Content Requirements
@@ -39,7 +39,7 @@ If you have any good suggestions for the  `ALL_SPEC.md` file, you must suggest t
 - **Additive Mindset**: Clearly map out how the *new* requirements integrate with the *existing* system architecture. Explicitly specify which existing files are reused and which ones need to be safely extended.
 
 **Sections & Word Counts (Minimum):**
-1. **Summary** (Min 500 words)
+1. **Summary** 
    - High-level overview of the system.
 2. **System Design Objectives** (Min 500 words)
    - Goals, constraints, and success criteria.
@@ -51,40 +51,21 @@ If you have any good suggestions for the  `ALL_SPEC.md` file, you must suggest t
    - Core Domain Pydantic Models structure and typing.
    - **MUST Include**: Clear integration points on how the new schema objects extend the existing domain objects.
 5. **Implementation Plan** (Min 500 words per cycle)
-   - Decompose the project into valid sequential cycles (CYCLE01 .. CYCLE{{max_cycles}}).
+   - Decompose the project into valid sequential phases in the single document.
    - **CRITICAL**: You MUST create exactly `{{max_cycles}}` cycles. The list must go from 01 to {{max_cycles}}.
    - Detail exactly what features belong to each cycle.
 6. **Test Strategy** (Min 500 words per cycle)
    - How each cycle will be tested (Unit, Integration, E2E).
    - **MUST Include**: A strategy for executing these tests without side-effects (e.g. mocking external requests, using temporary directories for file I/O).
 
-#### 2. `dev_documents/system_prompts/CYCLE{xx}/SPEC.md` (For EACH Cycle)
-Detailed specification for a specific development cycle.
+#### 2. `dev_documents/ALL_SPEC.md` (The Entire Cycle Specifications)
+Write the complete feature specification sequentially in this file.
 **Requirements:**
 - **Language**: Simple British English.
 - **Format**: Markdown. Change the lines appropriately.
 
-**Sections:**
-1. **Summary** (Min 500 words)
-2. **System Architecture** (Min 1000 words)
-   - This section is the most important. Provide the EXACT code blueprints.
-   - File structure, made of ASCII tree of files to create/modify, consistent with the one depicted in `SYSTEM_ARCHITECTURE.md`.
-   (Make the files bold for the ones to create/modify in the cycle)
-3. **Design Architecture** (Min 500 words)
-   - This system is fully designed by Pydantic-based schema.
-   - This section must be written as a *pre-implementation design document* for robust Pydantic-based schema.
-   - The domain concepts represented in each file depicted in system architecture.
-   - Key invariants, constraints, and validation rules
-   - Expected consumers and producers of the data (internal modules, APIs, external systems)
-   - Versioning, extensibility, and backward-compatibility considerations
-4. **Implementation Approach** (Min 600 words)
-   - Step-by-step implementation guide.
-5. **Test Strategy** (Min 600 words total)
-   - Unit Testing Approach, meeting the criteria / spec / feature of design architecture (Min 300 words).
-   - Integration Testing Approach, meeting the criteria / spec / feature of design architecture (Min 300 words).
-
-#### 3. `dev_documents/system_prompts/CYCLE{xx}/UAT.md` (For EACH Cycle)
-User Acceptance Testing plan.
+#### 3. `dev_documents/USER_TEST_SCENARIO.md` (The Entire User Acceptance Tests)
+Provide user-level test scenarios.
 **Requirements:**
 - **Language**: Simple British English.
 - **Format**: Markdown. Change the lines appropriately.
