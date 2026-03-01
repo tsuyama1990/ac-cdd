@@ -44,35 +44,12 @@ Review the code holistically.
 - [ ] **DRY (Don't Repeat Yourself):** Is there duplicated logic across independent modules that should be unified into a shared service?
 - [ ] **Single Responsibility (SRP):** Are there "God Classes" that need splitting?
 
-## Output Format
+## 🚨 SYSTEMIC HARDCODING & DUPLICATION (CRITICAL) 🚨
 
-### If FATAL ISSUES are found (REJECT):
+When reviewing across the entire project, actively look for and strictly **REJECT** any of the following systemic hardcoding patterns:
 
-```text
--> REJECT
+1. **Scattered Constants**: The same string, magic number, or configuration value (e.g., event names, database table names, timeouts) hardcoded in multiple different files.
+2. **Configuration Leakage**: Configuration values that bypass the centralized `config.py` parsing or hardcoded defaults placed directly inside service logic.
+3. **Implicit Dependencies**: Hardcoded absolute paths or direct API endpoints rather than injecting them via environment or dependencies.
 
-### Critical Fatal Issues
-- **Issue**: [Concise description of the FATAL architectural violation]
-  - **Location**: `path/to/file.py` (Line XX)
-  - **Impact**: [Why this breaks the system fundamentally]
-  - **Concrete Fix**: [Actionable instruction to resolve the fatal issue]
-
-### Future Architecture Suggestions
-- [Only if applicable, list non-fatal suggestions here as memo]
-```
-
-### If NO FATAL ISSUES are found (APPROVE with optional Suggestions):
-
-Use this if the architecture is generally sound, even if there is room for improvement.
-
-```text
--> APPROVE
-
-### Future Architecture Suggestions
-- **Suggestion**: [What to improve]
-  - **Location**: `path/to/file.py`
-  - **Reason**: [Why this improves long-term maintainability]
-  - **Approach**: [How to refactor it in the future]
-
-- **Suggestion**: ...
-```
+**These are FATAL architectural violations. Instruct the Coder to extract them to `enums.py`, `config.py`, or a shared constants file.**

@@ -62,6 +62,47 @@ class CyclePlan(BaseModel):
     thought_process: str = Field(..., description="Thought process behind the design")
 
 
+class ReviewIssue(BaseModel):
+    """個別の指摘事項"""
+    model_config = ConfigDict(extra="forbid")
+
+    category: Literal[
+        "Hardcoding",
+        "Scalability",
+        "Security",
+        "Architecture",
+        "Type Safety",
+        "Logic Error",
+        "Other"
+    ] = Field(description="Issue category. Be highly sensitive to 'Hardcoding'.")
+    severity: Literal["fatal", "warning"] = Field(
+        description="'fatal' MUST be used for SPEC violations and Hardcoding. 'warning' is for non-blocking boy-scout suggestions."
+    )
+    file_path: str = Field(description="Exact file path where the issue is found.")
+    target_code_snippet: str = Field(
+        description="The specific snippet of code containing the issue (1-3 lines max) to help the Coder locate it via string search."
+    )
+    issue_description: str = Field(description="Clear and concise description of why this is an issue.")
+    concrete_fix: str = Field(
+        description="EXACT code or structural change required. For 'Hardcoding', explicitly state WHERE to move the constant."
+    )
+
+
+class AuditorReport(BaseModel):
+    """レポート全体"""
+    model_config = ConfigDict(extra="forbid")
+
+    is_passed: bool = Field(
+        description="Must be False if there is at least one 'fatal' issue. Set to True ONLY if there is zero 'fatal' issue."
+    )
+    summary: str = Field(description="Brief 2-3 sentence summary of the review.")
+    fatal_issues: list[ReviewIssue] = Field(
+        default_factory=list,
+        description="Critical issues that MUST be fixed. You MUST include any Hardcoding of URLs, API keys, paths, or magic numbers here."
+    )
+    future_suggestions: list[ReviewIssue] = Field(default_factory=list)
+
+
 class AuditResult(BaseModel):
     """Audit result"""
 

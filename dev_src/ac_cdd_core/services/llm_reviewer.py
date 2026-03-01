@@ -1,5 +1,7 @@
 import litellm
+from ac_cdd_core.domain_models import AuditorReport
 from ac_cdd_core.utils import logger
+from pydantic import ValidationError
 
 
 class LLMReviewer:
@@ -26,46 +28,69 @@ class LLMReviewer:
     ) -> str:
         """
         Sends file contents and instructions to the LLM for review.
-
-        Args:
-            target_files: Dictionary mapping file paths to their content (Code to be reviewed).
-            context_docs: Dictionary mapping file paths to their content (Read-only specs).
-            instruction: The prompt/instruction for the review.
-            model: The model identifier to use.
-
-        Returns:
-            The raw text response from the LLM.
+        Validates the output strictly against the AuditorReport Pydantic schema.
         """
         total_files = len(target_files) + len(context_docs)
-        logger.info(f"LLMReviewer: preparing review for {total_files} files using model {model}")
+        logger.info(f"LLMReviewer: preparing structured review for {total_files} files using model {model}")
 
         # specific prompt construction with strict separation
         prompt = self._construct_prompt(target_files, context_docs, instruction)
 
-        try:
-            # We use litellm.acompletion for async execution
-            response = await litellm.acompletion(
-                model=model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": (
-                            "You are an automated code reviewer. You must strictly follow the "
-                            "provided instructions and only review the target code."
-                        ),
-                    },
-                    {"role": "user", "content": prompt},
-                ],
-                temperature=0.0,  # Deterministic output for reviews
-            )
+        # Retry logic (up to 2 retries, total 3 attempts)
+        for attempt in range(3):
+            try:
+                response = await litellm.acompletion(
+                    model=model,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": (
+                                "You are an automated code reviewer. You must strictly follow the "
+                                "provided instructions and only review the target code. You MUST return valid JSON."
+                            ),
+                        },
+                        {"role": "user", "content": prompt},
+                    ],
+                    response_format=AuditorReport,
+                    temperature=0.0,  # Deterministic output for reviews
+                )
 
-            # Extract content from response
-            content = response.choices[0].message.content
-            return str(content)
+                content_str = response.choices[0].message.content
 
-        except Exception as e:
-            logger.error(f"LLMReviewer failed: {e}")
-            return f"SYSTEM_ERROR: LLM API call failed: {e}"
+                # Parse the response safely into our robust Pydantic model
+                report = AuditorReport.model_validate_json(content_str)
+                return self._format_as_markdown(report)
+
+            except (ValidationError, Exception) as e:
+                logger.warning(f"LLMReviewer attempt {attempt+1} failed to parse JSON: {e}")
+                if attempt == 2:
+                    logger.error("LLMReviewer failed completely after 3 attempts.")
+                    return f"-> REVIEW_FAILED\n\n### Critical Issues\n- **Issue**: SYSTEM_ERROR: LLM API generated invalid JSON. ({e})\n  - Location: `Unknown` (Line Unknown)\n  - Concrete Fix: Ensure your changes are simple and try again."
+
+        return "-> REVIEW_FAILED\n\n### Critical Issues\n- **Issue**: SYSTEM_ERROR: Review loop failed unexpectedly\n  - Location: `Unknown`\n  - Concrete Fix: Ensure your changes are simple and try again."
+
+    def _format_as_markdown(self, report: AuditorReport) -> str:
+        """Converts the deeply nested AuditorReport Pydantic object into a clean Markdown string for the Coder."""
+        feedback = "-> REVIEW_PASSED\n\n" if report.is_passed else "-> REVIEW_FAILED\n\n"
+
+        feedback += f"### Summary\n{report.summary}\n\n"
+
+        if report.fatal_issues:
+            feedback += "### Critical Issues\n"
+            for issue in report.fatal_issues:
+                feedback += f"- **[{issue.category.upper()}]**: {issue.issue_description}\n"
+                feedback += f"  - **Location**: `{issue.file_path}` (Line {issue.line_number})\n"
+                feedback += f"  - **Target Snippet**:\n    ```\n    {issue.target_code_snippet}\n    ```\n"
+                feedback += f"  - **Concrete Fix**: {issue.concrete_fix}\n\n"
+
+        if report.future_suggestions:
+            feedback += "### Future Architecture Suggestions\n"
+            for issue in report.future_suggestions:
+                feedback += f"- **[{issue.category.upper()}]**: {issue.issue_description}\n"
+                feedback += f"  - **Location**: `{issue.file_path}` (Line {issue.line_number})\n"
+                feedback += f"  - **Suggestion**: {issue.concrete_fix}\n\n"
+
+        return feedback
 
     def _construct_prompt(
         self, target_files: dict[str, str], context_docs: dict[str, str], instruction: str

@@ -105,32 +105,12 @@ Review the code critically.
 - [ ] **Mock Integrity:** SUT is NOT mocked? Mocks simulate failures?
 - [ ] **Log Verification:** Tests passed?
 
-## Output Format
+## 🚨 ZERO TOLERANCE FOR HARDCODING (CRITICAL) 🚨
 
-### If REJECTED (Critical Issues OR Suggestions):
-Output an **EXHAUSTIVE, STRUCTURED** list of issues.
-**CRITICAL INSTRUCTION**: Do NOT provide single examples. List **EVERY** file/line that contains a violation.
-**CRITICAL INSTRUCTION 2**: Be brutally concrete. Do not give vague hints (e.g., "Refactor this"). Provide the exact strategy, pattern, or name to use.
+The Coder (AI) has a bad habit of leaving hardcoded values to pass tests quickly. You MUST aggressively hunt for and **REJECT** any of the following:
 
-Format:
-```text
--> REJECT
+1. **Magic Numbers / Magic Strings**: Any unexplained constants (`timeout=30`, `max_retries=5`, `"https://api.example.com"`).
+2. **Hardcoded Paths**: File paths like `"/tmp/output.json"` or `"data/file.csv"`.
+3. **Hardcoded Credentials**: Tokens, API keys, or passwords.
 
-### Critical Issues / Suggestions
-
-#### [Category Name] (e.g. Scalability, Strict Typing, Unhappy Path Tests)
-- **Issue**: [Concise description]
-  - **Location**: `path/to/file.py` (Line XX)
-  - **Requirement**: [Constitution Rule, SPEC reference, or Best Practice]
-  - **Concrete Fix**: [Direct, actionable instruction to the Coder on exactly WHAT to change and HOW]
-
-- **Issue**: ...
-```
-
-### If APPROVED:
-Use this ONLY if the code is **PERFECT**.
-
-Format:
-```text
--> APPROVE
-```
+**All such values MUST be extracted to `config.py`, environment variables (`.env`), or Pydantic Models. Categorize these as "Hardcoding" and mark them as FATAL.**

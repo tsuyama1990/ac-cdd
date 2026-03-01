@@ -3,7 +3,7 @@ from typing import Any
 
 from ac_cdd_core.config import settings
 from ac_cdd_core.domain_models import AuditResult
-from ac_cdd_core.enums import FlowStatus
+from ac_cdd_core.enums import FlowStatus, WorkPhase
 from ac_cdd_core.services.git_ops import GitManager
 from ac_cdd_core.services.jules_client import JulesClient
 from ac_cdd_core.services.llm_reviewer import LLMReviewer
@@ -99,12 +99,12 @@ class AuditorUseCase:
         console.print("[bold magenta]Starting Auditor...[/bold magenta]")
         is_refactor_phase = getattr(state, "current_phase", None) == WorkPhase.REFACTORING
         template_name = "REFACTOR_AUDITOR_INSTRUCTION.md" if is_refactor_phase else "AUDITOR_INSTRUCTION.md"
-        
+
         template_path = settings.get_template(template_name)
         if not template_path.exists() and is_refactor_phase:
             # Fallback if someone hasn't created it yet
             template_path = settings.get_template("AUDITOR_INSTRUCTION.md")
-            
+
         instruction = template_path.read_text()
         instruction = instruction.replace("{{cycle_id}}", str(state.cycle_id))
 
@@ -259,7 +259,7 @@ class AuditorUseCase:
                     "[yellow]Warning: No reviewable application files found. The Coder made no changes.[/yellow]"
                 )
                 # Automatically reject without calling the LLM
-                audit_feedback = "-> REJECT\n\n### Critical Issue: No Changes Made\n- **Issue**: You did not create or modify any application files.\n- **Requirement**: You must implement the features specified in ALL_SPEC.md.\n- **Concrete Fix**: Write the necessary code and ensure it is tracked in Git."
+                audit_feedback = "-> REVIEW_FAILED\n\n### Critical Issues\n- **Issue**: No Changes Made\n  - **Location**: `Unknown` (Line Unknown)\n  - **Concrete Fix**: You did not create or modify any application files. Write the necessary code and ensure it is tracked in Git."
                 result = AuditResult(
                     status="REJECTED",
                     is_approved=False,
@@ -295,12 +295,12 @@ class AuditorUseCase:
             model=model,
         )
 
-        if "-> APPROVE" in audit_feedback:
+        if "-> REVIEW_PASSED" in audit_feedback:
             status = "approved"
-        elif "-> REJECT" in audit_feedback:
+        elif "-> REVIEW_FAILED" in audit_feedback:
             status = "rejected"
         else:
-            status = "approved" if "NO ISSUES FOUND" in audit_feedback.upper() else "rejected"
+            status = "rejected"
 
         if not static_ok:
             console.print("[bold red]Static Analysis Failed. Extending feedback...[/bold red]")
