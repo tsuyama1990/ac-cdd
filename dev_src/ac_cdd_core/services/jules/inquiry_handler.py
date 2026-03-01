@@ -21,9 +21,29 @@ class JulesInquiryHandler:
         self.client_ref = client_ref
 
     async def check_for_inquiry(
-        self, client: httpx.AsyncClient, session_url: str, processed_ids: set[str]
+        self,
+        client: httpx.AsyncClient,
+        session_url: str,
+        processed_ids: set[str],
+        jules_state: str | None = None,
     ) -> tuple[str, str] | None:
-        """Checks if the session is waiting for user feedback."""
+        """Checks if the session is waiting for user feedback.
+
+        IMPORTANT: Only responds to genuine questions from Jules.
+        Jules signals it needs user input by:
+        1. Setting session state to AWAITING_USER_FEEDBACK (API-level signal)
+        2. Posting an 'inquiryAsked' activity (activity-level signal)
+        Both conditions should ideally be true.  In practice, we require at minimum
+        that the session state is AWAITING_USER_FEEDBACK to avoid replying to Jules'
+        internal monologue (agentMessaged / progressUpdated activities).
+        """
+        # Guard: only respond if Jules is explicitly waiting for input
+        if jules_state not in ("AWAITING_USER_FEEDBACK", "AWAITING_PLAN_APPROVAL", None):
+            logger.debug(
+                f"Skipping inquiry check: session state '{jules_state}' does not require user input."
+            )
+            return None
+
         try:
             page_token = ""
             # Check up to 3 pages (300 activities) to capture inquiries buried by logs
@@ -40,15 +60,12 @@ class JulesInquiryHandler:
                     data = act_resp.json()
                     activities = data.get("activities", [])
 
-                    # Search activities
                     for act in activities:
                         act_id = act.get("name", act.get("id"))
-                        # Skip already processed activities to prevent duplicates
                         if act_id in processed_ids:
                             continue
                         msg = self.extract_activity_message(act)
                         if msg:
-                            # But we should process any pending inquiry.
                             return (msg, act_id)
 
                     page_token = data.get("nextPageToken")
@@ -59,19 +76,29 @@ class JulesInquiryHandler:
         return None
 
     def extract_activity_message(self, act: dict[str, Any]) -> str | None:
+        """Extract a message from an activity ONLY if it is a genuine user-directed inquiry.
+
+        Jules API activity types that represent a real question:
+        - ``inquiryAsked``:       Jules is explicitly asking the user a question
+          (session enters AWAITING_USER_FEEDBACK state)
+        - ``userActionRequired``: Jules cannot proceed without user action
+
+        Activity types that should NOT trigger a response (Jules internal monologue):
+        - ``progressUpdated``:    status update / progress log
+        - ``agentMessaged``:      Jules internal note / analysis (e.g. Root Cause Analysis)
+        - ``planGenerated``:      handled separately by plan-approval flow
+        - ``sessionCompleted``:   session end marker
+        """
         msg = None
         if "inquiryAsked" in act:
             inquiry = act["inquiryAsked"]
             msg = inquiry.get("inquiry", inquiry.get("question"))
-        elif "agentMessaged" in act:
-            msg = act["agentMessaged"].get("agentMessage")
         elif "userActionRequired" in act:
             details = act["userActionRequired"]
             msg = details.get("reason", "User action required (check console).")
-        if not msg:
-            msg = act.get("message")
-        if msg and "Jules is working" in msg:
-            return None
+        # NOTE: agentMessaged and generic message fields are intentionally NOT handled here.
+        # Those are Jules' internal monologue (progress updates, Root Cause Analysis, etc.)
+        # and must not be mistaken for questions that require a reply.
         return msg
 
     async def fetch_pending_plan(
@@ -198,15 +225,14 @@ class JulesInquiryHandler:
         max_rejections: int,
         require_plan_approval: bool = True,
     ) -> None:
-        # States where we should check for inquiries (based on Jules API spec)
-        active_states = [
-            "AWAITING_USER_FEEDBACK",
-            "AWAITING_PLAN_APPROVAL",
-            "COMPLETED",
-            "PLANNING",
-            "IN_PROGRESS",
-        ]
-        if state not in active_states:
+        # State guard: only check for inquiries when Jules is explicitly waiting for input.
+        # Jules API docs define two states that require user response:
+        #   AWAITING_USER_FEEDBACK    - Jules has a question (inquiryAsked activity)
+        #   AWAITING_PLAN_APPROVAL    - Jules is waiting for plan approval
+        # All other states (IN_PROGRESS, PLANNING, COMPLETED, etc.) mean Jules is
+        # working independently and any messages from it are internal progress updates.
+        inquiry_states = ["AWAITING_USER_FEEDBACK", "AWAITING_PLAN_APPROVAL"]
+        if state not in inquiry_states:
             return
 
         if require_plan_approval:
@@ -214,7 +240,9 @@ class JulesInquiryHandler:
                 client, session_url, processed_ids, rejection_count, max_rejections
             )
 
-        inquiry = await self.check_for_inquiry(client, session_url, processed_ids)
+        inquiry = await self.check_for_inquiry(
+            client, session_url, processed_ids, jules_state=state
+        )
         if not inquiry:
             return
 

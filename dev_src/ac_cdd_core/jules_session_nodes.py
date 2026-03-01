@@ -150,9 +150,15 @@ class JulesSessionNodes:
     async def _process_inquiries_in_monitor(
         self, state: JulesSessionState, client: httpx.AsyncClient
     ) -> None:
-        """Check for and process inquiries during monitoring."""
-        # Handle plan approval if required
-        if state.require_plan_approval:
+        """Check for and process inquiries during monitoring.
+
+        Only acts when Jules is explicitly waiting for user input:
+        - AWAITING_PLAN_APPROVAL  -> check for plan to approve
+        - AWAITING_USER_FEEDBACK  -> check for inquiryAsked activity
+        Any other state means Jules is working; we must not interrupt.
+        """
+        # Plan approval: only when Jules is waiting for it
+        if state.require_plan_approval and state.jules_state == "AWAITING_PLAN_APPROVAL":
             await self.client.inquiry_handler.handle_plan_approval(
                 client,
                 state.session_url,
@@ -161,9 +167,9 @@ class JulesSessionNodes:
                 state.max_plan_rejections,
             )
 
-        # Check for regular inquiries
+        # Regular inquiry: pass jules_state so the handler applies the state-guard
         inquiry = await self.client.inquiry_handler.check_for_inquiry(
-            client, state.session_url, state.processed_activity_ids
+            client, state.session_url, state.processed_activity_ids, jules_state=state.jules_state
         )
         if inquiry:
             question, act_id = inquiry
