@@ -72,3 +72,7 @@ class JulesSessionState(BaseModel):
     # Flags for routing decisions
     has_recent_activity: bool = False
     completion_validated: bool = False
+
+    # Stale (silent) Jules detection
+    last_jules_state_change_time: float = 0.0  # loop time when jules_state last changed
+    stale_nudge_count: int = 0                 # how many nudges we have already sent

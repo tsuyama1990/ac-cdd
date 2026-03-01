@@ -83,6 +83,19 @@ class JulesConfig(BaseModel):
         default=5,
         description="Seconds between each poll within a monitor batch.",
     )
+    stale_session_timeout_seconds: int = Field(
+        default=1800,
+        description=(
+            "Seconds without a Jules state change before sending a nudge message. "
+            "Jules sometimes enters a silent mode where IN_PROGRESS stays unchanged. "
+            "After this many seconds a 'please wrap up and create a PR' prompt is sent. "
+            "Default: 1800 (30 minutes)."
+        ),
+    )
+    max_stale_nudges: int = Field(
+        default=3,
+        description="Maximum number of nudge messages to send before giving up and raising a timeout.",
+    )
 
     # Distress detection keywords - Jules sometimes completes but signals a problem in its last message
     distress_keywords: list[str] = Field(

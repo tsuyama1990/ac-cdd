@@ -30,7 +30,7 @@ class JulesSessionNodes:
                 updates[field] = new_val
         return updates
 
-    async def monitor_session(self, _state_in: JulesSessionState) -> dict[str, Any]:  # noqa: C901
+    async def monitor_session(self, _state_in: JulesSessionState) -> dict[str, Any]:  # noqa: C901, PLR0912, PLR0915
         """Monitor Jules session and detect state changes with batched polling."""
         from ac_cdd_core.config import settings
 
@@ -40,10 +40,18 @@ class JulesSessionNodes:
         # Poll for (monitor_batch_size * monitor_poll_interval_seconds) seconds per LangGraph invocation
         batch_size = settings.jules.monitor_batch_size
         poll_interval = settings.jules.monitor_poll_interval_seconds
+        stale_timeout = settings.jules.stale_session_timeout_seconds
+        max_nudges = settings.jules.max_stale_nudges
+
+        now = asyncio.get_running_loop().time
+
+        # Initialise last_jules_state_change_time on first call
+        if state.last_jules_state_change_time == 0.0:
+            state.last_jules_state_change_time = now()
 
         for _ in range(batch_size):
             # Check timeout
-            elapsed = asyncio.get_running_loop().time() - state.start_time
+            elapsed = now() - state.start_time
             if elapsed > state.timeout_seconds:
                 logger.warning(f"Session timeout after {elapsed}s")
                 state.status = SessionStatus.TIMEOUT
@@ -62,10 +70,54 @@ class JulesSessionNodes:
                     new_jules_state = data.get("state")
                     if state.jules_state != new_jules_state:
                         state.previous_jules_state = state.jules_state
+                        state.last_jules_state_change_time = now()  # reset stale clock on ANY state change
                     state.jules_state = new_jules_state
                     state.raw_data = data
 
                     logger.info(f"Jules session state: {state.jules_state}")
+
+                    # ── Stale (silent) Jules detection ──────────────────────────────
+                    # Jules sometimes gets stuck in IN_PROGRESS with no state change.
+                    # If the state hasn't changed for stale_timeout seconds, send a
+                    # nudge message prompting it to wrap up and create a PR.
+                    # We only nudge for working states (not AWAITING_* which already
+                    # have their own response path).
+                    stale_working_states = {"IN_PROGRESS", "PLANNING", "QUEUED"}
+                    if state.jules_state in stale_working_states:
+                        stale_seconds = now() - state.last_jules_state_change_time
+                        if stale_seconds >= stale_timeout:
+                            if state.stale_nudge_count >= max_nudges:
+                                # Gave up waiting – escalate to timeout
+                                msg = (
+                                    f"Jules has been silent ({state.jules_state}) for "
+                                    f"{stale_seconds:.0f}s with no state change after "
+                                    f"{max_nudges} nudge(s). Escalating to TIMEOUT."
+                                )
+                                logger.error(msg)
+                                state.status = SessionStatus.TIMEOUT
+                                state.error = msg
+                                return self._compute_diff(_state_in, state)
+
+                            # Send nudge message to Jules
+                            state.stale_nudge_count += 1
+                            state.last_jules_state_change_time = now()  # reset so we don't spam
+                            nudge_msg = (
+                                f"Jules, you have been in {state.jules_state} state for "
+                                f"over {stale_timeout // 60} minutes without any progress. "
+                                "Please wrap up your current work and create a pull request "
+                                "with whatever changes you have made so far. "
+                                "If you are done, please run the final submission."
+                            )
+                            logger.warning(
+                                f"Sending stale-session nudge #{state.stale_nudge_count} to Jules "
+                                f"(silent for {stale_seconds:.0f}s)"
+                            )
+                            console.print(
+                                f"[yellow]Jules has been silent for {stale_seconds / 60:.1f} min. "
+                                f"Sending nudge #{state.stale_nudge_count}...[/yellow]"
+                            )
+                            await self.client._send_message(state.session_url, nudge_msg)
+                    # ── end stale detection ─────────────────────────────────────────
 
                     # Check for failure
                     if state.jules_state == "FAILED":
