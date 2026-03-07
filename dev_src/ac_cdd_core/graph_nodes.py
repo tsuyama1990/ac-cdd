@@ -75,6 +75,10 @@ class CycleNodes(IGraphNodes):
             and result.get("pr_url")
             and result.get("session_name")
         ):
+            # Save session_name now – the Critic phase will overwrite `result`
+            # and wait_for_completion() does NOT include session_name in its return value.
+            session_name = result["session_name"]
+
             # ── Critic Phase: Self-Reflection & Correction ──
             console.print(
                 "[bold cyan]Initial Architecture PR created. "
@@ -84,7 +88,7 @@ class CycleNodes(IGraphNodes):
                 critic_instruction = settings.get_template(
                     "ARCHITECT_CRITIC_INSTRUCTION.md"
                 ).read_text()
-                session_url = self.jules._get_session_url(result["session_name"])
+                session_url = self.jules._get_session_url(session_name)
                 await self.jules._send_message(session_url, critic_instruction)
 
                 console.print(
@@ -94,7 +98,7 @@ class CycleNodes(IGraphNodes):
                 await asyncio.sleep(10)
 
                 # Wait for the second completion (post-criticism)
-                result = await self.jules.wait_for_completion(result["session_name"])
+                result = await self.jules.wait_for_completion(session_name)
             except Exception as e:
                 console.print(
                     f"[yellow]Warning: Critic phase error, proceeding with initial PR: {e}[/yellow]"
@@ -132,7 +136,7 @@ class CycleNodes(IGraphNodes):
                 "current_phase": "architect_done",
                 "integration_branch": integration_branch,
                 "active_branch": integration_branch,  # Working on integration branch
-                "project_session_id": result.get("session_name"),
+                "project_session_id": session_name,  # Use saved session_name (result was overwritten)
                 "pr_url": pr_url,
             }
 
