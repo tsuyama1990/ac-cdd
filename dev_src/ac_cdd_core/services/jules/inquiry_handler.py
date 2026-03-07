@@ -64,7 +64,7 @@ class JulesInquiryHandler:
                         act_id = act.get("name", act.get("id"))
                         if act_id in processed_ids:
                             continue
-                        msg = self.extract_activity_message(act)
+                        msg = self.extract_activity_message(act, jules_state)
                         if msg:
                             return (msg, act_id)
 
@@ -75,7 +75,9 @@ class JulesInquiryHandler:
             logger.warning(f"Failed to check for inquiry: {e}")
         return None
 
-    def extract_activity_message(self, act: dict[str, Any]) -> str | None:
+    def extract_activity_message(
+        self, act: dict[str, Any], jules_state: str | None = None
+    ) -> str | None:
         """Extract a message from an activity ONLY if it is a genuine user-directed inquiry.
 
         Jules API activity types that represent a real question:
@@ -96,9 +98,15 @@ class JulesInquiryHandler:
         elif "userActionRequired" in act:
             details = act["userActionRequired"]
             msg = details.get("reason", "User action required (check console).")
-        # NOTE: agentMessaged and generic message fields are intentionally NOT handled here.
-        # Those are Jules' internal monologue (progress updates, Root Cause Analysis, etc.)
-        # and must not be mistaken for questions that require a reply.
+
+        # Fallback: If Jules actually entered AWAITING_USER_FEEDBACK but used an internal
+        # monologue field to ask its question, we must pick it up to avoid a silent hang.
+        if not msg and jules_state == "AWAITING_USER_FEEDBACK":
+            if "agentMessaged" in act:
+                msg = act["agentMessaged"].get("message", act["agentMessaged"].get("content"))
+            elif "message" in act:
+                msg = act["message"].get("content")
+
         return msg
 
     async def fetch_pending_plan(
