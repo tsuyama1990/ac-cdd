@@ -70,7 +70,9 @@ class JulesSessionNodes:
                     new_jules_state = data.get("state")
                     if state.jules_state != new_jules_state:
                         state.previous_jules_state = state.jules_state
-                        state.last_jules_state_change_time = now()  # reset stale clock on ANY state change
+                        state.last_jules_state_change_time = (
+                            now()
+                        )  # reset stale clock on ANY state change
                     state.jules_state = new_jules_state
                     state.raw_data = data
 
@@ -489,8 +491,12 @@ class JulesSessionNodes:
                         if "pullRequest" in output:
                             pr_url = output["pullRequest"].get("url")
                             if pr_url:
-                                console.print(f"\n[bold green]PR found on final check: {pr_url}[/bold green]")
-                                logger.info(f"PR found in final re-fetch, skipping manual PR request: {pr_url}")
+                                console.print(
+                                    f"\n[bold green]PR found on final check: {pr_url}[/bold green]"
+                                )
+                                logger.info(
+                                    f"PR found in final re-fetch, skipping manual PR request: {pr_url}"
+                                )
                                 state.pr_url = pr_url
                                 state.raw_data = fresh_data
                                 state.status = SessionStatus.SUCCESS
@@ -498,7 +504,9 @@ class JulesSessionNodes:
         except Exception as e:
             logger.debug(f"Final PR check failed: {e}")
 
-        console.print("[yellow]AUTO_CREATE_PR did not produce a PR. Sending fallback request to Jules...[/yellow]")
+        console.print(
+            "[yellow]AUTO_CREATE_PR did not produce a PR. Sending fallback request to Jules...[/yellow]"
+        )
         console.print("[cyan]Sending message to Jules to commit and create PR...[/cyan]")
 
         from ac_cdd_core.config import settings

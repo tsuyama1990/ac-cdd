@@ -93,14 +93,20 @@ class TestJulesClientLogic(unittest.IsolatedAsyncioTestCase):
                 # Monologue while IN_PROGRESS - must be ignored
                 mock.json.return_value = {
                     "activities": [
-                        {"name": monologue_id, "agentMessaged": {"agentMessage": "Root Cause Analysis..."}}
+                        {
+                            "name": monologue_id,
+                            "agentMessaged": {"agentMessage": "Root Cause Analysis..."},
+                        }
                     ]
                 }
             elif call_n == 2:
                 # Genuine question while AWAITING_USER_FEEDBACK - must be answered
                 mock.json.return_value = {
                     "activities": [
-                        {"name": question_id, "inquiryAsked": {"inquiry": "Which file should I edit?"}}
+                        {
+                            "name": question_id,
+                            "inquiryAsked": {"inquiry": "Which file should I edit?"},
+                        }
                     ]
                 }
             else:
@@ -121,7 +127,6 @@ class TestJulesClientLogic(unittest.IsolatedAsyncioTestCase):
         # Manager agent MUST have been called exactly once (for the genuine inquiryAsked only)
         self.client._send_message.assert_called_once()
         assert result["pr_url"] == "http://github.com/pr/1"
-
 
     @patch("asyncio.sleep", return_value=None)
     @patch("httpx.AsyncClient")

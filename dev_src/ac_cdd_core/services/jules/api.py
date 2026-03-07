@@ -184,7 +184,9 @@ class JulesApiClient:
 
                     resp = await client.get(url, headers=self.headers, timeout=10.0)
                     if resp.status_code != 200:
-                        logger.warning(f"list_activities_async: unexpected status {resp.status_code}")
+                        logger.warning(
+                            f"list_activities_async: unexpected status {resp.status_code}"
+                        )
                         break
 
                     data = resp.json()

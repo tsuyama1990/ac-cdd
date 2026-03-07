@@ -1,3 +1,4 @@
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -26,10 +27,12 @@ class TestAuditorPollingExit:
         nodes.git.checkout_pr = AsyncMock()  # Skip PR checkout logic
         nodes.git.get_changed_files = AsyncMock(return_value=["test.py"])  # To proceed to review
         nodes.git.runner = AsyncMock()  # Used in static analysis
-        async def mock_run_command(*args, **kwargs):
+
+        async def mock_run_command(*args: Any, **kwargs: Any) -> tuple[str, str, int]:
             if isinstance(args[0], list) and "check-ignore" in args[0]:
                 return ("", "", 1)
             return ("", "", 0)
+
         nodes.git.runner.run_command = AsyncMock(side_effect=mock_run_command)
 
         # Mock reviewer to avoid LLM call

@@ -380,7 +380,7 @@ class WorkflowService:
             console.print(f"[bold red]Finalization failed:[/bold red] {e}")
             sys.exit(1)
 
-    async def _archive_and_reset_state(self) -> None:  # noqa: C901
+    async def _archive_and_reset_state(self) -> None:  # noqa: C901, PLR0912, PLR0915
         """
         Archives current session artifacts to dev_documents/system_prompts_phaseNN
         and resets the state for the next phase.
@@ -444,6 +444,23 @@ class WorkflowService:
             for item in tutorials_dir.iterdir():
                 await move_item(item, phase_tutorials_dir / item.name)
             tutorials_dir.mkdir(exist_ok=True)
+
+        # Cycle subdirectories (dev_documents/templates/CYCLENN/)
+        # These contain SPEC.md, UAT.md, schema.py, PLAN_THOUGHTS.md per cycle.
+        # Must be archived so they are not silently deleted on next phase start.
+        templates_dir = settings.paths.templates  # dev_documents/templates/
+        if templates_dir.exists():
+            cycle_dirs = sorted(
+                [d for d in templates_dir.iterdir() if d.is_dir() and d.name.startswith("CYCLE")]
+            )
+            if cycle_dirs:
+                phase_templates_dir = phase_dir / "templates"
+                phase_templates_dir.mkdir(parents=True, exist_ok=True)
+                for cycle_dir in cycle_dirs:
+                    await move_item(cycle_dir, phase_templates_dir / cycle_dir.name)
+                console.print(
+                    f"[dim]Archived {len(cycle_dirs)} CYCLE director(ies) to {phase_templates_dir}[/dim]"
+                )
 
         # 3. Archive State (project_state.json)
         state_mgr = StateManager()
