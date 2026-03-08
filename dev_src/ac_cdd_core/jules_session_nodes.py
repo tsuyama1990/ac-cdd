@@ -85,7 +85,9 @@ class JulesSessionNodes:
                     # We only nudge for working states (not AWAITING_* which already
                     # have their own response path).
                     stale_working_states = {"IN_PROGRESS", "PLANNING", "QUEUED"}
-                    if state.jules_state in stale_working_states:
+                    stale_feedback_states = {"AWAITING_USER_FEEDBACK"}
+                    all_stale_states = stale_working_states | stale_feedback_states
+                    if state.jules_state in all_stale_states:
                         stale_seconds = now() - state.last_jules_state_change_time
                         if stale_seconds >= stale_timeout:
                             if state.stale_nudge_count >= max_nudges:
@@ -103,19 +105,30 @@ class JulesSessionNodes:
                             # Send nudge message to Jules
                             state.stale_nudge_count += 1
                             state.last_jules_state_change_time = now()  # reset so we don't spam
-                            nudge_msg = (
-                                f"Jules, you have been in {state.jules_state} state for "
-                                f"over {stale_timeout // 60} minutes without any progress. "
-                                "Please wrap up your current work and create a pull request "
-                                "with whatever changes you have made so far. "
-                                "If you are done, please run the final submission."
-                            )
+                            if state.jules_state in stale_working_states:
+                                nudge_msg = (
+                                    f"Jules, you have been in {state.jules_state} state for "
+                                    f"over {stale_timeout // 60} minutes without any progress. "
+                                    "Please wrap up your current work and create a pull request "
+                                    "with whatever changes you have made so far. "
+                                    "If you are done, please run the final submission."
+                                )
+                            else:
+                                # AWAITING_USER_FEEDBACK: re-prompt Jules to proceed
+                                nudge_msg = (
+                                    f"Jules, you have been waiting for user input for "
+                                    f"over {stale_seconds // 60:.0f} minutes. "
+                                    "If you were waiting for a response, please proceed with "
+                                    "your best judgment and create a pull request with the "
+                                    "current state of your work. Do not wait any longer."
+                                )
                             logger.warning(
                                 f"Sending stale-session nudge #{state.stale_nudge_count} to Jules "
-                                f"(silent for {stale_seconds:.0f}s)"
+                                f"(silent in {state.jules_state} for {stale_seconds:.0f}s)"
                             )
                             console.print(
-                                f"[yellow]Jules has been silent for {stale_seconds / 60:.1f} min. "
+                                f"[yellow]Jules stale in {state.jules_state} for "
+                                f"{stale_seconds / 60:.1f} min. "
                                 f"Sending nudge #{state.stale_nudge_count}...[/yellow]"
                             )
                             await self.client._send_message(state.session_url, nudge_msg)

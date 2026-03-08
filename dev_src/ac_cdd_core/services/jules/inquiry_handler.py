@@ -78,36 +78,32 @@ class JulesInquiryHandler:
     def extract_activity_message(
         self, act: dict[str, Any], jules_state: str | None = None
     ) -> str | None:
-        """Extract a message from an activity ONLY if it is a genuine user-directed inquiry.
+        """Extract a question message from an activity per the official Jules API spec.
 
-        Jules API activity types that represent a real question:
-        - ``inquiryAsked``:       Jules is explicitly asking the user a question
-          (session enters AWAITING_USER_FEEDBACK state)
-        - ``userActionRequired``: Jules cannot proceed without user action
+        Official Jules API activity types (source: jules.google/docs/api/reference/activities/):
+        - ``planGenerated``:     Jules created a plan (handled by plan-approval flow)
+        - ``planApproved``:      Plan approved
+        - ``userMessaged``:      Message from user  (``userMessage`` field)
+        - ``agentMessaged``:     Message from Jules (``agentMessage`` field)
+        - ``progressUpdated``:   Status update during execution (``title``, ``description``)
+        - ``sessionCompleted``:  Session finished successfully
+        - ``sessionFailed``:     Session encountered an error (``reason`` field)
 
-        Activity types that should NOT trigger a response (Jules internal monologue):
-        - ``progressUpdated``:    status update / progress log
-        - ``agentMessaged``:      Jules internal note / analysis (e.g. Root Cause Analysis)
-        - ``planGenerated``:      handled separately by plan-approval flow
-        - ``sessionCompleted``:   session end marker
+        NOTE: ``inquiryAsked`` and ``userActionRequired`` do NOT exist in the official API.
+        They were previously assumed but are not documented.
+
+        When Jules enters AWAITING_USER_FEEDBACK, it has posted an ``agentMessaged`` activity
+        containing the question in the ``agentMessage`` field. We only pick up ``agentMessaged``
+        when the session is explicitly in AWAITING_USER_FEEDBACK to avoid replying to Jules'
+        internal progress messages during IN_PROGRESS.
         """
-        msg = None
-        if "inquiryAsked" in act:
-            inquiry = act["inquiryAsked"]
-            msg = inquiry.get("inquiry", inquiry.get("question"))
-        elif "userActionRequired" in act:
-            details = act["userActionRequired"]
-            msg = details.get("reason", "User action required (check console).")
+        # AWAITING_USER_FEEDBACK: Jules' question arrives as agentMessaged.agentMessage
+        if jules_state == "AWAITING_USER_FEEDBACK" and "agentMessaged" in act:
+            val = act["agentMessaged"].get("agentMessage")
+            return str(val) if val is not None else None
 
-        # Fallback: If Jules actually entered AWAITING_USER_FEEDBACK but used an internal
-        # monologue field to ask its question, we must pick it up to avoid a silent hang.
-        if not msg and jules_state == "AWAITING_USER_FEEDBACK":
-            if "agentMessaged" in act:
-                msg = act["agentMessaged"].get("message", act["agentMessaged"].get("content"))
-            elif "message" in act:
-                msg = act["message"].get("content")
-
-        return msg
+        # All other states: do not reply (Jules is working internally)
+        return None
 
     async def fetch_pending_plan(
         self, client: httpx.AsyncClient, session_url: str, processed_ids: set[str]
