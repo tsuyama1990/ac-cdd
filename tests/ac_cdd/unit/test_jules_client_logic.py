@@ -101,11 +101,13 @@ class TestJulesClientLogic(unittest.IsolatedAsyncioTestCase):
                 }
             elif call_n == 2:
                 # Genuine question while AWAITING_USER_FEEDBACK - must be answered
+                # Official Jules API: AWAITING_USER_FEEDBACK + agentMessaged.agentMessage
+                # (inquiryAsked does NOT exist in the official Jules API)
                 mock.json.return_value = {
                     "activities": [
                         {
                             "name": question_id,
-                            "inquiryAsked": {"inquiry": "Which file should I edit?"},
+                            "agentMessaged": {"agentMessage": "Which file should I edit?"},
                         }
                     ]
                 }

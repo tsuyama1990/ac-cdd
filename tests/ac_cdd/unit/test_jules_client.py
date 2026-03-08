@@ -126,7 +126,9 @@ async def test_interactive_inquiry_handling(
                         "activities": [
                             {
                                 "name": "act1",
-                                "inquiryAsked": {"inquiry": "Should I continue?"},
+                                # Official Jules API: agentMessaged.agentMessage
+                                # (not inquiryAsked which does not exist in the API)
+                                "agentMessaged": {"agentMessage": "Should I continue?"},
                             }
                         ]
                     },

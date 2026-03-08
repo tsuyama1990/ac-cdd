@@ -430,7 +430,7 @@ class JulesClient:
 
                 # If awaiting feedback, track the latest inquiry
                 if state == "AWAITING_USER_FEEDBACK":
-                    msg = self.inquiry_handler.extract_activity_message(act)
+                    msg = self.inquiry_handler.extract_activity_message(act, jules_state=state)
                     if msg:
                         ts = act.get("createTime", "")
                         if ts >= latest_ts:
