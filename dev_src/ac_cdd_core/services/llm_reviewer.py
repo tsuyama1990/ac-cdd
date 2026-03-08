@@ -48,13 +48,16 @@ class LLMReviewer:
                             "role": "system",
                             "content": (
                                 "You are an automated code reviewer. You must strictly follow the "
-                                "provided instructions and only review the target code. You MUST return valid JSON."
+                                "provided instructions and only review the target code. You MUST return valid JSON. "
+                                "IMPORTANT: Report only the most critical issues. Limit your 'issues' array to a "
+                                "MAXIMUM of 10 issues to prevent excessively large JSON generation."
                             ),
                         },
                         {"role": "user", "content": prompt},
                     ],
                     response_format=AuditorReport,
                     temperature=0.0,  # Deterministic output for reviews
+                    max_tokens=8192,  # Prevent generating astronomically huge JSON strings that get truncated
                 )
 
                 content_str = response.choices[0].message.content
