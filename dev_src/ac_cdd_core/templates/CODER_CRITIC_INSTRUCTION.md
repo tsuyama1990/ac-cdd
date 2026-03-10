@@ -54,6 +54,18 @@ You must not leave any code half-finished.
 Remove any `TODO`, `FIXME`, empty functions, `pass`, `...`, or fake log outputs (e.g., just printing `logger.info("Processing...")` instead of performing the actual logic). 
 You must implement the real logic required by the specification. If any core logic is simulated or stubbed out in the production code, you MUST fully implement it before replying.
 
+## 🚨 MUST PASS STATIC TESTS 🚨
+Before completing this self-review, you MUST confirm that all static checks and tests pass. This is non-negotiable.
+1. **Tests & Coverage**: Run `pytest` and verify the coverage reports.
+2. **Linting & Formatting**: Run `ruff check .` and `ruff format .`.
+3. **Type Checking**: Run `mypy .`.
+
+**CRITICAL LOOP RULE**: If you modify even a *single line of code* during this self-critic phase (either manually or via auto-format), you MUST restart the entire static validation sequence from the beginning before raising the PR.
+*Example Workflow:*
+1. `ruff check .` -> OK
+2. `ruff format .` -> Files modified...
+3. 🔁 You MUST start over and run `ruff check .`, `mypy .`, and `pytest` again to ensure the modified files did not introduce new issues.
+
 **FINAL ACTION**:
 If you found ANY of the above issues, **FIX THE CODE NOW** using your file editing tools, re-run your tests, and confirm they pass.
 Once you are 100% confident your code is perfect, reply confirming that the Self-Critic review is complete and the code is ready for the external Auditor.
