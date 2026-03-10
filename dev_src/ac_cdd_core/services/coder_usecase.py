@@ -151,7 +151,9 @@ class CoderUseCase:
             instruction = settings.get_template("REFACTOR_INSTRUCTION.md").read_text()
         else:
             instruction = settings.get_template("CODER_INSTRUCTION.md").read_text()
-            instruction = instruction.replace("{{cycle_id}}", str(cycle_id))
+        
+        # Always inject cycle_id for both phases to provide precise scope
+        instruction = instruction.replace("{{cycle_id}}", str(cycle_id))
 
         # 4. Handle Feedback Injection / Reuse session
         last_audit = state.audit_result
@@ -223,6 +225,26 @@ class CoderUseCase:
                 result = await self.jules.wait_for_completion(result["session_name"])
 
             if result.get("status") == "success" or result.get("pr_url"):
+                if iteration == 0:
+                    console.print("[bold cyan]Initial Coder PR created. Invoking Coder Critic for self-reflection before Auditor review...[/bold cyan]")
+                    try:
+                        critic_instruction = settings.get_template("CODER_CRITIC_INSTRUCTION.md").read_text()
+                        critic_instruction = critic_instruction.replace("{{cycle_id}}", str(cycle_id))
+                        
+                        session_name = result.get("session_name") or session_req_id
+                        session_url = self.jules._get_session_url(session_name)
+                        await self.jules._send_message(session_url, critic_instruction)
+                        
+                        console.print("[dim]Waiting for Coder Critic to finish review and push fixes...[/dim]")
+                        import asyncio
+                        await asyncio.sleep(10)
+                        
+                        result = await self.jules.wait_for_completion(session_name)
+                        if result.get("session_name"):
+                            mgr.update_cycle_state(cycle_id, jules_session_id=result["session_name"])
+                    except Exception as e:
+                        console.print(f"[yellow]Warning: Coder Critic phase error, proceeding: {e}[/yellow]")
+
                 if cycle_manifest:
                     mgr.update_cycle_state(cycle_id, session_restart_count=0)
                 return {"status": FlowStatus.READY_FOR_AUDIT, "pr_url": result.get("pr_url")}

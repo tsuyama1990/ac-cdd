@@ -83,7 +83,9 @@ class SandboxRunner:
                 # Docker container (to avoid host-venv path leakage), but /opt/ is
                 # not writable inside E2B, so ruff/mypy fail with "Permission denied".
                 sandbox_env: dict[str, str] = dict(env or {})
-                sandbox_env.setdefault("UV_PROJECT_ENVIRONMENT", "")  # clear if not overridden
+                # Forcefully clear the variable inherited from the Docker container
+                if "UV_PROJECT_ENVIRONMENT" in sandbox_env:
+                    sandbox_env.pop("UV_PROJECT_ENVIRONMENT")
 
                 exec_result = sandbox.commands.run(
                     command_str, cwd=self.cwd, envs=sandbox_env, timeout=settings.sandbox.timeout

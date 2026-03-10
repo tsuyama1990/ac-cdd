@@ -19,6 +19,12 @@ else
     TARGET_USER=$(id -nu "$HOST_UID")
 fi
 
+# Ensure UV_PROJECT_ENVIRONMENT is writable by the user
+if [ -n "$UV_PROJECT_ENVIRONMENT" ]; then
+    mkdir -p "$UV_PROJECT_ENVIRONMENT"
+    chown -R "$TARGET_USER:$HOST_GID" "$UV_PROJECT_ENVIRONMENT"
+fi
+
 # Add /app to safe.directory
 git config --system --add safe.directory /app
 

@@ -40,6 +40,7 @@ class PlanAuditor:
         plan_details: dict[str, Any],
         context_files: dict[str, str],
         phase: str = "coder",  # "architect" or "coder"
+        cycle_id: str | None = None,
     ) -> PlanAuditResult:
         """
         Audits a plan against the requirements.
@@ -78,29 +79,30 @@ class PlanAuditor:
                 "If it covers the main components and structure, APPROVE it."
             )
         else:  # coder phase
+            c_str = f"CYCLE {cycle_id}" if cycle_id else "THIS CYCLE"
             user_prompt = (
                 f"Please audit the following IMPLEMENTATION PLAN against the requirements.\n\n"
                 f"{context_str}\n"
                 f"{plan_str}\n\n"
                 "**IMPORTANT CONTEXT:**\n"
-                "This is an IMPLEMENTATION PLAN from the Coder (Jules) for a SPECIFIC CYCLE.\n"
+                f"This is an IMPLEMENTATION PLAN from the Coder (Jules) for a SPECIFIC CYCLE.\n"
                 "The Coder's job is to:\n"
-                "- Implement the actual code for the components REQUIRED IN THIS CYCLE ONLY\n"
-                "- Write tests and ensure functionality FOR THIS CYCLE'S FEATURES\n"
+                f"- Implement the actual code for the components REQUIRED IN {c_str} ONLY\n"
+                f"- Write tests and ensure functionality FOR {c_str}'S FEATURES\n"
                 "- Follow the architecture defined in the Architect phase\n\n"
                 "**CRITICAL SCOPE LIMITATION:**\n"
-                "- The context above includes 'CURRENT CYCLE: XX' - this defines which cycle you're reviewing\n"
-                "- The SPEC.md and UAT.md files are for THIS SPECIFIC CYCLE ONLY\n"
-                "- Do NOT require features from other cycles to be implemented in this plan\n"
-                "- The plan should focus ONLY on what's specified in the provided SPEC.md\n"
+                f"- The context above includes 'CURRENT CYCLE: {cycle_id or 'XX'}' - this defines which cycle you're reviewing\n"
+                f"- The SPEC.md and UAT.md files contain requirements. Focus ONLY on {c_str}\n"
+                f"- Do NOT require features from other cycles to be implemented in this plan\n"
+                f"- The plan should focus ONLY on what's specified in the provided SPEC.md for {c_str}\n"
                 "- Future cycles will handle additional features - that's by design\n\n"
                 "**APPROVAL CRITERIA:**\n"
-                "- APPROVE if the plan covers the implementation steps for THIS CYCLE'S requirements (as defined in SPEC.md)\n"
-                "- APPROVE if the plan includes testing and verification for THIS CYCLE'S features\n"
+                f"- APPROVE if the plan covers the implementation steps for {c_str}'S requirements (as defined in SPEC.md)\n"
+                f"- APPROVE if the plan includes testing and verification for {c_str}'S features\n"
                 "- APPROVE if the plan is technically sound and feasible\n"
-                "- Do NOT reject for missing features that are not in THIS CYCLE'S SPEC.md\n"
-                "- REJECT only if the plan is missing critical steps for THIS CYCLE or has major technical flaws\n\n"
-                "Be pragmatic: A good implementation plan covers THIS CYCLE'S tasks thoroughly. "
+                f"- Do NOT reject for missing features that are not in {c_str}'S SPEC.md\n"
+                f"- REJECT only if the plan is missing critical steps for {c_str} or has major technical flaws\n\n"
+                f"Be pragmatic: A good implementation plan covers {c_str}'S tasks thoroughly. "
                 "If it addresses the requirements in the provided SPEC.md, APPROVE it."
             )
 

@@ -296,11 +296,23 @@ class Settings(BaseSettings):
         if not p.exists():
             p = Path.cwd() / "dev_documents"
 
-        # Explicitly look for the main spec file only
-        # User feedback: "ALL_SPEC.md だけでいいんじゃない？" - Strict filtering prevents noise
-        spec_file = p / self.filename_spec
-        if spec_file.exists():
-            return [str(spec_file)]
+        # explicit file list to include all vital architectural and testing context
+        target_files = [
+            self.filename_spec,
+            self.filename_arch,
+            "SPEC.md",
+            "UAT.md",
+            "USER_TEST_SCENARIO.md"
+        ]
+        
+        found_files = []
+        for fname in target_files:
+            fpath = p / fname
+            if fpath.exists() and str(fpath) not in found_files:
+                found_files.append(str(fpath))
+                
+        if found_files:
+            return found_files
 
         # Fallback: if main spec missing, include all MDs (legacy behavior)
         if p.exists():

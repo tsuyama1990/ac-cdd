@@ -11,7 +11,8 @@ Your goal is to analyze the raw requirements in `dev_documents/ALL_SPEC.md` and 
 5. **DO NOT CREATE IMPLEMENTATION PLANS.** You are creating documentation, not planning how to code. Just create the files and submit the PR.
 6. Once you have created all the required files, the system will automatically generate a Pull Request.
 7. **DO NOT DELETE OR MODIFY FILES AFTER CREATION.** If you receive any internal review feedback about word counts or quality, **IGNORE IT** and keep the files as-is. The files will be reviewed by the external Auditor agent, not by you.
-8. **PRESERVE EXISTING ASSETS**: This is an existing codebase. You must **FIRST analyze the existing code** to thoroughly understand its current functions and capabilities. Treat `ALL_SPEC.md` as an *additive* or *evolutionary* request. Devise a strategy where existing code is modified only when absolutely necessary, ensuring the new features listed in `ALL_SPEC.md` perfectly coexist with the existing architecture. Do NOT plan to rewrite the entire system from scratch. Maximize the reuse of existing modules, schemas, and tests.
+8. **DO NOT OVERWRITE ALL_SPEC.md**: `ALL_SPEC.md` is your **INPUT**. You must NOT regenerate or overwrite it. Doing so will destroy the original user requirements. You must only read from it.
+9. **PRESERVE EXISTING ASSETS**: This is an existing codebase. You must **FIRST analyze the existing code** to thoroughly understand its current functions and capabilities. Treat `ALL_SPEC.md` as an *additive* or *evolutionary* request. Devise a strategy where existing code is modified only when absolutely necessary, ensuring the new features listed in `ALL_SPEC.md` perfectly coexist with the existing architecture. Do NOT plan to rewrite the entire system from scratch. Maximize the reuse of existing modules, schemas, and tests.
 9. **MODERN & SCALABLE DESIGN**: Ensure the architecture leverages modern software design patterns (e.g., Dependency Injection, Repository Pattern, Factory limits) and guarantees strict separation of concerns to avoid "God Classes" and tightly coupled logic.
 
 ## Inputs
@@ -22,9 +23,9 @@ Your goal is to analyze the raw requirements in `dev_documents/ALL_SPEC.md` and 
 You must generate (create) the following files in the repository:
 
 - `dev_documents/system_prompts/SYSTEM_ARCHITECTURE.md`
-- `dev_documents/ALL_SPEC.md` (The Main Specification Document)
 - `dev_documents/USER_TEST_SCENARIO.md` (Main Acceptance Criteria)
 - `pyproject.toml`
+- `README.md`
 
 ### File Content Requirements
 
@@ -58,13 +59,9 @@ If you have any good suggestions for the  `ALL_SPEC.md` file, you must suggest t
    - How each cycle will be tested (Unit, Integration, E2E).
    - **MUST Include**: A strategy for executing these tests without side-effects (e.g. mocking external requests, using temporary directories for file I/O).
 
-#### 2. `dev_documents/ALL_SPEC.md` (The Entire Cycle Specifications)
-Write the complete feature specification sequentially in this file.
-**Requirements:**
-- **Language**: Simple British English.
-- **Format**: Markdown. Change the lines appropriately.
 
-#### 3. `dev_documents/USER_TEST_SCENARIO.md` (The Entire User Acceptance Tests)
+
+#### 2. `dev_documents/USER_TEST_SCENARIO.md` (The Entire User Acceptance Tests)
 Provide user-level test scenarios.
 **Requirements:**
 - **Language**: Simple British English.
@@ -81,7 +78,7 @@ Provide user-level test scenarios.
 2. **Behavior Definitions** (Min 500 words)
    - Gherkin-style (GIVEN/WHEN/THEN) definitions.
 
-#### 4. `dev_documents/USER_TEST_SCENARIO.md` (Refinement)
+#### 3. `dev_documents/USER_TEST_SCENARIO.md` (Refinement)
 The Master Plan for User Acceptance Testing and Tutorials.
 If the input `USER_TEST_SCENARIO.md` is incomplete, the Architect may refine it to add more specific test cases based on the architecture.
 
@@ -99,7 +96,7 @@ If the input `USER_TEST_SCENARIO.md` is incomplete, the Architect may refine it 
 3. **Tutorial Validation**
    - Validate that the Marimo file executes correctly.
 
-#### 5. `pyproject.toml` - Linter Configuration
+#### 4. `pyproject.toml` - Linter Configuration
 
 **IMPORTANT:** This project enforces strict code quality standards using `ruff` and `mypy` in strict mode.
 

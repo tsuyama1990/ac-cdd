@@ -32,16 +32,16 @@ class JulesContextBuilder:
         return full_prompt
 
     def load_cycle_docs(self, current_cycle: str, context_parts: list[str]) -> None:
-        """Load SPEC.md and UAT.md for the current cycle."""
-        spec_path = Path(f"dev_documents/system_prompts/CYCLE{current_cycle}/SPEC.md")
-        if spec_path.exists():
-            spec_content = spec_path.read_text(encoding="utf-8")
-            context_parts.append(f"\n## Cycle Specification\n```markdown\n{spec_content}\n```\n")
-
-        uat_path = Path(f"dev_documents/system_prompts/CYCLE{current_cycle}/UAT.md")
-        if uat_path.exists():
-            uat_content = uat_path.read_text(encoding="utf-8")
-            context_parts.append(f"\n## User Acceptance Tests\n```markdown\n{uat_content}\n```\n")
+        """Load project context docs for the current cycle."""
+        context_files = settings.get_context_files()
+        for filepath in context_files:
+            try:
+                path = Path(filepath)
+                if path.exists():
+                    content = path.read_text(encoding="utf-8")
+                    context_parts.append(f"\n## Context File: {path.name}\n```markdown\n{content}\n```\n")
+            except Exception as e:
+                logger.debug(f"Could not read context file {filepath}: {e}")
 
     async def load_changed_files(self, context_parts: list[str]) -> None:
         """Load content of changed files in the current branch."""

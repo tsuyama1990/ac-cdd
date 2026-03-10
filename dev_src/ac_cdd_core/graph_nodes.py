@@ -38,19 +38,17 @@ class CycleNodes(IGraphNodes):
         instruction = settings.get_template("ARCHITECT_INSTRUCTION.md").read_text()
 
         # Logic moved from CLI: requested_cycle_count is now the primary driver if present
-        if state.get("requested_cycle_count"):
-            n = state.get("requested_cycle_count")
+        n = state.get("requested_cycle_count") or state.get("planned_cycle_count")
+        
+        if n:
+            instruction = instruction.replace("{{max_cycles}}", str(n))
             instruction += (
                 f"\n\nIMPORTANT CONSTRAINT: The development plan MUST be divided into "
                 f"exactly {n} implementation cycles."
             )
-        # Fallback if just planned_cycle_count is used (backward compatibility)
-        elif state.get("planned_cycle_count"):
-            n = state.get("planned_cycle_count")
-            instruction += (
-                f"\n\nIMPORTANT CONSTRAINT: The development plan MUST be divided into "
-                f"exactly {n} implementation cycles."
-            )
+        else:
+            # Fallback if no specific cycle count is requested
+            instruction = instruction.replace("{{max_cycles}}", "an appropriate number of")
 
         context_files = settings.get_context_files()
 
