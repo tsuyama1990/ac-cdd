@@ -62,20 +62,6 @@ What defines a successful user experience?
             logger.info(f"✓ Created {uts_dest}")
 
     def copy_default_templates(self, system_prompts_dir: Path) -> None:
-        template_files = [
-            "ARCHITECT_INSTRUCTION.md",
-            "AUDITOR_INSTRUCTION.md",
-            "REFACTOR_AUDITOR_INSTRUCTION.md",
-            "CODER_INSTRUCTION.md",
-            "REFACTOR_INSTRUCTION.md",
-            "UAT_DESIGN.md",
-            "MANAGER_INSTRUCTION.md",
-            "MANAGER_INQUIRY_PROMPT.md",
-            "PLAN_REVIEW_PROMPT.md",
-            "QA_TUTORIAL_INSTRUCTION.md",
-            "QA_AUDITOR_INSTRUCTION.md",
-        ]
-
         # Use absolute path to ac_cdd_core package templates
         import ac_cdd_core
 
@@ -84,6 +70,8 @@ What defines a successful user experience?
         if not source_dir.exists():
             logger.warning(f"Template source directory not found: {source_dir}")
             return
+
+        template_files = [f.name for f in source_dir.glob("*.md")]
 
         for template_file in template_files:
             source_file = source_dir / template_file
