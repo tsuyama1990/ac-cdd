@@ -39,7 +39,7 @@ class CoderUseCase:
     #  Public entry point                                                  #
     # ------------------------------------------------------------------ #
 
-    async def execute(self, state: CycleState) -> dict[str, Any]:
+    async def execute(self, state: CycleState) -> dict[str, Any]:  # noqa: PLR0911
         """Routes the coder session through its many possible modes."""
         cycle_id = state.cycle_id
         iteration = state.iteration_count
@@ -59,7 +59,12 @@ class CoderUseCase:
         if result:
             return result
 
-        # 3. Build the instruction prompt (+ optional feedback injection)
+        # 3. Session reuse: send feedback to the existing session instead of launching a new one
+        result = await self._try_reuse_session(cycle_manifest, state)
+        if result:
+            return result
+
+        # 4. Build the instruction prompt (+ optional feedback injection)
         console.print(
             f"[bold green]Starting {phase_label} Session for Cycle {cycle_id} "
             f"(Iteration {iteration})...[/bold green]"
@@ -80,8 +85,9 @@ class CoderUseCase:
             )
 
             if result.get("status") == "success" or result.get("pr_url"):
-                # 5. Self-Critic phase (initial PR only)
-                if iteration == 0 and jules_session_name:
+                # 5. Self-Critic phase: initial PR only, skip on audit retries
+                is_initial_pr = iteration == 0 and state.status != FlowStatus.RETRY_FIX
+                if is_initial_pr and jules_session_name:
                     result = await self._run_critic_phase(cycle_id, jules_session_name) or result
 
                 if cycle_manifest:
@@ -172,7 +178,7 @@ class CoderUseCase:
                 last_audit.feedback, cycle_manifest.pr_url if cycle_manifest else None
             )
 
-        return instruction
+        return str(instruction)
 
     async def _try_reuse_session(
         self, cycle_manifest: CycleManifest | None, state: CycleState
@@ -263,7 +269,7 @@ class CoderUseCase:
             console.print("[dim]Waiting for Coder Critic to finish review and push fixes...[/dim]")
             await asyncio.sleep(10)
 
-            return await self.jules.wait_for_completion(jules_session_name)
+            return dict(await self.jules.wait_for_completion(jules_session_name))
         except Exception as e:
             console.print(f"[yellow]Warning: Coder Critic phase error, proceeding: {e}[/yellow]")
             return None
