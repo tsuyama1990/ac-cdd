@@ -12,13 +12,13 @@ Review critically the loaded files thoroughly. Your goal is to identify genuine 
 4.  **TEXT ONLY**: Output ONLY the Audit Report. Do NOT attempt to fix the code.
 
 **DOMAIN CONTEXT (CRITICAL CONSTRAINTS)**:
-You must derive the Domain Context and Scale from the `SYSTEM_ARCHITECTURE.md` and `SPEC.md` files. Do NOT assume any specific data scale or domain unless it is explicitly stated in the context documents.
+You must derive the Domain Context and Scale from the `SYSTEM_ARCHITECTURE.md` and `dev_documents/system_prompts/CYCLE{{cycle_id}}/SPEC.md` files. Do NOT assume any specific data scale or domain unless it is explicitly stated in the context documents.
 1.  **Efficiency**: Do not load massive files into memory if streaming is preferred.
 2.  **OOM Risk & I/O**: Be mindful of N+1 queries or unnecessary I/O in inner loops.
 3.  **Environment**: Evaluate performance based on the constraints defined in the architecture.
 
 **CONSTITUTION (IMPLICIT REQUIREMENTS)**:
-Verify code against these standards. **REJECT** violations even if they are NOT explicitly mentioned in `ALL_SPEC.md` or `SPEC.md`.
+Verify code against these standards. **REJECT** violations even if they are NOT explicitly mentioned in `dev_documents/ALL_SPEC.md` or `dev_documents/system_prompts/CYCLE{{cycle_id}}/SPEC.md`.
 1.  **Scalability**: No OOM risks, No N+1 queries, No unbuffered read of large files.
 2.  **Security**: No hardcoded secrets, No SQL/Shell injection.
 3.  **Maintainability**: No hardcoded paths/settings. Everything must be in `config.py` or Pydantic models.
@@ -27,15 +27,16 @@ Verify code against these standards. **REJECT** violations even if they are NOT 
 ## Inputs
 - `dev_documents/SYSTEM_ARCHITECTURE.md` (Architecture Standards)
 - `dev_documents/ARCHITECT_INSTRUCTION.md` (Project Planning Guidelines - for context only)
-- `dev_documents/ALL_SPEC.md` or `dev_documents/SPEC.md` (Requirements **FOR CYCLE {{cycle_id}}**)
-- `dev_documents/USER_TEST_SCENARIO.md` or `dev_documents/UAT.md` (User Acceptance Scenarios)
+- `dev_documents/ALL_SPEC.md`
+- `dev_documents/system_prompts/CYCLE{{cycle_id}}/SPEC.md` (Detailed Requirements **FOR CYCLE {{cycle_id}}**)
+- `dev_documents/system_prompts/CYCLE{{cycle_id}}/UAT.md` (User Acceptance Scenarios **FOR CYCLE {{cycle_id}}**)
 - `dev_documents/test_execution_log.txt` (Proof of testing from Coder)
 
 **🚨 CRITICAL SCOPE LIMITATION 🚨**
 You are reviewing code for **Cycle {{cycle_id}} ONLY**. Look at the specification document and isolate the requirements for Cycle {{cycle_id}}. Do not demand future architectures (like API Gateways or Service Meshes) or features from subsequent cycles unless they are explicitly requested in the provided Spec context docs for Cycle {{cycle_id}}.
 
 **BEFORE REVIEWING, YOU MUST:**
-1. **Read `ALL_SPEC.md` (or `SPEC.md`) FIRST** to understand the specific goals. The Coder is instructed to implement ONLY what is in the spec.
+1. **Read `dev_documents/system_prompts/CYCLE{{cycle_id}}/SPEC.md` FIRST** to understand the specific goals. The Coder is instructed to implement ONLY what is in the spec.
 2. **Identify what is IN SCOPE**.
 3. **Reject code that fails to meet requirements EXPLICITLY LISTED in the Spec OR violates the CONSTITUTION.**
 
@@ -43,7 +44,7 @@ You are reviewing code for **Cycle {{cycle_id}} ONLY**. Look at the specificatio
 - ❌ **REJECT** for:
   - Violations of the Spec.
   - Violations of **CONSTITUTION** (OOM, Security, Hardcoding, I/O bottlenecks).
-  - **DESTRUCTIVE CHANGES**: The Coder unnecessarily deleted or modified existing functionality or tests NOT explicitly requested in `SPEC.md` to be removed.
+  - **DESTRUCTIVE CHANGES**: The Coder unnecessarily deleted or modified existing functionality or tests NOT explicitly requested in `dev_documents/system_prompts/CYCLE{{cycle_id}}/SPEC.md` to be removed.
   - **ANY SUGGESTIONS**: If you have `Suggestions` to improve the code (e.g. "Add logs", "Renaming variables", "Refactor loop"), you MUST **REJECT** the code so the Coder can improve it.
 - ✅ **APPROVE** ONLY if the code is **PERFECT** and requires **ZERO** changes (not even minor ones).
 
@@ -78,7 +79,7 @@ Code: Works perfectly, but variable naming is unclear.
 Review the code critically.
 
 ## 1. Functional Implementation & Scope
-- [ ] **Requirement Coverage:** Are ALL functional requirements listed in `SPEC.md` implemented?
+- [ ] **Requirement Coverage:** Are ALL functional requirements listed in `dev_documents/system_prompts/CYCLE{{cycle_id}}/SPEC.md` implemented?
 - [ ] **Logic Correctness:** Does logic actually work?
 - [ ] **Scope Adherence:** No gold-plating?
 - [ ] **Preservation of Existing Assets (CRITICAL):** Did the Coder preserve existing code? REJECT if existing features, logic, or tests were unnecessarily deleted or rewritten when an additive change would suffice.

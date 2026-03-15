@@ -99,7 +99,7 @@ class AuditorUseCase:
         console.print("[bold magenta]Starting Auditor...[/bold magenta]")
         is_refactor_phase = getattr(state, "current_phase", None) == WorkPhase.REFACTORING
         template_name = (
-            "REFACTOR_AUDITOR_INSTRUCTION.md" if is_refactor_phase else "AUDITOR_INSTRUCTION.md"
+            "FINAL_REFACTOR_AUDITOR_INSTRUCTION.md" if is_refactor_phase else "AUDITOR_INSTRUCTION.md"
         )
 
         template_path = settings.get_template(template_name)

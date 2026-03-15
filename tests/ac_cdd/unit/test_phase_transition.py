@@ -22,7 +22,8 @@ class TestPhaseTransition:
 
         # Simulate Coder Phase state with final_fix=True (which causes the bug)
         state = CycleState(
-            cycle_id="test",
+            cycle_id="1",
+            planned_cycle_count=1,
             current_phase=WorkPhase.CODER,
             final_fix=True,
             iteration_count=5,

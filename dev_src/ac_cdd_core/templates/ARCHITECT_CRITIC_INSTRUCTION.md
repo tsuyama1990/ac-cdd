@@ -3,8 +3,16 @@
 Excellent work generating the initial architecture and implementation plan.
 Before we finalize this design, you **MUST** invoke your internal **Critic Agent** to thoroughly review your own work.
 
-Please critically evaluate your proposed `SYSTEM_ARCHITECTURE.md` (and any other design documents you created) against the original requirements in `ALL_SPEC.md`.
+Please critically evaluate your proposed `SYSTEM_ARCHITECTURE.md` and all per-cycle `SPEC.md` and `UAT.md` files against the original requirements in `ALL_SPEC.md`.
 **IMPORTANT:** Do NOT modify `ALL_SPEC.md`. Treat it as the absolute source of truth provided by the user.
+
+**REASONING PROTOCOL (Chain of Thought)**
+You must follow the architectural hierarchy in your reasoning process:
+1.  **Global Consistency** (`SYSTEM_ARCHITECTURE.md`): Does the overall structure solve all requirements in `ALL_SPEC.md`?
+2.  **Cycle Precision** (`SPEC.md` / `UAT.md`): Is each cycle's detail precise, decoupled, and implementable?
+3.  **Code Design Foundation** (Pydantic Schemas): Are the schema designs in `SPEC.md` sufficient for "Schema-First" development?
+
+**THINKING BLOCK REQUIREMENT**: At the beginning of your response, you MUST include a `<thought>` block where you perform an "Architectural Stress Test" (identifying edge cases, circular dependencies, and vague points) before formulating your review.
 
 You must perform your review in the following strict two-step process:
 
@@ -23,7 +31,7 @@ Second, verify that the high-level architecture defined in `SYSTEM_ARCHITECTURE.
 
 ## INSTRUCTIONS FOR NEXT STEPS:
 1. Write down your Critic Agent's deep validation and findings in a new file named `ARCHITECT_CRITIC_REVIEW.md`. Document alternative approaches you considered and why your final approach is superior.
-2. Based on your findings, **adjust `SYSTEM_ARCHITECTURE.md` (and other related plans, EXCEPT `ALL_SPEC.md`)** to fix any suboptimal designs, missing details, or vague cycle plans.
+2. Based on your findings, **adjust `SYSTEM_ARCHITECTURE.md` and the per-cycle `SPEC.md`/`UAT.md` files (EXCEPT `ALL_SPEC.md`)** to fix any suboptimal designs, missing details, or vague cycle plans.
 3. Commit all changes (including the new review doc).
 4. Push your changes and update the Pull Request.
 

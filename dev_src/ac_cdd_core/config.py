@@ -76,11 +76,11 @@ class JulesConfig(BaseModel):
 
     # LangGraph session monitoring
     monitor_batch_size: int = Field(
-        default=12,
+        default=1,
         description="Number of polls per LangGraph node invocation (batch_size * monitor_poll_interval_seconds = seconds per step).",
     )
     monitor_poll_interval_seconds: int = Field(
-        default=5,
+        default=30,
         description="Seconds between each poll within a monitor batch.",
     )
     stale_session_timeout_seconds: int = Field(

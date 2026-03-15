@@ -33,6 +33,7 @@ class FlowStatus(str, Enum):
     WAITING_FOR_JULES = "waiting_for_jules"
     NEXT_AUDITOR = "next_auditor"
     CYCLE_APPROVED = "cycle_approved"
+    POST_AUDIT_REFACTOR = "post_audit_refactor"
 
     # UAT & Refactor
     START_REFACTOR = "start_refactor"

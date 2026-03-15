@@ -203,6 +203,7 @@ class WorkflowService:
                 project_session_id=pid,
                 feature_branch=fb,  # Main development branch
                 integration_branch=ib,  # For future finalize-session
+                planned_cycle_count=len(manifest.cycles) if manifest else 0,
             )
 
             thread_id = f"cycle-{cycle_id}-{state.project_session_id}"

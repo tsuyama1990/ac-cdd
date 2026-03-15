@@ -258,8 +258,9 @@ If the file exists in your project's `dev_documents/system_prompts/`, it takes p
 | File | Used By | Description |
 |---|---|---|
 | `CODER_INSTRUCTION.md` | Jules (Coder) | Main prompt for the Coder agent when implementing features |
-| `REFACTOR_INSTRUCTION.md` | Jules (Coder) | Prompt used during refactoring cycles |
+| `FINAL_REFACTOR_INSTRUCTION.md` | Jules (Coder) | Prompt used during the final architectural refactoring phase |
 | `AUDITOR_INSTRUCTION.md` | LLM Reviewer | Code review instructions for the Auditor agent |
+| `FINAL_REFACTOR_AUDITOR_INSTRUCTION.md` | LLM Reviewer | Code review instructions for the final refactoring phase |
 | `ARCHITECT_INSTRUCTION.md` | Architect node | System design and cycle planning instructions |
 | `MANAGER_INSTRUCTION.md` | Manager Agent | Orchestration and decision-making instructions |
 | `QA_TUTORIAL_INSTRUCTION.md` | QA Agent | Instructions for generating UAT test scripts |

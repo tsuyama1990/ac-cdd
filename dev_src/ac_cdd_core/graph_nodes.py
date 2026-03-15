@@ -239,16 +239,17 @@ class CycleNodes(IGraphNodes):
     def check_coder_outcome(self, state: CycleState) -> str:
         from ac_cdd_core.enums import FlowStatus
 
+        status = state.get("status")
+        if status in {FlowStatus.FAILED, FlowStatus.ARCHITECT_FAILED}:
+            return str(FlowStatus.FAILED.value)
+
         if state.get("final_fix", False):
             return str(FlowStatus.COMPLETED.value)
 
-        status = state.get("status")
         if status == FlowStatus.CODER_RETRY:
             return str(FlowStatus.CODER_RETRY.value)
         if status == FlowStatus.READY_FOR_AUDIT:
             return str(FlowStatus.READY_FOR_AUDIT.value)
-        if status in {FlowStatus.FAILED, FlowStatus.ARCHITECT_FAILED}:
-            return str(FlowStatus.FAILED.value)
         return str(FlowStatus.COMPLETED.value)
 
     def check_audit_outcome(self, _state: CycleState) -> str:
@@ -262,7 +263,11 @@ class CycleNodes(IGraphNodes):
             return "auditor"
         if status == FlowStatus.CYCLE_APPROVED:
             return "uat_evaluate"
-        if status in {FlowStatus.RETRY_FIX, FlowStatus.WAIT_FOR_JULES_COMPLETION}:
+        if status in {
+            FlowStatus.RETRY_FIX,
+            FlowStatus.WAIT_FOR_JULES_COMPLETION,
+            FlowStatus.POST_AUDIT_REFACTOR,
+        }:
             return "coder_session"
         return "failed"
 

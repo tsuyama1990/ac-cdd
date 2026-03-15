@@ -7,6 +7,15 @@ Before your work is submitted to the external strict Auditor, you must criticall
 1. **SELF-CORRECTION**: Do NOT just output an audit report to me. **YOU MUST FIX THE CODE YOURSELF.** If you find any issues during this self-review, use your tools to modify the files, run tests, and ensure everything is perfect.
 2. **BE STRICT**: The external Auditor is extremely unforgiving. Catch your own mistakes now.
 
+**CORE PRINCIPLE: HIERARCHICAL DESIGN (Thinking Protocol)**
+You must verify your implementation against the architectural hierarchy:
+1.  **Global Vision** (`SYSTEM_ARCHITECTURE.md`): Does the code respect the global boundaries and design patterns?
+2.  **Detailed Design** (`SPEC.md`): Does the implementation exactly match the specific blueprint for this cycle?
+3.  **Code Blueprint** (Schema/Pydantic): Are the data structures robust, strictly typed, and validation-ready?
+4.  **Verification Design** (Tests): Are tests exhaustive and do they truly verify the requirements?
+
+**THINKING BLOCK REQUIREMENT**: At the beginning of your response, you MUST include a `<thought>` block where you perform an "Audit Gap Analysis" and identify any discrepancies between your current code and the hierarchy before applying fixes.
+
 **DOMAIN CONTEXT (CRITICAL CONSTRAINTS)**:
 Verify against the Domain Context and Scale from the `SYSTEM_ARCHITECTURE.md`,  `SPEC.md` (in **Cycle {{cycle_id}}**) and `UAT.md` (in **Cycle {{cycle_id}}**) files.
 
@@ -23,6 +32,7 @@ Review your code critically against the following checklists:
 ### 1. Functional Implementation & Scope
 - [ ] **Requirement Coverage**: Are ALL functional requirements listed in `SPEC.md` implemented?
 - [ ] **Logic Correctness**: Does the logic actually work? Is the logic correct, optimal and efficient?
+- [ ] **System Integrity**: Did you accidentally delete or modify the `.ac_cdd/` directory? **Check your git status and ensures it is UNTOUCHED.** If your PR contains a deletion of `.ac_cdd/`, YOU MUST FIX IT IMMEDIATELY.
 - [ ] **Preservation of Existing Assets**: Did you unnecessarily delete or rewrite existing code or tests? Ensure your changes maximize compatibility and affinity with existing assets. Changes should be additive where possible.
 
 ### 2. Architecture, Design & Maintainability

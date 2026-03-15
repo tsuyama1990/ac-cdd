@@ -41,8 +41,8 @@ class CommitteeUseCase:
                     "current_auditor_review_count": 1,
                     "status": FlowStatus.NEXT_AUDITOR,
                 }
-            console.print("[bold green]All Auditors Approved![/bold green]")
-            return {"status": FlowStatus.CYCLE_APPROVED}
+            console.print("[bold green]All Auditors Approved! Transitioning to Final Refactoring...[/bold green]")
+            return {"status": FlowStatus.POST_AUDIT_REFACTOR}
 
         if j < settings.REVIEWS_PER_AUDITOR:
             next_rev = j + 1
